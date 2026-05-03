@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Labour Compressor</title>
+    <link rel="stylesheet" href="/styles.css?v=20260501a" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <h1>Labour Compressor</h1>
+          <p>本地任务入口：导表、下载、视频级打标、回表、归档。</p>
+          <p class="build-version">UI build: 20260501a</p>
+        </div>
+        <div class="header-chip-list">
+          <span class="chip">Bilibili + yt-dlp</span>
+          <span class="chip">Qwen 视频级检测</span>
+          <span class="chip">Numbers / XLSX</span>
+        </div>
+      </header>
+
+      <section id="file-protocol-warning" class="panel warning hidden">
+        <h2>请通过本地服务打开</h2>
+        <p>
+          当前页面是直接从 <code>file://</code> 打开的，文件/目录选择、任务启动、状态流和回填接口都不会正常工作。
+        </p>
+        <p>
+          请改用 <a href="http://127.0.0.1:4311/" target="_blank" rel="noreferrer">http://127.0.0.1:4311/</a>
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>运行配置</h2>
+            <p>默认页只保留你必须理解的输入。总表、下载缓存、提示词库与内部开关由程序后台自动管理。</p>
+          </div>
+          <div class="actions compact">
+            <button id="open-provider-config" type="button">配置模型 API</button>
+            <button id="open-platform-credentials" type="button">配置下载凭证</button>
+            <button id="preflight-button" type="button">运行 Preflight</button>
+            <button id="run-button" type="button">启动任务</button>
+            <button id="build-afteredit-sheet" type="button">一键从 AfterEdit 生成表并载入</button>
+          </div>
+        </div>
+
+        <form id="task-form" class="layout">
+          <section class="subpanel">
+            <h3>任务输入</h3>
+
+            <div class="path-field drop-target" data-target="spreadsheet" data-kind="file">
+              <div class="path-meta">
+                <label for="spreadsheet">用户表路径</label>
+                <span>拖拽 `.numbers / .xlsx / .csv`，或点击选择文件。</span>
+              </div>
+              <div class="path-control">
+                <input id="spreadsheet" name="spreadsheet" required />
+                <button
+                  class="picker-button"
+                  type="button"
+                  data-dialog-kind="file"
+                  data-target="spreadsheet"
+                  data-prompt="选择用户表"
+                >
+                  选择文件
+                </button>
+              </div>
+            </div>
+
+            <div class="inline-grid compact-grid single-field-grid">
+              <label>打标模型
+                <select id="provider-profile" name="selectedModelProfileId"></select>
+              </label>
+            </div>
+
+            <div class="readonly-grid">
+              <div class="readonly-item">
+                <span class="readonly-label">标签库</span>
+                <span id="taxonomy-preset-display" class="readonly-value"></span>
+              </div>
+              <div class="readonly-item">
+                <span class="readonly-label">程序内总表</span>
+                <span id="master-spreadsheet-display" class="readonly-value"></span>
+              </div>
+              <div class="readonly-item">
+                <span class="readonly-label">下载缓存目录</span>
+                <span id="download-dir-display" class="readonly-value"></span>
+              </div>
+              <div class="readonly-item">
+                <span class="readonly-label">人工剪辑目录</span>
+                <span id="afteredit-dir-display" class="readonly-value"></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="subpanel">
+            <h3>授权与归档</h3>
+
+            <div class="path-field drop-target" data-target="archiveRoot" data-kind="folder">
+              <div class="path-meta">
+                <label for="archiveRoot">归档根目录</label>
+                <span>程序会在该目录下使用 `视频数据归档库/内容题材` 归档。</span>
+              </div>
+              <div class="path-control">
+                <input id="archiveRoot" name="archiveRoot" required />
+                <button
+                  class="picker-button"
+                  type="button"
+                  data-dialog-kind="folder"
+                  data-target="archiveRoot"
+                  data-prompt="选择归档根目录"
+                >
+                  选择目录
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <input id="taxonomy-preset" name="taxonomyPreset" type="hidden" />
+          <input id="masterSpreadsheetPath" name="masterSpreadsheetPath" type="hidden" />
+          <input id="writebackTarget" name="writebackTarget" type="hidden" />
+          <input id="promptLibrary" name="promptLibrary" type="hidden" />
+          <input id="providerConfigPath" name="providerConfigPath" type="hidden" />
+          <input id="platformCredentialConfigPath" name="platformCredentialConfigPath" type="hidden" />
+          <input id="downloadDir" name="downloadDir" type="hidden" />
+          <input id="downloaderMode" name="downloaderMode" type="hidden" />
+          <input id="mergeMode" name="mergeMode" type="hidden" />
+          <input id="taggingMode" name="taggingMode" type="hidden" />
+          <input id="manualEditGate" name="manualEditGate" type="hidden" />
+          <input id="afterEditDirectoryName" name="afterEditDirectoryName" type="hidden" />
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>任务状态</h2>
+            <p>任务状态只显示用户需要判断下一步的信息，原始日志收在调试区。</p>
+          </div>
+          <div class="actions compact">
+            <button id="export-failures" type="button" disabled>导出失败 CSV</button>
+          </div>
+        </div>
+
+        <div id="task-summary" class="status-shell">
+          <div class="status-card">
+            <span class="status-label">任务状态</span>
+            <strong id="status-overall">未开始</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">当前环节</span>
+            <strong id="status-phase">待机</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">当前文件</span>
+            <strong id="status-item">—</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">进度</span>
+            <strong id="status-progress">—</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">当前模型</span>
+            <strong id="status-model">—</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">来源模式</span>
+            <strong id="status-source">平台自动识别</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">当前平台</span>
+            <strong id="status-platform">—</strong>
+          </div>
+          <div class="status-card">
+            <span class="status-label">下一步操作</span>
+            <strong id="status-next-action">无</strong>
+          </div>
+        </div>
+
+        <div id="results-list" class="results-list empty-state">
+          <p>任务启动后，这里会显示文件名、当前环节和归档路径。</p>
+        </div>
+
+        <details class="debug-panel">
+          <summary>调试信息</summary>
+          <div class="dual-output">
+            <div>
+              <h3>Preflight</h3>
+              <pre id="preflight-output" class="output"></pre>
+            </div>
+            <div>
+              <h3>原始任务日志</h3>
+              <pre id="event-log" class="output log"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel">
+        <h2>格式边界</h2>
+        <ul class="notes">
+          <li>XLSX 是完整能力标准：支持程序内总表和本地文件超链接。</li>
+          <li>Numbers 保留兼容输入/输出，但不承诺本地文件超链接和自动着色。</li>
+          <li>正式视频打标始终走视频级检测，送模前固定压成 360p 缓存副本。</li>
+        </ul>
+      </section>
+    </main>
+    <dialog id="provider-config-dialog" class="config-dialog">
+      <form id="provider-config-form" method="dialog" class="config-dialog-card">
+        <div class="panel-header">
+          <div>
+            <h2>配置模型 API</h2>
+            <p>为当前选中的视频模型写入本地 API key，并立即做连通测试。</p>
+          </div>
+          <div class="actions compact">
+            <button id="close-provider-config" type="button" class="secondary-button">关闭</button>
+          </div>
+        </div>
+
+        <div class="readonly-grid">
+          <div class="readonly-item">
+            <span class="readonly-label">当前模型档</span>
+            <span id="provider-config-profile-label" class="readonly-value"></span>
+          </div>
+          <div class="readonly-item">
+            <span class="readonly-label">实际 provider / model id</span>
+            <span id="provider-config-provider-label" class="readonly-value"></span>
+          </div>
+          <div class="readonly-item">
+            <span class="readonly-label">当前配置状态</span>
+            <span id="provider-config-status-label" class="readonly-value"></span>
+          </div>
+        </div>
+
+        <label>
+          API Key
+          <input id="provider-api-key" type="password" autocomplete="off" placeholder="粘贴当前模型对应 provider 的 API key" />
+        </label>
+
+        <div class="actions">
+          <button id="save-provider-config" type="button">保存并连通测试</button>
+        </div>
+
+        <pre id="provider-config-output" class="output"></pre>
+      </form>
+    </dialog>
+    <dialog id="platform-credentials-dialog" class="config-dialog">
+      <form method="dialog" class="config-dialog-card">
+        <div class="panel-header">
+          <div>
+            <h2>配置下载凭证</h2>
+            <p>按平台维护 cookies.txt 或浏览器会话，下载时会按 URL 自动选用。</p>
+          </div>
+          <div class="actions compact">
+            <button id="close-platform-credentials" type="button" class="secondary-button">关闭</button>
+          </div>
+        </div>
+
+        <div id="platform-credentials-fields" class="platform-credential-list"></div>
+
+        <div class="actions">
+          <button id="save-platform-credentials" type="button">保存下载凭证</button>
+        </div>
+
+        <pre id="platform-credentials-output" class="output"></pre>
+      </form>
+    </dialog>
+    <script type="module" src="/app.js?v=20260427d"></script>
+  </body>
+</html>
