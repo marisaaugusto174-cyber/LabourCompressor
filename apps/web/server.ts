@@ -53,6 +53,10 @@ const server = createServer(async (request, response) => {
       return serveStatic(response, 'app.js', 'text/javascript; charset=utf-8');
     }
 
+    if (request.method === 'GET' && /^\/[a-z0-9-]+\.js$/u.test(url.pathname)) {
+      return serveStatic(response, url.pathname.slice(1), 'text/javascript; charset=utf-8');
+    }
+
     if (request.method === 'GET' && url.pathname === '/styles.css') {
       return serveStatic(response, 'styles.css', 'text/css; charset=utf-8');
     }
