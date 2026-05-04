@@ -8,16 +8,12 @@ export function renderAfterEditFiles(files, resultsList) {
   resultsList.classList.remove('empty-state');
   resultsList.innerHTML = files
     .map((file) => `
-      <article class="result-card">
-        <div class="result-card-header">
-          <strong>${escapeHtml(file.fileName ?? '剪辑文件')}</strong>
-          <span class="stage-pill stage-running">等待打标</span>
-        </div>
-        <p class="result-meta"><span>当前环节</span>剪辑后回表待处理</p>
-        <p class="result-meta"><span>相对路径</span>${escapeHtml(file.relativePath ?? '—')}</p>
-        <p class="result-meta"><span>原路径</span>${escapeHtml(file.originalRelativePath ?? '—')}</p>
-        <p class="result-meta"><span>文件名修正</span>${file.renamed ? '已修正' : '无需修正'}</p>
-      </article>
+      <div class="task-list-row">
+        <strong>${escapeHtml(file.fileName ?? '剪辑文件')}</strong>
+        <span class="stage-pill stage-running">等待打标</span>
+        <span>${escapeHtml(file.relativePath ?? '—')}</span>
+        <span>${file.renamed ? '文件名已修正' : '无需修正'}</span>
+      </div>
     `)
     .join('');
 }
@@ -30,40 +26,53 @@ export function renderResultCards(results, resultsList) {
   }
 
   resultsList.classList.remove('empty-state');
-  resultsList.innerHTML = results
-    .map((item) => {
-      const phaseLabel = deriveResultStage(item);
-      const fileName = deriveResultFileName(item);
-      const failureTypeMarkup = item.failure
-        ? `<p class="result-meta"><span>失败类型</span>${escapeHtml(humanizeFailureCode(item.failure.errorCode, item.failure.phase))}</p>`
-        : '';
-      const failureMarkup = item.failure?.errorMessage
-        ? `<p class="result-error">${escapeHtml(item.failure.errorMessage)}</p>`
-        : '';
-      const failureHintMarkup = item.failure
-        ? `<p class="result-hint">${escapeHtml(humanizeFailureHint(item.failure.errorCode, item.failure.phase))}</p>`
-        : '';
-      const waitingHintMarkup =
-        item.archiveState === '已下载待剪辑'
-          ? `<p class="result-hint">等待你把剪辑后的导出文件放进 AfterEdit 目录，再继续第二阶段任务。</p>`
-          : '';
-      return `
-        <article class="result-card">
-          <div class="result-card-header">
-            <strong>${escapeHtml(fileName)}</strong>
-            <span class="stage-pill stage-${stageClassName(item)}">${escapeHtml(phaseLabel)}</span>
-          </div>
-          <p class="result-meta"><span>当前环节</span>${escapeHtml(phaseLabel)}</p>
-          <p class="result-url">${escapeHtml(item.url)}</p>
-          <p class="result-meta"><span>归档路径</span>${escapeHtml(item.archivePath || '—')}</p>
-          ${failureTypeMarkup}
-          ${failureMarkup}
-          ${failureHintMarkup}
-          ${waitingHintMarkup}
-        </article>
-      `;
-    })
-    .join('');
+  resultsList.innerHTML = `
+    <div class="result-summary">${renderResultSummary(results)}</div>
+    <div class="task-list-header">
+      <span>文件</span>
+      <span>当前环节</span>
+      <span>归档路径</span>
+      <span>失败 / 下一步</span>
+    </div>
+    ${results.map((item) => renderResultRow(item)).join('')}
+  `;
+  resultsList.scrollTop = 0;
+}
+
+function renderResultSummary(results) {
+  const succeeded = results.filter((item) => item.archiveState === '已归档').length;
+  const failed = results.filter((item) => item.failure).length;
+  const waitingEdit = results.filter((item) => item.archiveState === '已下载待剪辑').length;
+  return `共 ${results.length} 条 · 归档成功 ${succeeded} · 失败 ${failed} · 等待剪辑 ${waitingEdit}`;
+}
+
+function renderResultRow(item) {
+  const phaseLabel = deriveResultStage(item);
+  const failureText = item.failure
+    ? `${humanizeFailureCode(item.failure.errorCode, item.failure.phase)}：${humanizeFailureHint(item.failure.errorCode, item.failure.phase)}`
+    : deriveNextStepText(item);
+
+  return `
+    <div class="task-list-row">
+      <strong>${escapeHtml(deriveResultFileName(item))}</strong>
+      <span class="stage-pill stage-${stageClassName(item)}">${escapeHtml(phaseLabel)}</span>
+      <span>${escapeHtml(item.archivePath || '—')}</span>
+      <span>${escapeHtml(failureText)}</span>
+    </div>
+  `;
+}
+
+function deriveNextStepText(item) {
+  if (item.archiveState === '已下载待剪辑') {
+    return '等待你把剪辑后的导出文件放进 AfterEdit 目录。';
+  }
+  if (item.archiveState === '已归档') {
+    return '无';
+  }
+  if (item.archiveState === '已下载未归档') {
+    return '等待人工确认归档类目。';
+  }
+  return '继续等待当前任务处理。';
 }
 
 function deriveResultStage(item) {

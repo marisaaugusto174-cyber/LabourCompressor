@@ -5,7 +5,7 @@
   "scripts": {
     "cli": "node apps/cli/main.ts",
     "web": "node apps/cli/main.ts serve-web-ui",
-    "test:taxonomy-domain": "node --test packages/testing/unit/archive/*.test.ts packages/testing/unit/cli/*.test.ts packages/testing/unit/core/*.test.ts packages/testing/unit/download/*.test.ts packages/testing/unit/governance/*.test.ts packages/testing/unit/retrieval/*.test.ts packages/testing/unit/spreadsheet/*.test.ts packages/testing/unit/tagging/*.test.ts packages/testing/unit/taxonomy/*.test.ts packages/testing/integration/phase2/*.test.ts packages/testing/integration/phase3/*.test.ts packages/testing/integration/phase4/*.test.ts"
+    "test:taxonomy-domain": "node --test packages/testing/unit/archive/*.test.ts packages/testing/unit/cli/*.test.ts packages/testing/unit/core/*.test.ts packages/testing/unit/download/*.test.ts packages/testing/unit/governance/*.test.ts packages/testing/unit/retrieval/*.test.ts packages/testing/unit/spreadsheet/*.test.ts packages/testing/unit/tagging/*.test.ts packages/testing/unit/taxonomy/*.test.ts packages/testing/unit/web/*.test.ts packages/testing/integration/phase2/*.test.ts packages/testing/integration/phase3/*.test.ts packages/testing/integration/phase4/*.test.ts"
   },
   "dependencies": {
     "xlsx": "^0.18.5"
