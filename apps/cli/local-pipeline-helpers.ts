@@ -80,9 +80,6 @@ export async function writePipelineResults(input: {
   readonly results: readonly PipelineRowState[];
   readonly startedAt: string;
 }): Promise<void> {
-  const usesStructuredTagColumns = ['归档状态', '一级标签', '二级标签', '三级标签', '四级标签', '归档路径', '归档文件名', '失败信息'].some(
-    (header) => input.headers.includes(header)
-  );
   const writebackTarget = input.options.writebackTarget ?? 'user';
 
   if (writebackTarget === 'user' || writebackTarget === 'both') {
@@ -91,16 +88,16 @@ export async function writePipelineResults(input: {
       acceptedTagsColumnName: input.options.acceptedTagsColumnName,
       updates: input.results.map((result) => ({
         rowNumber: result.rowNumber,
-        acceptedPaths: usesStructuredTagColumns ? undefined : result.acceptedPaths,
-        columnValues: usesStructuredTagColumns
-          ? {
-              归档状态: result.archiveState,
-              归档路径: result.archivePath,
-              归档文件名: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
-              失败信息: result.failure?.errorMessage ?? '',
-              ...result.levelValues
-            }
-          : undefined
+        columnValues: {
+          归档状态: result.archiveState,
+          一级标签: result.levelValues['一级标签'] ?? '',
+          二级标签: result.levelValues['二级标签'] ?? '',
+          三级标签: result.levelValues['三级标签'] ?? '',
+          四级标签: result.levelValues['四级标签'] ?? '',
+          归档路径: result.archivePath,
+          归档文件名: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
+          失败信息: result.failure?.errorMessage ?? ''
+        }
       }))
     });
   }
@@ -241,6 +238,8 @@ function toArchiveSpreadsheetCell(
   return {
     kind: 'hyperlink',
     label: result.archiveFileName,
-    target: pathToFileURL(path.join(archiveLibraryRoot, result.archivePath)).toString()
+    target: pathToFileURL(
+      path.join(archiveLibraryRoot, result.archivePath, result.archiveFileName)
+    ).toString()
   };
 }

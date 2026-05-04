@@ -20,6 +20,11 @@ import {
 } from './task-status-view.js';
 import { renderAfterEditFiles, renderResultCards } from './results-view.js';
 import {
+  renderEventTimeline,
+  renderPreflightChecklist,
+  renderPreflightMessage
+} from './task-list-view.js';
+import {
   initConfigDialogs,
   openPlatformCredentialsDialog,
   openProviderConfigDialog,
@@ -55,10 +60,13 @@ const providerConfigStatusLabel = document.querySelector('#provider-config-statu
 const platformCredentialsDialog = document.querySelector('#platform-credentials-dialog');
 const platformCredentialsFields = document.querySelector('#platform-credentials-fields');
 const platformCredentialsOutput = document.querySelector('#platform-credentials-output');
+const preflightList = document.querySelector('#preflight-list');
+const timelineList = document.querySelector('#timeline-list');
 
 let currentTaskId = null;
 let currentEventSource = null;
 let defaultsPayload = null;
+let liveEvents = [];
 
 boot();
 
@@ -234,14 +242,17 @@ async function runPreflight() {
   const missingField = validateRequiredFields();
 
   if (missingField) {
+    renderPreflightMessage(missingField.message, preflightList, 'failed');
     preflightOutput.textContent = missingField.message;
     missingField.field?.focus();
-    preflightOutput.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    preflightList.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     return;
   }
 
+  renderPreflightMessage('正在检查运行环境...', preflightList);
   preflightOutput.textContent = '正在检查运行环境...';
   const payload = await apiPost('/api/preflight', collectFormData());
+  renderPreflightChecklist(payload.checks ?? [], preflightList);
   preflightOutput.textContent = JSON.stringify(payload.checks, null, 2);
 }
 
@@ -254,7 +265,9 @@ async function startTask() {
     return;
   }
 
+  liveEvents = [];
   eventLog.textContent = '';
+  renderEventTimeline(liveEvents, timelineList);
   resultsList.innerHTML = '<p>任务启动中...</p>';
   resultsList.classList.remove('empty-state');
   exportFailuresButton.disabled = true;
@@ -294,6 +307,8 @@ function openEventStream(taskId) {
   currentEventSource = new EventSource(`/api/tasks/${taskId}/events`);
   currentEventSource.onmessage = (event) => {
     const payload = JSON.parse(event.data);
+    liveEvents.push(payload);
+    renderEventTimeline(liveEvents, timelineList);
     eventLog.textContent += `${payload.timestamp} [${payload.status}] ${payload.phase}: ${payload.message}\n`;
     eventLog.scrollTop = eventLog.scrollHeight;
     renderLiveEvent(payload);
