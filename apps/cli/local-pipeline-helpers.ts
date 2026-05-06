@@ -7,6 +7,7 @@ import { type SpreadsheetTaskRow } from '../../packages/features/spreadsheet-tas
 import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
+import { type PipelineItemTimings } from './local-pipeline-tagging.ts';
 
 export const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
   /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}\.[A-Za-z0-9]+$/u;
@@ -21,6 +22,7 @@ export interface PipelineRowState {
   readonly archiveFileName: string;
   readonly acceptedPaths: readonly string[];
   readonly selectedContentTopicPath?: string;
+  readonly timings?: PipelineItemTimings;
   readonly failure?: RunLocalPipelineFailure;
 }
 
@@ -119,6 +121,28 @@ export async function writePipelineResults(input: {
       }))
     });
   }
+}
+
+export async function writeCurrentRunTaggingSpreadsheet(input: {
+  readonly filePath: string;
+  readonly sourceSpreadsheetName: string;
+  readonly archiveLibraryRoot: string;
+  readonly results: readonly PipelineRowState[];
+  readonly startedAt: string;
+}): Promise<void> {
+  appendRowsToMasterSpreadsheet({
+    filePath: input.filePath,
+    entries: input.results.map((result) => ({
+      url: result.url,
+      collector: result.collector,
+      archiveState: result.archiveState,
+      levelValues: result.levelValues,
+      archivePath: result.archivePath,
+      archiveFileName: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
+      sourceSpreadsheet: input.sourceSpreadsheetName,
+      processedAt: input.startedAt
+    }))
+  });
 }
 
 export async function auditPipelineResults(input: {

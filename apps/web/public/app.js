@@ -332,7 +332,7 @@ function renderTask(task) {
   }
 
   exportFailuresButton.disabled = task.result.failedRows === 0;
-  renderResultCards(task.result.results, resultsList);
+  renderResultCards(task.result.results, resultsList, task.result.currentRunSpreadsheetPath);
 }
 
 function exportFailures() {

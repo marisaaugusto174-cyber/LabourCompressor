@@ -14,6 +14,7 @@ export interface VideoModelProfile {
   readonly modelName: string;
   readonly videoSupported: true;
   readonly thinkingLevel?: 'high';
+  readonly defaultTaggingConcurrency: number;
 }
 
 const VIDEO_MODEL_PROFILES: readonly VideoModelProfile[] = Object.freeze([
@@ -22,21 +23,24 @@ const VIDEO_MODEL_PROFILES: readonly VideoModelProfile[] = Object.freeze([
     label: 'Qwen 3.6 Flash',
     provider: 'qwen',
     modelName: 'qwen3.6-flash',
-    videoSupported: true
+    videoSupported: true,
+    defaultTaggingConcurrency: 10
   }),
   Object.freeze({
     id: 'qwen-3.5-plus',
     label: 'Qwen 3.5 Plus',
     provider: 'qwen',
     modelName: 'qwen3.5-plus',
-    videoSupported: true
+    videoSupported: true,
+    defaultTaggingConcurrency: 10
   }),
   Object.freeze({
     id: 'qwen-3.6-plus',
     label: 'Qwen 3.6 Plus',
     provider: 'qwen',
     modelName: 'qwen3.6-plus',
-    videoSupported: true
+    videoSupported: true,
+    defaultTaggingConcurrency: 10
   }),
   Object.freeze({
     id: 'gemini-3-flash-thinking',
@@ -44,14 +48,16 @@ const VIDEO_MODEL_PROFILES: readonly VideoModelProfile[] = Object.freeze([
     provider: 'google',
     modelName: 'gemini-3-flash-preview',
     videoSupported: true,
-    thinkingLevel: 'high'
+    thinkingLevel: 'high',
+    defaultTaggingConcurrency: 2
   }),
   Object.freeze({
     id: 'gemini-3-pro',
-    label: 'Gemini 3 Pro',
+    label: 'Gemini 3.1 Pro',
     provider: 'google',
-    modelName: 'gemini-3-pro-preview',
-    videoSupported: true
+    modelName: 'gemini-3.1-pro-preview',
+    videoSupported: true,
+    defaultTaggingConcurrency: 2
   })
 ]);
 

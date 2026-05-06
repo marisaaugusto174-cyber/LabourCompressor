@@ -35,7 +35,9 @@ export {
   parsePromptLibraryMarkdown
 } from './prompt-library.ts';
 export {
+  generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
+  listContentTopicLeafTaxonomyPaths,
   listLeafTaxonomyPaths,
   parseCandidatePathsFromModelText
 } from './real-model-tagging.ts';

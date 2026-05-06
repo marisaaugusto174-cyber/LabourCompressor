@@ -353,6 +353,7 @@ export function toResultItem(state: PipelineRowState): RunLocalPipelineItemResul
     archiveFileName: state.archiveFileName,
     selectedContentTopicPath: state.selectedContentTopicPath,
     acceptedPaths: state.acceptedPaths,
+    timings: state.timings,
     failure: state.failure
   });
 }
@@ -364,6 +365,7 @@ export function finalizePipelineResult(input: {
   readonly failures: readonly RunLocalPipelineFailure[];
   readonly resultsByRow: ReadonlyMap<number, PipelineRowState>;
   readonly forceSucceededRows?: number;
+  readonly currentRunSpreadsheetPath?: string;
 }): RunLocalPipelineResult {
   const completedAt = new Date().toISOString();
   const results = [...input.resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber);
@@ -378,6 +380,7 @@ export function finalizePipelineResult(input: {
       results.filter((item) => item.failure === undefined).length,
     failedRows: results.filter((item) => item.failure !== undefined).length,
     results: Object.freeze(results.map(toResultItem)),
-    failures: Object.freeze(input.failures)
+    failures: Object.freeze(input.failures),
+    currentRunSpreadsheetPath: input.currentRunSpreadsheetPath
   });
 }

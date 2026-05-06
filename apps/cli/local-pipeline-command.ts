@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { mkdir, readFile } from 'node:fs/promises';
 
-import { createDecisionFingerprint } from '../../packages/core/contracts/index.ts';
 import { createSimulatedDownloaderAdapter } from '../../packages/adapters/downloaders/simulated-downloader.ts';
 import { createYtDlpDownloaderAdapter } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
 import { createFfmpegMergeOperator } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
@@ -10,9 +9,9 @@ import { readSpreadsheetTaskSheet } from '../../packages/adapters/spreadsheets/l
 import { archiveFileByPlans } from '../../packages/adapters/storage/filesystem/archive-file-operator.ts';
 import { buildArchivePlacementPlans } from '../../packages/features/archive/domain/index.ts';
 import { runSpreadsheetDownloadBatch } from '../../packages/features/download/domain/index.ts';
-import { buildContentTopicArchiveRoot, buildStructuredLevelValues, generateModelCandidatePaths, getEnabledProviderConfig, getVideoModelProfile, loadLocalProviderConfigFile, parsePromptLibraryMarkdown, runAutomaticTagging, selectUniqueContentTopicPath } from '../../packages/features/tagging/domain/index.ts';
+import { buildContentTopicArchiveRoot, getEnabledProviderConfig, getVideoModelProfile, loadLocalProviderConfigFile, parsePromptLibraryMarkdown } from '../../packages/features/tagging/domain/index.ts';
 import { parseTaxonomyMarkdown } from '../../packages/features/taxonomy/domain/index.ts';
-import { auditPipelineResults, buildFailure, createFailureRowState, createStageEmitter, formatBytes, loadCandidateFixtures, loadDownloadFixtures, type PipelineRowState, requireSheetRow, requireValue, writePipelineResults } from './local-pipeline-helpers.ts';
+import { auditPipelineResults, buildFailure, createStageEmitter, loadCandidateFixtures, loadDownloadFixtures, type PipelineRowState, requireSheetRow, requireValue, writeCurrentRunTaggingSpreadsheet, writePipelineResults } from './local-pipeline-helpers.ts';
 import {
   applyDownloadFailureStates,
   applyManualEditGateStates,
@@ -24,6 +23,7 @@ import {
 } from './local-pipeline-after-edit.ts';
 import { type RunLocalPipelineFailure, type RunLocalPipelineResult } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
+import { runTaggingBatch } from './local-pipeline-tagging.ts';
 
 export interface RunLocalPipelineOptions {
   readonly spreadsheet: string;
@@ -231,174 +231,21 @@ export async function runLocalPipelineCommand(input: {
       : undefined;
 
   emit('tagging', 'running', 'Running automatic tagging');
-  const totalAssets = downloadBatch.downloadedAssets.length;
-
-  for (const [index, asset] of downloadBatch.downloadedAssets.entries()) {
-    const row = requireSheetRow(rowByTaskId, asset.taskId);
-
-    try {
-      emit(
-        'tagging-item',
-        'running',
-        `Analyzing ${asset.fileName}`,
-        {
-          currentItem: asset.fileName,
-          progress: { current: index + 1, total: totalAssets }
-        }
-      );
-      const fingerprint = createDecisionFingerprint({
-        id: `fingerprint:${asset.taskId}`,
-        taskId: asset.taskId,
-        entityId: asset.mediaAssetId,
-        entityType: 'tag-assignment',
-        taxonomyVersionId: 'taxonomy-v1',
-        modelAdapterVersion:
-          input.options.taggingMode === 'qwen'
-            ? 'qwen-compatible:qwen3.6-plus'
-            : 'simulated-model:gpt-5.4',
-        decisionClass: 'cli-local-pipeline',
-        timestamp: startedAt
-      });
-      const modelResult =
-        input.options.taggingMode === 'qwen'
-          ? await generateModelCandidatePaths({
-              mediaFilePath: asset.filePath,
-              mediaAssetId: asset.mediaAssetId,
-              taxonomyTree,
-              promptLibrary,
-              providerConfig: requireValue(
-                realModelProviderConfig,
-                'The selected real-model provider config is required when tagging-mode=qwen.'
-              ),
-              videoCacheDirectory: path.join(process.cwd(), '.cache', 'video-tagging'),
-              selectedModelProfileId: input.options.selectedModelProfileId
-            })
-          : undefined;
-      const candidatePaths =
-        input.options.taggingMode === 'qwen'
-          ? modelResult.candidatePaths
-          : candidateFixtures?.[asset.sourceUrl];
-
-      if (candidatePaths === undefined) {
-        throw new Error(`Missing candidate fixture for source URL: "${asset.sourceUrl}"`);
-      }
-
-      if (modelResult?.videoTaggingCache !== undefined) {
-        const cache = modelResult.videoTaggingCache;
-        emit(
-          'video-preprocess',
-          'succeeded',
-          `${asset.fileName}: ${cache.cacheHit ? 'cache-hit' : 'compressed'} ${formatBytes(cache.sourceSizeBytes)} -> ${formatBytes(cache.cacheSizeBytes)}`,
-          {
-            currentItem: asset.fileName,
-            progress: { current: index + 1, total: totalAssets },
-            details: {
-              cacheHit: cache.cacheHit,
-              sourceSizeBytes: cache.sourceSizeBytes,
-              cacheSizeBytes: cache.cacheSizeBytes,
-              sourceDurationSec: Number(cache.sourceDurationSec.toFixed(2)),
-              sourceFps: Number(cache.sourceFps.toFixed(2)),
-              cacheFps: Number(cache.cacheFps.toFixed(2)),
-              profileId: cache.profileId
-            }
-          }
-        );
-      }
-
-      const taggingResult = runAutomaticTagging({
-        taskId: asset.taskId,
-        mediaAssetId: asset.mediaAssetId,
-        taxonomyVersionId: 'taxonomy-v1',
-        fingerprintId: fingerprint.id,
-        candidateSetId: `candidate:${index + 1}`,
-        assignmentId: `assignment:${index + 1}`,
-        generatedAt: startedAt,
-        assignedAt: startedAt,
-        candidatePaths,
-        taxonomyTree,
-        promptLibrary
-      });
-      const contentTopicDecision = selectUniqueContentTopicPath(taggingResult.acceptedPaths);
-      const archivePath =
-        contentTopicDecision.selectedPath === undefined
-          ? ''
-          : ['视频数据归档库', ...contentTopicDecision.selectedPath.split(' > ')].join('/');
-
-      resultsByRow.set(
-        row.rowNumber,
-        {
-          rowNumber: row.rowNumber,
-          url: row.url,
-          collector: row.values['采集人'] ?? '',
-          archiveState:
-            contentTopicDecision.selectedPath === undefined ? '已下载未归档' : '待归档',
-          levelValues: buildStructuredLevelValues(taggingResult.acceptedPaths),
-          archivePath,
-          archiveFileName: '',
-          acceptedPaths: taggingResult.acceptedPaths,
-          selectedContentTopicPath: contentTopicDecision.selectedPath
-        }
-      );
-      emit(
-        'tagging-item',
-        'succeeded',
-        `${asset.fileName}: ${taggingResult.acceptedPaths.length} accepted path(s)`,
-        {
-          currentItem: asset.fileName,
-          progress: { current: index + 1, total: totalAssets },
-          details: {
-            candidateCount: candidatePaths.length,
-            acceptedCount: taggingResult.acceptedPaths.length,
-            selectedContentTopicPath: contentTopicDecision.selectedPath ?? null
-          }
-        }
-      );
-    } catch (error) {
-      if (isVideoTooShortError(error)) {
-        resultsByRow.set(row.rowNumber, {
-          rowNumber: row.rowNumber,
-          url: row.url,
-          collector: row.values['采集人'] ?? '',
-          archiveState: '已跳过：视频过短',
-          levelValues: buildStructuredLevelValues([]),
-          archivePath: '',
-          archiveFileName: '',
-          acceptedPaths: Object.freeze([]),
-          selectedContentTopicPath: undefined
-        });
-        emit('tagging-item', 'succeeded', `${asset.fileName}: skipped because video is too short`, {
-          currentItem: asset.fileName,
-          progress: { current: index + 1, total: totalAssets },
-          details: {
-            skipped: true,
-            reason: 'video-too-short'
-          }
-        });
-        continue;
-      }
-
-      const failure = buildFailure({
-        row,
-        phase: 'tagging',
-        errorCode: 'tagging-failed',
-        errorMessage: error instanceof Error ? error.message : 'Tagging failed.',
-        timestamp: new Date().toISOString()
-      });
-      failures.push(failure);
-      resultsByRow.set(
-        row.rowNumber,
-        createFailureRowState({
-          row,
-          archiveState: '打标失败',
-          failure
-        })
-      );
-      emit('tagging-item', 'failed', `${asset.fileName}: ${failure.errorMessage}`, {
-        currentItem: asset.fileName,
-        progress: { current: index + 1, total: totalAssets }
-      });
-    }
-  }
+  await runTaggingBatch({
+    assets: downloadBatch.downloadedAssets,
+    rowByTaskId,
+    resultsByRow,
+    failures,
+    startedAt,
+    taggingMode: input.options.taggingMode,
+    selectedModelProfileId: input.options.selectedModelProfileId,
+    selectedVideoModelProfile,
+    realModelProviderConfig,
+    candidateFixtures,
+    taxonomyTree,
+    promptLibrary,
+    emit
+  });
   emit('tagging', 'succeeded', 'Automatic tagging finished');
 
   emit('archive', 'running', 'Archiving downloaded assets by accepted tag path');
@@ -417,6 +264,7 @@ export async function runLocalPipelineCommand(input: {
     }
 
     try {
+      const archiveStartedAt = Date.now();
       const archiveRecords = await archiveFileByPlans({
         sourceFilePath: asset.filePath,
         archiveRoot: archiveLibraryRoot,
@@ -439,7 +287,14 @@ export async function runLocalPipelineCommand(input: {
         archiveFileName:
           primaryArchiveRecord === undefined
             ? ''
-            : path.basename(path.join(archiveLibraryRoot, primaryArchiveRecord.archivePath))
+            : path.basename(path.join(archiveLibraryRoot, primaryArchiveRecord.archivePath)),
+        timings: rowState.timings === undefined
+          ? undefined
+          : {
+              ...rowState.timings,
+              archiveMs: Date.now() - archiveStartedAt,
+              totalMs: rowState.timings.totalMs + Date.now() - archiveStartedAt
+            }
       });
     } catch (error) {
       const failure = buildFailure({
@@ -460,11 +315,27 @@ export async function runLocalPipelineCommand(input: {
   emit('archive', 'succeeded', 'Archive processing completed');
 
   emit('writeback', 'running', 'Writing results back to spreadsheet targets');
+  const sortedResults = [...resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber);
+  const currentRunSpreadsheetPath = path.join(
+    input.options.downloadDir,
+    '本次打标结果',
+    `本次打标结果表_${sanitizeFileToken(workflowSessionId)}.xlsx`
+  );
   await writePipelineResults({
     options: input.options,
     headers: sheet.headers,
     archiveLibraryRoot,
-    results: [...resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber),
+    results: sortedResults,
+    startedAt
+  });
+  await writeCurrentRunTaggingSpreadsheet({
+    filePath: currentRunSpreadsheetPath,
+    sourceSpreadsheetName: path.basename(input.options.spreadsheet),
+    archiveLibraryRoot,
+    results: sortedResults.filter((result) => downloadBatch.downloadedAssets.some((asset) => {
+      const row = rowByTaskId.get(asset.taskId);
+      return row?.rowNumber === result.rowNumber;
+    })),
     startedAt
   });
   emit('writeback', 'succeeded', 'Spreadsheet writeback completed');
@@ -489,10 +360,9 @@ export async function runLocalPipelineCommand(input: {
         }
   );
 
-  return finalizePipelineResult({ workflowSessionId, startedAt, totalRows: pendingSheet.rows.length, failures, resultsByRow });
+  return finalizePipelineResult({ workflowSessionId, startedAt, totalRows: pendingSheet.rows.length, failures, resultsByRow, currentRunSpreadsheetPath });
 }
 
-function isVideoTooShortError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /video file is too short|video modality input does not meet the requirements/iu.test(message);
+function sanitizeFileToken(value: string): string {
+  return value.replace(/[^\p{Script=Han}A-Za-z0-9_]+/gu, '_').replace(/^_+|_+$/gu, '') || 'task';
 }

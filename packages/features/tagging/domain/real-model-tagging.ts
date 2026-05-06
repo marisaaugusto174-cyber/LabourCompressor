@@ -48,8 +48,30 @@ export const MIN_MODEL_VIDEO_DURATION_SECONDS = 2;
 export async function generateModelCandidatePaths(
   input: GenerateModelCandidatePathsInput
 ): Promise<GenerateModelCandidatePathsResult> {
+  return generateModelCandidatePathsWithAllowedPaths({
+    ...input,
+    allowedPaths: listLeafTaxonomyPaths(input.taxonomyTree),
+    selectionMode: 'multi-branch'
+  });
+}
+
+export async function generateContentTopicCandidatePaths(
+  input: GenerateModelCandidatePathsInput
+): Promise<GenerateModelCandidatePathsResult> {
+  return generateModelCandidatePathsWithAllowedPaths({
+    ...input,
+    allowedPaths: listContentTopicLeafTaxonomyPaths(input.taxonomyTree),
+    selectionMode: 'content-topic-only'
+  });
+}
+
+async function generateModelCandidatePathsWithAllowedPaths(
+  input: GenerateModelCandidatePathsInput & {
+    readonly allowedPaths: readonly string[];
+    readonly selectionMode: 'multi-branch' | 'content-topic-only';
+  }
+): Promise<GenerateModelCandidatePathsResult> {
   const promptInstruction = buildPromptLibraryInstruction(input.promptLibrary);
-  const allowedPaths = listLeafTaxonomyPaths(input.taxonomyTree);
   const selectedProfile = getVideoModelProfile(input.selectedModelProfileId);
   const resolvedProviderConfig = Object.freeze({
     ...input.providerConfig,
@@ -59,7 +81,8 @@ export async function generateModelCandidatePaths(
   const content = await buildModelContentParts({
     mediaFilePath: input.mediaFilePath,
     promptInstruction,
-    allowedPaths
+    allowedPaths: input.allowedPaths,
+    selectionMode: input.selectionMode
   });
   const videoTaggingCache = isVideoMediaFile(input.mediaFilePath)
     ? await prepareVideoTaggingCache({
@@ -83,18 +106,20 @@ export async function generateModelCandidatePaths(
           providerConfig: resolvedProviderConfig,
           mediaFilePath: input.mediaFilePath,
           promptInstruction,
-          allowedPaths,
+          allowedPaths: input.allowedPaths,
           content,
-          videoTaggingCache
+          videoTaggingCache,
+          selectionMode: input.selectionMode
         })
       : resolvedProviderConfig.provider === 'google'
         ? await completeWithGemini({
             providerConfig: resolvedProviderConfig,
             mediaFilePath: input.mediaFilePath,
             promptInstruction,
-            allowedPaths,
+            allowedPaths: input.allowedPaths,
             videoTaggingCache,
-            selectedProfileThinkingLevel: selectedProfile.thinkingLevel
+            selectedProfileThinkingLevel: selectedProfile.thinkingLevel,
+            selectionMode: input.selectionMode
           })
         : throwUnsupportedProvider(resolvedProviderConfig.provider);
   const candidatePaths = parseCandidatePathsFromModelText(response.text);
@@ -114,13 +139,15 @@ async function completeWithQwen(input: {
   readonly allowedPaths: readonly string[];
   readonly content: readonly QwenMessageContentPart[];
   readonly videoTaggingCache?: VideoTaggingCacheResult;
+  readonly selectionMode: 'multi-branch' | 'content-topic-only';
 }) {
   const client = createQwenCompatibleClient(input.providerConfig);
   return isVideoMediaFile(input.mediaFilePath)
     ? client.completeVideoFile({
         prompt: buildModelInstructionText(
           input.promptInstruction,
-          input.allowedPaths
+          input.allowedPaths,
+          input.selectionMode
         ),
         videoDataUrl: await encodeFileAsDataUrl(
           requireVideoCache(input.videoTaggingCache).cachePath
@@ -137,6 +164,7 @@ async function completeWithGemini(input: {
   readonly allowedPaths: readonly string[];
   readonly videoTaggingCache?: VideoTaggingCacheResult;
   readonly selectedProfileThinkingLevel?: 'high';
+  readonly selectionMode: 'multi-branch' | 'content-topic-only';
 }) {
   const client = createGeminiCompatibleClient(input.providerConfig);
 
@@ -144,7 +172,8 @@ async function completeWithGemini(input: {
     return client.completeText({
       prompt: buildModelInstructionText(
         input.promptInstruction,
-        input.allowedPaths
+        input.allowedPaths,
+        input.selectionMode
       ),
       thinkingLevel: input.selectedProfileThinkingLevel
     });
@@ -158,7 +187,8 @@ async function completeWithGemini(input: {
   return client.completeVideoFile({
     prompt: buildModelInstructionText(
       input.promptInstruction,
-      input.allowedPaths
+      input.allowedPaths,
+      input.selectionMode
     ),
     videoBase64: inlineData.base64Data,
     mimeType: inlineData.mimeType,
@@ -209,6 +239,16 @@ export function listLeafTaxonomyPaths(
   );
 }
 
+export function listContentTopicLeafTaxonomyPaths(
+  taxonomyTree: ParsedTaxonomyTree
+): readonly string[] {
+  return Object.freeze(
+    listLeafTaxonomyPaths(taxonomyTree).filter((pathValue) =>
+      pathValue.startsWith('内容题材 > ')
+    )
+  );
+}
+
 export function parseCandidatePathsFromModelText(
   modelText: string
 ): readonly string[] {
@@ -238,6 +278,7 @@ async function buildModelContentParts(input: {
   readonly mediaFilePath: string;
   readonly promptInstruction: string;
   readonly allowedPaths: readonly string[];
+  readonly selectionMode: 'multi-branch' | 'content-topic-only';
 }): Promise<readonly QwenMessageContentPart[]> {
   const extension = path.extname(input.mediaFilePath).toLowerCase();
   const content: QwenMessageContentPart[] = [
@@ -245,7 +286,8 @@ async function buildModelContentParts(input: {
       type: 'text',
       text: buildModelInstructionText(
         input.promptInstruction,
-        input.allowedPaths
+        input.allowedPaths,
+        input.selectionMode
       )
     }
   ];
@@ -275,13 +317,26 @@ function isVideoMediaFile(filePath: string): boolean {
 
 function buildModelInstructionText(
   promptInstruction: string,
-  allowedPaths: readonly string[]
+  allowedPaths: readonly string[],
+  selectionMode: 'multi-branch' | 'content-topic-only'
 ): string {
+  const selectionRules =
+    selectionMode === 'content-topic-only'
+      ? [
+          'Return exactly one path as a JSON array with one string.',
+          'The returned path must start with 内容题材 > .',
+          'Do not return an empty array.'
+        ]
+      : [
+          'Return a JSON array containing all applicable paths.',
+          'The array must include exactly one path starting with 内容题材 > .',
+          'Do not return an empty array for production video tagging.'
+        ];
   return [
     'You are a strict multimodal tagger.',
     'Use only the exact taxonomy paths provided below.',
     'Return only a JSON array of strings.',
-    'If nothing is confidently applicable, return [].',
+    ...selectionRules,
     '',
     promptInstruction,
     '',

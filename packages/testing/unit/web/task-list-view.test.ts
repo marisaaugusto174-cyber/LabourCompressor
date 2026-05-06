@@ -6,7 +6,7 @@ import {
   buildPreflightChecklistHtml
 } from '../../../../apps/web/public/task-list-view.js';
 
-test('renders preflight checks as readable checklist instead of raw JSON', () => {
+test('renders only failed preflight checks by default', () => {
   const html = buildPreflightChecklistHtml([
     {
       key: 'provider',
@@ -25,7 +25,26 @@ test('renders preflight checks as readable checklist instead of raw JSON', () =>
   assert.equal(html.includes('模型 API'), true);
   assert.equal(html.includes('未通过'), true);
   assert.equal(html.includes('检查模型 API Key、额度和网络连通性。'), true);
-  assert.equal(html.includes('下载器'), true);
+  assert.equal(html.includes('下载器'), false);
+});
+
+test('renders all-green preflight as a single success message', () => {
+  const html = buildPreflightChecklistHtml([
+    {
+      key: 'provider',
+      ok: true,
+      message: 'Qwen provider is reachable.'
+    },
+    {
+      key: 'yt-dlp',
+      ok: true,
+      message: 'yt-dlp is available.'
+    }
+  ]);
+
+  assert.equal(html.includes('Preflight 通过，可以启动任务'), true);
+  assert.equal(html.includes('yt-dlp is available'), false);
+  assert.equal(html.includes('Qwen provider is reachable'), false);
 });
 
 test('renders task events as compact phase timeline', () => {
@@ -48,6 +67,7 @@ test('renders task events as compact phase timeline', () => {
   ]);
 
   assert.equal(html.includes('[running]'), false);
+  assert.equal(html.includes('查看阶段详情'), true);
   assert.equal(html.includes('下载中'), true);
   assert.equal(html.includes('1/20'), true);
   assert.equal(html.includes('打标中'), true);

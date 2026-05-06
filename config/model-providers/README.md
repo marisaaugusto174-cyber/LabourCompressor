@@ -19,7 +19,7 @@ Current curated video model choices:
 - `Qwen 3.6 Plus` → `qwen3.6-plus`
 - `Qwen 3.5 Plus` → `qwen3.5-plus`
 - `Gemini 3 Flash Thinking` → `gemini-3-flash-preview` with fixed thinking config
-- `Gemini 3 Pro` → `gemini-3-pro-preview`
+- `Gemini 3.1 Pro` → `gemini-3.1-pro-preview`
 
 Current supported providers:
 - `openai`
