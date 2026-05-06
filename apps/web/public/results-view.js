@@ -18,7 +18,7 @@ export function renderAfterEditFiles(files, resultsList) {
     .join('');
 }
 
-export function renderResultCards(results, resultsList) {
+export function renderResultCards(results, resultsList, currentRunSpreadsheetPath = '') {
   if (!results.length) {
     resultsList.innerHTML = '<p>当前没有可显示的结果。</p>';
     resultsList.classList.add('empty-state');
@@ -27,7 +27,7 @@ export function renderResultCards(results, resultsList) {
 
   resultsList.classList.remove('empty-state');
   resultsList.innerHTML = `
-    <div class="result-summary">${renderResultSummary(results)}</div>
+    <div class="result-summary">${renderResultSummary(results, currentRunSpreadsheetPath)}</div>
     <div class="task-list-header">
       <span>文件</span>
       <span>当前环节</span>
@@ -39,11 +39,14 @@ export function renderResultCards(results, resultsList) {
   resultsList.scrollTop = 0;
 }
 
-function renderResultSummary(results) {
+function renderResultSummary(results, currentRunSpreadsheetPath) {
   const succeeded = results.filter((item) => item.archiveState === '已归档').length;
   const failed = results.filter((item) => item.failure).length;
   const waitingEdit = results.filter((item) => item.archiveState === '已下载待剪辑').length;
-  return `共 ${results.length} 条 · 归档成功 ${succeeded} · 失败 ${failed} · 等待剪辑 ${waitingEdit}`;
+  const sheetText = currentRunSpreadsheetPath
+    ? ` · 本次结果表：${currentRunSpreadsheetPath}`
+    : '';
+  return `共 ${results.length} 条 · 归档成功 ${succeeded} · 失败 ${failed} · 等待剪辑 ${waitingEdit}${sheetText}`;
 }
 
 function renderResultRow(item) {
@@ -144,6 +147,7 @@ function humanizeFailureCode(errorCode, phase) {
     'output-not-detected': '未识别到下载产物',
     'download-failed': '下载失败',
     'tagging-failed': '打标失败',
+    'missing-content-topic': '缺少内容题材',
     'archive-failed': '归档失败',
     'edited-file-missing': '未找到剪辑后文件',
     'edited-file-invalid-name': '剪辑文件名不符合规范',

@@ -77,6 +77,23 @@ export function buildPreflightChecklistHtml(checks) {
     return '<p>还没有 Preflight 检查结果。</p>';
   }
 
+  const failedChecks = checks.filter((check) => !check.ok);
+
+  if (failedChecks.length === 0) {
+    return `
+      <div class="task-list-row task-list-row-compact">
+        <span class="stage-pill stage-succeeded">已通过</span>
+        <strong>Preflight 通过，可以启动任务</strong>
+        <span>—</span>
+        <span>—</span>
+      </div>
+      <details class="debug-details">
+        <summary>查看检查详情</summary>
+        ${renderRawPreflightDetails(checks, false)}
+      </details>
+    `;
+  }
+
   return `
     <div class="task-list-header">
       <span>检查项</span>
@@ -84,7 +101,11 @@ export function buildPreflightChecklistHtml(checks) {
       <span>结果</span>
       <span>处理建议</span>
     </div>
-    ${checks.map((check) => renderCheckRow(check)).join('')}
+    ${failedChecks.map((check) => renderCheckRow(check)).join('')}
+    <details class="debug-details">
+      <summary>查看完整检查详情</summary>
+      ${renderRawPreflightDetails(checks, true)}
+    </details>
   `;
 }
 
@@ -93,14 +114,19 @@ export function buildEventTimelineHtml(events) {
     return '<p>任务启动后，这里会显示每个阶段的进度。</p>';
   }
 
+  const latest = events.at(-1);
   return `
-    <div class="task-list-header">
-      <span>阶段</span>
-      <span>状态</span>
-      <span>当前对象</span>
-      <span>进度 / 最新消息</span>
-    </div>
-    ${events.map((event) => renderEventRow(event)).join('')}
+    ${latest === undefined ? '' : renderEventSummary(latest)}
+    <details class="debug-details">
+      <summary>查看阶段详情</summary>
+      <div class="task-list-header">
+        <span>阶段</span>
+        <span>状态</span>
+        <span>当前对象</span>
+        <span>进度 / 最新消息</span>
+      </div>
+      ${events.map((event) => renderEventRow(event)).join('')}
+    </details>
   `;
 }
 
@@ -131,6 +157,18 @@ function renderEventRow(event) {
   `;
 }
 
+function renderEventSummary(event) {
+  const phase = event.phase ?? event.stage ?? '';
+  return `
+    <div class="task-list-row task-list-row-compact">
+      <strong>${escapeHtml(PHASE_LABELS[phase] ?? phase)}</strong>
+      <span class="stage-pill stage-${statusClassName(event.status ?? 'running')}">${escapeHtml(STATUS_LABELS[event.status ?? 'running'] ?? event.status ?? 'running')}</span>
+      <span>${escapeHtml(event.currentItem || '—')}</span>
+      <span>${escapeHtml(formatEventProgress(event))}</span>
+    </div>
+  `;
+}
+
 function statusClassName(status) {
   if (status === 'succeeded') {
     return 'succeeded';
@@ -147,4 +185,11 @@ function formatEventProgress(event) {
   }
 
   return event.message ?? '—';
+}
+
+function renderRawPreflightDetails(checks, includeMessages) {
+  const payload = includeMessages
+    ? checks
+    : checks.map((check) => ({ key: check.key, ok: check.ok }));
+  return `<pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`;
 }

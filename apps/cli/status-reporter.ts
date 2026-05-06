@@ -17,6 +17,7 @@ export interface CliStageEvent {
   readonly timestamp?: string;
   readonly currentItem?: string;
   readonly progress?: CliStageProgress;
+  readonly durationMs?: number;
   readonly details?: Readonly<Record<string, string | number | boolean | null>>;
 }
 

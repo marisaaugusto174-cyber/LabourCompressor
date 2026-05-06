@@ -29,7 +29,7 @@ export interface ProviderCatalogEntry {
 
 const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = Object.freeze([
   createEntry('openai', 'OpenAI', 'tier-1', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano']),
-  createEntry('google', 'Google Gemini', 'tier-1', ['gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.5-flash']),
+  createEntry('google', 'Google Gemini', 'tier-1', ['gemini-3-flash-preview', 'gemini-3.1-pro-preview', 'gemini-2.5-flash']),
   createEntry('anthropic', 'Anthropic', 'tier-1', ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-3-5-haiku-latest']),
   createEntry('qwen', 'Alibaba Qwen', 'tier-1', ['qwen3.6-flash', 'qwen3.5-plus', 'qwen3.6-plus']),
   createEntry('zhipu', 'Zhipu GLM', 'tier-1', ['glm-4.5', 'glm-4.5-air', 'glm-z1-air']),
