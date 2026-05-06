@@ -7,8 +7,10 @@ import path from 'node:path';
 
 import {
   buildPostEditRecordSheet,
+  ensureFirstRunLocalState,
   exportFailuresAsCsv,
   loadPlatformCredentialSummary,
+  loadProviderConfigSummary,
   probePlatformDownload
 } from '../../../../apps/web/runtime-support.ts';
 
@@ -76,6 +78,67 @@ test('loads platform credential summary for supported platforms', async () => {
         cookiesFromBrowser: undefined
       }
     ]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('first-run setup creates local config files and runtime directories from templates', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-first-run-'));
+  const providerTemplatePath = path.join(tempDir, 'providers.template.json');
+  const providerLocalPath = path.join(tempDir, 'providers.local.json');
+  const platformTemplatePath = path.join(tempDir, 'download-platform-credentials.template.json');
+  const platformLocalPath = path.join(tempDir, 'download-platform-credentials.local.json');
+  const uploadsDirectory = path.join(tempDir, '.runtime-uploads');
+  const runtimeStateDirectory = path.join(tempDir, '.runtime-state');
+  const cacheDirectory = path.join(tempDir, '.cache', 'video-tagging');
+
+  try {
+    writeFileSync(
+      providerTemplatePath,
+      `${JSON.stringify({
+        qwen: {
+          enabled: false,
+          provider: 'qwen',
+          authMode: 'api-key',
+          modelName: 'qwen3.6-flash',
+          apiKey: '',
+          oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+        }
+      }, null, 2)}\n`
+    );
+    writeFileSync(
+      platformTemplatePath,
+      `${JSON.stringify({
+        global: { cookiesFilePath: '', cookiesFromBrowser: '' },
+        bilibili: { cookiesFilePath: '', cookiesFromBrowser: '' },
+        youtube: { cookiesFilePath: '', cookiesFromBrowser: '' },
+        douyin: { cookiesFilePath: '', cookiesFromBrowser: '' },
+        tiktok: { cookiesFilePath: '', cookiesFromBrowser: '' }
+      }, null, 2)}\n`
+    );
+
+    const result = await ensureFirstRunLocalState({
+      providerTemplatePath,
+      providerLocalPath,
+      platformTemplatePath,
+      platformLocalPath,
+      runtimeDirectories: [uploadsDirectory, runtimeStateDirectory, cacheDirectory]
+    });
+
+    assert.equal(result.createdFiles.includes(providerLocalPath), true);
+    assert.equal(result.createdFiles.includes(platformLocalPath), true);
+    assert.equal(existsSync(providerLocalPath), true);
+    assert.equal(existsSync(platformLocalPath), true);
+    assert.equal(existsSync(uploadsDirectory), true);
+    assert.equal(existsSync(runtimeStateDirectory), true);
+    assert.equal(existsSync(cacheDirectory), true);
+
+    const providerSummary = await loadProviderConfigSummary(providerLocalPath);
+    const platformSummary = await loadPlatformCredentialSummary(platformLocalPath);
+
+    assert.equal((providerSummary.qwen as Record<string, unknown>).enabled, false);
+    assert.equal(platformSummary.length, 4);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

@@ -15,6 +15,9 @@ export {
   ensureDefaultMasterSpreadsheet
 } from './runtime-support-local.ts';
 export {
+  ensureFirstRunLocalState
+} from './runtime-support-first-run.ts';
+export {
   clearVideoCache,
   getVideoCacheStats
 } from './runtime-support-cache.ts';

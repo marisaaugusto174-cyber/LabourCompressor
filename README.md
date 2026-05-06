@@ -28,6 +28,7 @@ What the setup command does:
 - installs `yt-dlp` if missing;
 - installs `ffmpeg` if missing;
 - runs `npm install`.
+- creates local config files from templates when they do not exist.
 
 If setup stops with a Node.js or Homebrew error, install the missing prerequisite first:
 
@@ -36,12 +37,10 @@ If setup stops with a Node.js or Homebrew error, install the missing prerequisit
 
 ## First Local Configuration
 
-Before running real model tagging or logged-in downloads, create local-only config files:
+`npm run setup:mac` creates these local-only config files automatically when they do not exist:
 
-```bash
-cp config/model-providers/providers.template.json config/model-providers/providers.local.json
-cp config/download-platform-credentials.template.json config/download-platform-credentials.local.json
-```
+- `config/model-providers/providers.local.json`
+- `config/download-platform-credentials.local.json`
 
 Then start the Web UI:
 

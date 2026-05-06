@@ -49,6 +49,31 @@ echo "Installing Node dependencies..."
 cd "${ROOT_DIR}"
 npm install
 
+create_local_config() {
+  local template_path="$1"
+  local local_path="$2"
+
+  if [ -f "${local_path}" ]; then
+    echo "OK: $(basename "${local_path}") already exists."
+    return
+  fi
+
+  if [ ! -f "${template_path}" ]; then
+    echo "ERROR: Missing template: ${template_path}"
+    exit 1
+  fi
+
+  cp "${template_path}" "${local_path}"
+  echo "Created: ${local_path}"
+}
+
+create_local_config \
+  "${ROOT_DIR}/config/model-providers/providers.template.json" \
+  "${ROOT_DIR}/config/model-providers/providers.local.json"
+create_local_config \
+  "${ROOT_DIR}/config/download-platform-credentials.template.json" \
+  "${ROOT_DIR}/config/download-platform-credentials.local.json"
+
 echo "Setup complete."
 echo "Start Web UI with:"
 echo "  npm run web"

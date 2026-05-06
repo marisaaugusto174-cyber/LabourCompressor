@@ -8,7 +8,7 @@ import { type SupportedPlatform } from '../../packages/features/download/domain/
 import { type RunLocalPipelineOptions } from '../cli/local-pipeline-command.ts';
 import { listTaxonomyPresets, resolveTaxonomyInput } from '../cli/taxonomy-presets.ts';
 import { createRuntimeTaskService } from './task-service.ts';
-import { buildPostEditRecordSheet, chooseLocalPath, clearVideoCache, ensureDefaultMasterSpreadsheet, exportFailuresAsCsv, getSelectedProviderConfigSummary, getVideoCacheStats, loadPlatformCredentialSummary, loadProviderConfigSummary, probePlatformDownload, probeSelectedProvider, runPipelinePreflight, savePlatformCredentialConfig, saveSelectedProviderApiKey } from './runtime-support.ts';
+import { buildPostEditRecordSheet, chooseLocalPath, clearVideoCache, ensureDefaultMasterSpreadsheet, ensureFirstRunLocalState, exportFailuresAsCsv, getSelectedProviderConfigSummary, getVideoCacheStats, loadPlatformCredentialSummary, loadProviderConfigSummary, probePlatformDownload, probeSelectedProvider, runPipelinePreflight, savePlatformCredentialConfig, saveSelectedProviderApiKey } from './runtime-support.ts';
 
 const WEB_PORT = Number(process.env.LABOUR_COMPRESSOR_WEB_PORT ?? '4311');
 const WEB_HOST = process.env.LABOUR_COMPRESSOR_WEB_HOST ?? '127.0.0.1';
@@ -27,9 +27,17 @@ const DEFAULT_PROVIDER_CONFIG = path.join(
   PROJECT_ROOT,
   'config/model-providers/providers.local.json'
 );
+const DEFAULT_PROVIDER_TEMPLATE = path.join(
+  PROJECT_ROOT,
+  'config/model-providers/providers.template.json'
+);
 const DEFAULT_PLATFORM_CREDENTIAL_CONFIG = path.join(
   PROJECT_ROOT,
   'config/download-platform-credentials.local.json'
+);
+const DEFAULT_PLATFORM_CREDENTIAL_TEMPLATE = path.join(
+  PROJECT_ROOT,
+  'config/download-platform-credentials.template.json'
 );
 const DEFAULT_CACHE_ROOT = path.join(PROJECT_ROOT, '.cache', 'video-tagging');
 const UPLOADS_DIR = path.join(PROJECT_ROOT, '.runtime-uploads');
@@ -39,6 +47,17 @@ const taskService = createRuntimeTaskService({
   stateFilePath: RUNTIME_TASK_STATE_FILE
 });
 
+await ensureFirstRunLocalState({
+  providerTemplatePath: DEFAULT_PROVIDER_TEMPLATE,
+  providerLocalPath: DEFAULT_PROVIDER_CONFIG,
+  platformTemplatePath: DEFAULT_PLATFORM_CREDENTIAL_TEMPLATE,
+  platformLocalPath: DEFAULT_PLATFORM_CREDENTIAL_CONFIG,
+  runtimeDirectories: [
+    UPLOADS_DIR,
+    path.dirname(RUNTIME_TASK_STATE_FILE),
+    DEFAULT_CACHE_ROOT
+  ]
+});
 await ensureDefaultMasterSpreadsheet(DEFAULT_MASTER_SPREADSHEET);
 
 const server = createServer(async (request, response) => {

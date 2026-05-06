@@ -10,18 +10,32 @@ export function initConfigDialogs(options) {
 }
 
 export async function openProviderConfigDialog() {
-  const payload = await apiPost('/api/provider-config/summary', {
-    providerConfigPath: fieldValue('providerConfigPath'),
-    selectedModelProfileId: fieldValue('selectedModelProfileId')
-  });
+  try {
+    const payload = await apiPost('/api/provider-config/summary', {
+      providerConfigPath: fieldValue('providerConfigPath'),
+      selectedModelProfileId: fieldValue('selectedModelProfileId')
+    });
 
-  refs.providerConfigProfileLabel.textContent = payload.profile.label;
-  refs.providerConfigProviderLabel.textContent = `${payload.profile.provider} / ${payload.profile.modelName}`;
-  refs.providerConfigStatusLabel.textContent = payload.summary.enabled
-    ? `${payload.summary.provider} 已启用，当前 model = ${payload.summary.modelName}${payload.summary.apiKeyPresent ? '，已配置 API key' : '，未配置 API key'}`
-    : `${payload.summary.provider} 未启用`;
+    refs.providerConfigProfileLabel.textContent = payload.profile.label;
+    refs.providerConfigProviderLabel.textContent = `${payload.profile.provider} / ${payload.profile.modelName}`;
+    refs.providerConfigStatusLabel.textContent = payload.summary.enabled
+      ? `${payload.summary.provider} 已启用，当前 model = ${payload.summary.modelName}${payload.summary.apiKeyPresent ? '，已配置 API key' : '，未配置 API key'}`
+      : `${payload.summary.provider} 未启用`;
+    refs.providerConfigOutput.textContent = buildDebugJson(payload);
+  } catch (error) {
+    refs.providerConfigProfileLabel.textContent = '当前选择的模型';
+    refs.providerConfigProviderLabel.textContent = '等待本地配置';
+    refs.providerConfigStatusLabel.textContent = '配置文件暂不可读';
+    refs.providerConfigOutput.textContent = [
+      '无法读取本地模型配置。',
+      '',
+      '请先确认你是通过 npm run web 启动，并且已经执行 npm run setup:mac。',
+      '如果仍然失败，请关闭 Web UI 后重新运行 npm run web。',
+      '',
+      `技术信息：${error instanceof Error ? error.message : String(error)}`
+    ].join('\n');
+  }
   refs.providerApiKeyInput.value = '';
-  refs.providerConfigOutput.textContent = buildDebugJson(payload);
   refs.providerConfigDialog.showModal();
 }
 
