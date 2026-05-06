@@ -4,6 +4,59 @@ LabourCompressor is a local-first video collection, tagging, and archive workflo
 
 This repository is currently prepared for private GitHub hosting. Do not commit real API keys, cookies, downloaded videos, user spreadsheets, runtime state, or local cache files.
 
+## Quick Start
+
+Use these commands on macOS after installing Node.js 22+ and Homebrew.
+
+```bash
+git clone https://github.com/marisaaugusto174-cyber/LabourCompressor.git
+cd LabourCompressor
+npm run setup:mac
+npm run web
+```
+
+Then open:
+
+```text
+http://127.0.0.1:4311/
+```
+
+What the setup command does:
+
+- checks Node.js version;
+- checks Homebrew;
+- installs `yt-dlp` if missing;
+- installs `ffmpeg` if missing;
+- runs `npm install`.
+
+If setup stops with a Node.js or Homebrew error, install the missing prerequisite first:
+
+- Node.js 22+: `https://nodejs.org/`
+- Homebrew: `https://brew.sh/`
+
+## First Local Configuration
+
+Before running real model tagging or logged-in downloads, create local-only config files:
+
+```bash
+cp config/model-providers/providers.template.json config/model-providers/providers.local.json
+cp config/download-platform-credentials.template.json config/download-platform-credentials.local.json
+```
+
+Then start the Web UI:
+
+```bash
+npm run web
+```
+
+In the Web UI:
+
+- use model API configuration to paste the selected provider API key;
+- use platform credential configuration to select platform cookies when needed;
+- run Preflight before starting a task.
+
+Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or runtime state.
+
 ## V0.2 Capabilities
 
 - Local Web UI for selecting task inputs, running preflight, starting jobs, and viewing task state.
@@ -24,10 +77,16 @@ This repository is currently prepared for private GitHub hosting. Do not commit 
 - Model provider API credentials for the selected video model.
 - Platform cookies when the target platform requires login, higher quality formats, or anti-abuse verification.
 
-Install dependencies:
+Install Node dependencies only:
 
 ```bash
 npm install
+```
+
+Install macOS dependencies and Node dependencies:
+
+```bash
+npm run setup:mac
 ```
 
 Run the local Web UI:
