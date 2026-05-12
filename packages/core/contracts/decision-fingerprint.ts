@@ -10,6 +10,7 @@ export type DecisionEntityType =
   | 'archive-record'
   | 'retrieval-report'
   | 'delivery-request'
+  | 'segmentation-record'
   | 'taxonomy-migration';
 
 export interface DecisionFingerprint {
