@@ -279,22 +279,36 @@ function requirePipelineOptions(
     writebackTarget: (args['writeback-target'] as 'user' | 'master' | 'both' | undefined) ?? 'user',
     masterSpreadsheetPath: args['master-spreadsheet'],
     manualEditGate: parseBooleanArg(args['manual-edit-gate']),
-    afterEditDirectoryName: readOptionalArg(args, 'after-edit-directory-name')
+    afterEditDirectoryName: readOptionalArg(args, 'after-edit-directory-name'),
+    autoSegmentation: parseBooleanArg(args['auto-segmentation']),
+    segmentationProfileId: args['segmentation-profile'] as RunLocalPipelineOptions['segmentationProfileId'],
+    problemClipsDirectoryName: readOptionalArg(args, 'problem-clips-directory-name')
   });
 }
 
 function parseArgs(argv: readonly string[]): Record<string, string> {
   const parsed: Record<string, string> = {};
+  const booleanFlags = new Set(['auto-segmentation']);
 
-  for (let index = 0; index < argv.length; index += 2) {
+  for (let index = 0; index < argv.length;) {
     const key = argv[index];
     const value = argv[index + 1];
 
-    if (key === undefined || !key.startsWith('--') || value === undefined) {
+    if (key === undefined || !key.startsWith('--')) {
       throw new Error('CLI arguments must be provided as --key value pairs.');
     }
 
+    if (value === undefined || value.startsWith('--')) {
+      if (!booleanFlags.has(key.slice(2))) {
+        throw new Error(`CLI argument --${key.slice(2)} requires a value.`);
+      }
+      parsed[key.slice(2)] = 'true';
+      index += 1;
+      continue;
+    }
+
     parsed[key.slice(2)] = value;
+    index += 2;
   }
 
   return parsed;
@@ -341,7 +355,7 @@ function printUsage(): void {
     [
       'Usage:',
       '  node apps/cli/main.ts serve-web-ui',
-      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset business|v0] --prompt-library <path> --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>]',
+      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset business|v0] --prompt-library <path> --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
       '    Optional writeback: [--writeback-target user|master|both] [--master-spreadsheet <path>]',
       '  node apps/cli/main.ts list-taxonomy-presets',
       '  node apps/cli/main.ts list-model-options',

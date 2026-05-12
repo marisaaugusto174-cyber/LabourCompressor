@@ -24,6 +24,8 @@ import {
 import { type RunLocalPipelineFailure, type RunLocalPipelineResult } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 import { runTaggingBatch } from './local-pipeline-tagging.ts';
+import { runAutoSegmentationStage, type AutoSegmentationDependencies } from './local-pipeline-segmentation.ts';
+import { type SegmentationProfileId } from '../../packages/features/segmentation/domain/index.ts';
 
 export interface RunLocalPipelineOptions {
   readonly spreadsheet: string;
@@ -49,11 +51,15 @@ export interface RunLocalPipelineOptions {
   readonly manualEditGate?: boolean;
   readonly afterEditDirectoryName?: string;
   readonly selectedModelProfileId?: string;
+  readonly autoSegmentation?: boolean;
+  readonly segmentationProfileId?: SegmentationProfileId;
+  readonly problemClipsDirectoryName?: string;
 }
 
 export async function runLocalPipelineCommand(input: {
   readonly options: RunLocalPipelineOptions;
   readonly report: (event: CliStageEvent) => void;
+  readonly segmentationDependencies?: AutoSegmentationDependencies;
 }): Promise<RunLocalPipelineResult> {
   const startedAt = input.options.timestamp ?? new Date().toISOString();
   const workflowSessionId =
@@ -61,6 +67,10 @@ export async function runLocalPipelineCommand(input: {
   const emit = createStageEmitter(input.report);
   const afterEditDirectoryName = input.options.afterEditDirectoryName ?? 'AfterEdit';
   const afterEditDirectoryPath = path.join(input.options.downloadDir, afterEditDirectoryName);
+  const problemClipsDirectoryPath = path.join(
+    input.options.downloadDir,
+    input.options.problemClipsDirectoryName ?? 'ProblemClips'
+  );
   const platformCredentialConfig = await loadPlatformCredentialConfig(input.options.platformCredentialConfigPath);
   const resultsByRow = new Map<number, PipelineRowState>();
   const failures: RunLocalPipelineFailure[] = [];
@@ -184,7 +194,47 @@ export async function runLocalPipelineCommand(input: {
     resultsByRow
   });
 
-  if (input.options.manualEditGate === true && remoteRows.length > 0) {
+  let activeDownloadedAssets = [...downloadBatch.downloadedAssets];
+  const activeRowByTaskId = new Map(rowByTaskId);
+
+  if (input.options.autoSegmentation === true && remoteRows.length > 0) {
+    const remoteTaskIds = new Set(remoteRows.map((row) => row.taskId));
+    const remoteDownloadedAssets = downloadBatch.downloadedAssets.filter((asset) => remoteTaskIds.has(asset.taskId));
+    const nonRemoteAssets = downloadBatch.downloadedAssets.filter((asset) => !remoteTaskIds.has(asset.taskId));
+
+    emit('segmentation', 'running', 'Running automatic segmentation');
+    const segmentation = await runAutoSegmentationStage({
+      downloadedAssets: remoteDownloadedAssets,
+      rowByTaskId,
+      afterEditDirectoryPath,
+      problemClipsDirectoryPath,
+      profileId: input.options.segmentationProfileId ?? 'standard_ad',
+      startedAt,
+      emit,
+      dependencies: input.segmentationDependencies
+    });
+    activeDownloadedAssets = [...segmentation.segmentedAssets, ...nonRemoteAssets];
+    for (const row of segmentation.segmentedRows) {
+      activeRowByTaskId.set(row.taskId, row);
+    }
+    for (const rowState of segmentation.sourceRowStates) {
+      resultsByRow.set(rowState.rowNumber, rowState);
+    }
+    for (const rowState of segmentation.problemRows) {
+      resultsByRow.set(rowState.rowNumber, rowState);
+    }
+    for (const failure of segmentation.failures) {
+      failures.push(failure);
+    }
+    emit('segmentation', 'succeeded', `Automatic segmentation produced ${segmentation.segmentedAssets.length} clip(s)`);
+  }
+
+  const activeDownloadBatch = Object.freeze({
+    tasks: downloadBatch.tasks,
+    downloadedAssets: Object.freeze(activeDownloadedAssets)
+  });
+
+  if (input.options.manualEditGate === true && input.options.autoSegmentation !== true && remoteRows.length > 0) {
     applyManualEditGateStates({ downloadedAssets: downloadBatch.downloadedAssets, rowByTaskId, resultsByRow });
 
     const results = [...resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber);
@@ -232,8 +282,8 @@ export async function runLocalPipelineCommand(input: {
 
   emit('tagging', 'running', 'Running automatic tagging');
   await runTaggingBatch({
-    assets: downloadBatch.downloadedAssets,
-    rowByTaskId,
+    assets: activeDownloadBatch.downloadedAssets,
+    rowByTaskId: activeRowByTaskId,
     resultsByRow,
     failures,
     startedAt,
@@ -251,8 +301,8 @@ export async function runLocalPipelineCommand(input: {
   emit('archive', 'running', 'Archiving downloaded assets by accepted tag path');
   const archiveLibraryRoot = buildContentTopicArchiveRoot(input.options.archiveRoot);
 
-  for (const asset of downloadBatch.downloadedAssets) {
-    const row = requireSheetRow(rowByTaskId, asset.taskId);
+  for (const asset of activeDownloadBatch.downloadedAssets) {
+    const row = requireSheetRow(activeRowByTaskId, asset.taskId);
     const rowState = resultsByRow.get(row.rowNumber);
 
     if (
@@ -326,14 +376,15 @@ export async function runLocalPipelineCommand(input: {
     headers: sheet.headers,
     archiveLibraryRoot,
     results: sortedResults,
-    startedAt
+    startedAt,
+    userWritebackRowNumbers: sheet.rows.map((row) => row.rowNumber)
   });
   await writeCurrentRunTaggingSpreadsheet({
     filePath: currentRunSpreadsheetPath,
     sourceSpreadsheetName: path.basename(input.options.spreadsheet),
     archiveLibraryRoot,
-    results: sortedResults.filter((result) => downloadBatch.downloadedAssets.some((asset) => {
-      const row = rowByTaskId.get(asset.taskId);
+    results: sortedResults.filter((result) => activeDownloadBatch.downloadedAssets.some((asset) => {
+      const row = activeRowByTaskId.get(asset.taskId);
       return row?.rowNumber === result.rowNumber;
     })),
     startedAt

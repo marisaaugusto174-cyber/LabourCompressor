@@ -30,7 +30,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
-  /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}\.[A-Za-z0-9]+$/u;
+  /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}(?:_\d{2,4})?\.[A-Za-z0-9]+$/u;
 
 export interface DownloaderAdapter {
   download(request: DownloadRequest): Promise<DownloadExecutionResult>;

@@ -10,7 +10,7 @@ import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type PipelineItemTimings } from './local-pipeline-tagging.ts';
 
 export const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
-  /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}\.[A-Za-z0-9]+$/u;
+  /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}(?:_\d{2,4})?\.[A-Za-z0-9]+$/u;
 
 export interface PipelineRowState {
   readonly rowNumber: number;
@@ -81,14 +81,23 @@ export async function writePipelineResults(input: {
   readonly archiveLibraryRoot: string;
   readonly results: readonly PipelineRowState[];
   readonly startedAt: string;
+  readonly userWritebackRowNumbers?: readonly number[];
 }): Promise<void> {
   const writebackTarget = input.options.writebackTarget ?? 'user';
+  const userWritebackRowNumbers =
+    input.userWritebackRowNumbers === undefined
+      ? undefined
+      : new Set(input.userWritebackRowNumbers);
+  const userResults =
+    userWritebackRowNumbers === undefined
+      ? input.results
+      : input.results.filter((result) => userWritebackRowNumbers.has(result.rowNumber));
 
   if (writebackTarget === 'user' || writebackTarget === 'both') {
     writeTagResultsToSpreadsheet({
       filePath: input.options.spreadsheet,
       acceptedTagsColumnName: input.options.acceptedTagsColumnName,
-      updates: input.results.map((result) => ({
+      updates: userResults.map((result) => ({
         rowNumber: result.rowNumber,
         columnValues: {
           归档状态: result.archiveState,
