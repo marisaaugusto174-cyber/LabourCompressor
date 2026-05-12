@@ -6,6 +6,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "== LabourCompressor macOS setup =="
 echo "Project: ${ROOT_DIR}"
 
+if [ "$(uname -m)" != "arm64" ]; then
+  echo "ERROR: LabourCompressor.app currently supports Apple Silicon Macs only."
+  exit 1
+fi
+
+if ! xcrun --find clang >/dev/null 2>&1; then
+  echo "ERROR: Xcode Command Line Tools are required to build the Apple Silicon launcher app."
+  echo "Install them with:"
+  echo "  xcode-select --install"
+  exit 1
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   echo "ERROR: Node.js is not installed."
   echo "Install Node.js 22+ first: https://nodejs.org/"

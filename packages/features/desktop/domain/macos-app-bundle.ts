@@ -13,6 +13,15 @@ export interface MacosAppBundleFile {
 export interface MacosAppBundleSpec {
   readonly bundleDirectoryName: string;
   readonly files: readonly MacosAppBundleFile[];
+  readonly nativeExecutable: {
+    readonly relativePath: string;
+    readonly source: string;
+  };
+}
+
+export interface NativeLauncherCompileInput {
+  readonly sourcePath: string;
+  readonly outputPath: string;
 }
 
 export function createMacosAppBundleSpec(
@@ -29,12 +38,29 @@ export function createMacosAppBundleSpec(
         executable: false
       },
       {
-        relativePath: 'Contents/MacOS/labour-compressor',
+        relativePath: 'Contents/Resources/launcher.sh',
         content: createLauncherScript(input),
         executable: true
       }
-    ]
+    ],
+    nativeExecutable: {
+      relativePath: 'Contents/MacOS/labour-compressor',
+      source: createNativeLauncherSource()
+    }
   };
+}
+
+export function createNativeLauncherCompileArgs(
+  input: NativeLauncherCompileInput
+): readonly string[] {
+  return [
+    '-arch',
+    'arm64',
+    '-mmacosx-version-min=12.0',
+    input.sourcePath,
+    '-o',
+    input.outputPath
+  ];
 }
 
 function assertValidBundleInput(input: MacosAppBundleInput): void {
@@ -72,6 +98,10 @@ function createInfoPlist(appName: string): string {
   <string>labour-compressor</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <key>LSArchitecturePriority</key>
+  <array>
+    <string>arm64</string>
+  </array>
   <key>LSUIElement</key>
   <false/>
 </dict>
@@ -154,6 +184,49 @@ fi
 
 wait_for_server "\${PORT}"
 /usr/bin/open "http://\${HOST}:\${PORT}"
+`;
+}
+
+function createNativeLauncherSource(): string {
+  return `#include <limits.h>
+#include <mach-o/dyld.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+int main(void) {
+  char executable_path[PATH_MAX];
+  uint32_t size = sizeof(executable_path);
+
+  if (_NSGetExecutablePath(executable_path, &size) != 0) {
+    fprintf(stderr, "Executable path is too long.\\n");
+    return 1;
+  }
+
+  char *last_slash = strrchr(executable_path, '/');
+  if (last_slash == NULL) {
+    fprintf(stderr, "Cannot locate app executable directory.\\n");
+    return 1;
+  }
+  *last_slash = '\\0';
+
+  char launcher_path[PATH_MAX];
+  int written = snprintf(
+    launcher_path,
+    sizeof(launcher_path),
+    "%s/../Resources/launcher.sh",
+    executable_path
+  );
+
+  if (written < 0 || written >= (int)sizeof(launcher_path)) {
+    fprintf(stderr, "Launcher path is too long.\\n");
+    return 1;
+  }
+
+  execl("/bin/bash", "bash", launcher_path, (char *)NULL);
+  perror("Failed to start LabourCompressor launcher");
+  return 1;
+}
 `;
 }
 

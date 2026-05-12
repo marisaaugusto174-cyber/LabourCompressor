@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  createMacosAppBundleSpec
+  createMacosAppBundleSpec,
+  createNativeLauncherCompileArgs
 } from '../../../features/desktop/domain/macos-app-bundle.ts';
 import {
   writeMacosAppBundle
@@ -24,14 +25,23 @@ test('creates a macos app bundle spec for the local web ui launcher', () => {
   assert.equal(bundle.files[0].executable, false);
   assert.match(bundle.files[0].content, /CFBundleExecutable/);
   assert.match(bundle.files[0].content, /labour-compressor/);
+  assert.match(bundle.files[0].content, /LSArchitecturePriority/);
+  assert.match(bundle.files[0].content, /arm64/);
 
-  assert.equal(bundle.files[1].relativePath, 'Contents/MacOS/labour-compressor');
+  assert.equal(bundle.files[1].relativePath, 'Contents/Resources/launcher.sh');
   assert.equal(bundle.files[1].executable, true);
   assert.match(bundle.files[1].content, /LABOUR_COMPRESSOR_WEB_PORT/);
   assert.match(bundle.files[1].content, /node apps\/cli\/main\.ts serve-web-ui/);
   assert.match(bundle.files[1].content, /Library\/Logs\/LabourCompressor/);
   assert.match(bundle.files[1].content, /\/usr\/bin\/open/);
   assert.match(bundle.files[1].content, /api\/defaults/);
+
+  assert.equal(
+    bundle.nativeExecutable.relativePath,
+    'Contents/MacOS/labour-compressor'
+  );
+  assert.match(bundle.nativeExecutable.source, /_NSGetExecutablePath/);
+  assert.match(bundle.nativeExecutable.source, /Resources\/launcher\.sh/);
 });
 
 test('escapes project root paths in generated launcher scripts', () => {
@@ -42,7 +52,7 @@ test('escapes project root paths in generated launcher scripts', () => {
   });
 
   const launcher = bundle.files.find((file) => {
-    return file.relativePath === 'Contents/MacOS/labour-compressor';
+    return file.relativePath === 'Contents/Resources/launcher.sh';
   });
 
   assert.ok(launcher);
@@ -52,7 +62,24 @@ test('escapes project root paths in generated launcher scripts', () => {
   );
 });
 
-test('writes macos app bundle files with executable launcher mode', async () => {
+test('builds an arm64 clang command for the native launcher', () => {
+  assert.deepEqual(
+    createNativeLauncherCompileArgs({
+      sourcePath: '/tmp/launcher.c',
+      outputPath: '/tmp/LabourCompressor.app/Contents/MacOS/labour-compressor'
+    }),
+    [
+      '-arch',
+      'arm64',
+      '-mmacosx-version-min=12.0',
+      '/tmp/launcher.c',
+      '-o',
+      '/tmp/LabourCompressor.app/Contents/MacOS/labour-compressor'
+    ]
+  );
+});
+
+test('writes macos app bundle files before native compilation', async () => {
   const outputRoot = await mkdtemp(path.join(os.tmpdir(), 'labour-app-'));
 
   const appPath = await writeMacosAppBundle({
@@ -61,7 +88,8 @@ test('writes macos app bundle files with executable launcher mode', async () => 
       appName: 'LabourCompressor',
       projectRoot: '/tmp/labour-project',
       defaultPort: 4311
-    })
+    }),
+    compileNativeExecutable: false
   });
 
   assert.equal(appPath, path.join(outputRoot, 'LabourCompressor.app'));
@@ -70,7 +98,12 @@ test('writes macos app bundle files with executable launcher mode', async () => 
     /CFBundleName/
   );
 
-  const launcherPath = path.join(appPath, 'Contents/MacOS/labour-compressor');
+  const launcherPath = path.join(appPath, 'Contents/Resources/launcher.sh');
   assert.match(await readFile(launcherPath, 'utf8'), /PROJECT_ROOT='\/tmp\/labour-project'/);
   assert.equal((await stat(launcherPath)).mode & 0o111, 0o111);
+
+  assert.match(
+    await readFile(path.join(appPath, 'Contents/Resources/native-launcher.c'), 'utf8'),
+    /launcher\.sh/
+  );
 });

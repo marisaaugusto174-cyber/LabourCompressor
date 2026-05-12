@@ -86,6 +86,8 @@ Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or run
 ## Requirements
 
 - Node.js 22 or newer.
+- Apple Silicon Mac for the generated `LabourCompressor.app` launcher.
+- Xcode Command Line Tools for building the native arm64 launcher: `xcode-select --install`.
 - `yt-dlp` available in `PATH` or configured through the UI/CLI.
 - `ffmpeg` and `ffprobe` available in `PATH`.
 - `scenedetect` available in `PATH`.

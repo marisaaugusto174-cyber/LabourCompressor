@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 
 import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import {
   createMacosAppBundleSpec,
+  createNativeLauncherCompileArgs,
   type MacosAppBundleSpec
 } from '../packages/features/desktop/domain/macos-app-bundle.ts';
+
+const execFileAsync = promisify(execFile);
 
 export interface WriteMacosAppBundleInput {
   readonly outputRoot: string;
   readonly bundle: MacosAppBundleSpec;
+  readonly compileNativeExecutable?: boolean;
 }
 
 export async function writeMacosAppBundle(
@@ -31,7 +37,42 @@ export async function writeMacosAppBundle(
     }
   }
 
+  await writeNativeLauncherSource(appPath, input.bundle);
+
+  if (input.compileNativeExecutable !== false) {
+    await compileNativeLauncher(appPath, input.bundle);
+  }
+
   return appPath;
+}
+
+async function writeNativeLauncherSource(
+  appPath: string,
+  bundle: MacosAppBundleSpec
+): Promise<string> {
+  const sourcePath = path.join(appPath, 'Contents/Resources/native-launcher.c');
+  await mkdir(path.dirname(sourcePath), { recursive: true });
+  await writeFile(sourcePath, bundle.nativeExecutable.source, 'utf8');
+  return sourcePath;
+}
+
+async function compileNativeLauncher(
+  appPath: string,
+  bundle: MacosAppBundleSpec
+): Promise<void> {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+    throw new Error('macOS launcher app generation requires an Apple Silicon Mac.');
+  }
+
+  const sourcePath = path.join(appPath, 'Contents/Resources/native-launcher.c');
+  const outputPath = path.join(appPath, bundle.nativeExecutable.relativePath);
+
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await execFileAsync('xcrun', [
+    'clang',
+    ...createNativeLauncherCompileArgs({ sourcePath, outputPath })
+  ]);
+  await chmod(outputPath, 0o755);
 }
 
 if (isMainModule()) {
