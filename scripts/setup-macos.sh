@@ -75,6 +75,9 @@ create_local_config \
   "${ROOT_DIR}/config/download-platform-credentials.template.json" \
   "${ROOT_DIR}/config/download-platform-credentials.local.json"
 
+echo "Creating macOS launcher app..."
+node "${ROOT_DIR}/scripts/create-macos-app.ts"
+
 echo "Setup complete."
-echo "Start Web UI with:"
-echo "  npm run web"
+echo "Open the Web UI app with:"
+echo "  open \"${ROOT_DIR}/dist/LabourCompressor.app\""

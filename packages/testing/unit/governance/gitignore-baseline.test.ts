@@ -18,6 +18,7 @@ test('.gitignore covers local runtime artifacts and sensitive local configs', as
     '.DS_Store',
     '*.local.json',
     'node_modules',
+    'dist',
     '.tools',
     '视频数据下载缓存',
     '视频数据采集总表.xlsx'

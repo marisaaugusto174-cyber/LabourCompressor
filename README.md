@@ -30,6 +30,7 @@ What the setup command does:
 - installs `scenedetect` if missing;
 - runs `npm install`.
 - creates local config files from templates when they do not exist.
+- creates `dist/LabourCompressor.app` as a double-click macOS launcher.
 
 If setup stops with a Node.js or Homebrew error, install the missing prerequisite first:
 
@@ -43,7 +44,15 @@ If setup stops with a Node.js or Homebrew error, install the missing prerequisit
 - `config/model-providers/providers.local.json`
 - `config/download-platform-credentials.local.json`
 
-Then start the Web UI:
+Then open the Web UI app:
+
+```bash
+open dist/LabourCompressor.app
+```
+
+The app starts or reuses the local Web UI service, writes logs to `~/Library/Logs/LabourCompressor/web-ui.log`, and opens the browser automatically.
+
+Command-line fallback:
 
 ```bash
 npm run web
