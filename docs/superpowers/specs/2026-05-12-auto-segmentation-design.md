@@ -1,42 +1,42 @@
-# Auto Segmentation Design
+# 自动分割功能设计
 
-## Document Status
+## 文档状态
 
-- Project: `LabourCompressor`
-- Date: `2026-05-12`
-- Scope: automatic long-video segmentation before `AfterEdit`
-- Status: design for user review
+- 项目：`LabourCompressor`
+- 日期：`2026-05-12`
+- 范围：下载后、进入 `AfterEdit` 前的长视频自动分割
+- 状态：设计文档，待用户审阅
 
-## Problem
+## 问题
 
-The current V0.2 workflow pauses after download and waits for a human to edit files into `AfterEdit`. This keeps the workflow from becoming fully automatic.
+当前 V0.2 工作流在下载后会暂停，等待用户把视频人工剪辑到 `AfterEdit`。这个人工闸门会阻断完整自动化。
 
-The new capability should replace most manual cutting with automatic segmentation. The target is not creative highlight selection. The target is to split each downloaded long video into a sequence of meaningful, valid, short clips that can enter the existing tagging and archive workflow.
+新能力要把大部分人工剪辑替换成自动分割。目标不是创意剪辑，也不是高光筛选，而是把每个下载后的长视频切成一组有基本叙事意义、时长合法、能够单独打标归档的短片段。
 
-Example: a 3-minute commercial should be divided into clips that roughly follow scenes, shot groups, or continuous action units. Each final clip should be understandable enough to tag on its own and must obey the duration rules.
+典型例子：一条 3 分钟商业广告应被切成若干片段，片段边界尽量贴近场景、镜头组或连续动作单元。每个最终片段应当足够独立，用户或模型能理解它大致在表达什么，同时必须遵守时长规则。
 
-## Goals
+## 目标
 
-- Segment downloaded videos automatically before tagging.
-- Preserve near-complete coverage of valid source content.
-- Avoid AI-based highlight selection or value ranking.
-- Produce final clips in the `3-30s` range, with `5-30s` preferred.
-- Route only segmented clips into `AfterEdit` and later tagging.
-- Keep the original downloaded file as source material, but do not send it to tagging or archive.
-- Put unresolved outputs into a `problem clips` folder and mark them in the generated table.
+- 在打标前自动分割已下载视频。
+- 尽量保留源视频中的有效内容，而不是只挑选高光。
+- 不让 AI 对片段做商业价值排序或保留价值筛选。
+- 最终片段必须在 `3-30s`，优先落在 `5-30s`。
+- 只有分割后的片段进入 `AfterEdit` 和后续打标归档。
+- 原始下载文件作为来源素材保留，但不进入打标或归档。
+- 无法正常处理的片段进入“问题片段”目录，并在生成表中标注。
 
-## Non-Goals
+## 非目标
 
-- Do not build a creative video editor.
-- Do not select only the best or most valuable highlights.
-- Do not require manual review before normal clips continue.
-- Do not add full original-video tagging when segmentation is enabled.
-- Do not make model judgment decide whether a clip should be kept for business value.
-- Do not require extra table fields unless they are already produced by the segmentation process or needed for traceability.
+- 不做完整创意剪辑器。
+- 不只保留“最好”或“最有价值”的片段。
+- 正常片段不需要人工复核才能继续流程。
+- 启用自动分割后，不再增加完整原视频打标流程。
+- 不让模型判断某个片段是否值得入库，只让它辅助判断边界连续性。
+- 不为了用户可见表格额外增加大量字段；只有流程天然产生或追溯必需的数据才内部记录。
 
-## Core Approach
+## 核心方案
 
-The feature uses a three-layer segmentation pipeline:
+自动分割采用三层管线：
 
 ```text
 Downloaded video
@@ -48,121 +48,133 @@ Downloaded video
 -> existing AfterEdit table and tagging workflow
 ```
 
-Candidate cut detection finds possible physical boundaries. It does not decide final clip boundaries by itself.
+中文理解为：
 
-Adjacent-shot continuity scoring decides whether neighboring shots belong to the same continuous expression unit. This is where visual, audio, and optional model signals help preserve narrative continuity.
+```text
+下载后视频
+-> 候选切点检测
+-> 相邻镜头连续性评分
+-> 语义段落组装
+-> 时长治理
+-> 分割片段写入 AfterEdit
+-> 复用现有 AfterEdit 表格与打标流程
+```
 
-Duration governance enforces the hard `3-30s` rule after semantic segments are assembled.
+候选切点检测只负责找可能的物理切点，不直接决定最终片段。
 
-## Candidate Cut Detection
+相邻镜头连续性评分负责判断相邻镜头是否属于同一个连续表达单元。这一层可以使用视觉、音频、字幕或可选模型信号，目的是保留叙事连续性。
 
-The first implementation should use scene or shot boundary detection as the source of candidate cuts.
+时长治理在语义段落形成后执行，负责强制满足 `3-30s`。
 
-Recommended initial detector:
+## 候选切点检测
 
-- `PySceneDetect AdaptiveDetector` for primary detection.
+第一版应使用场景检测或镜头边界检测作为候选切点来源。
 
-Fallback detector:
+推荐主检测器：
 
-- `PySceneDetect ContentDetector` or FFmpeg `scdet`.
+- `PySceneDetect AdaptiveDetector`，用于主要检测。
 
-Future detector:
+备用检测器：
 
-- `TransNetV2` or a similar shot-boundary model if traditional detection is not stable enough for short-video and ad material.
+- `PySceneDetect ContentDetector` 或 FFmpeg `scdet`。
 
-The output of this stage is a timeline of candidate boundaries, not final clips.
+后续增强检测器：
 
-## Continuity Scoring
+- `TransNetV2` 或类似 shot-boundary 模型，用于传统检测器在短视频、广告素材上不稳定的场景。
 
-The segmentation system should judge adjacent shots, not judge whole-video business value.
+这一阶段的输出是候选边界时间线，不是最终片段。
 
-For each pair of adjacent shots, calculate whether they likely belong to the same continuous segment. Signals can include:
+## 连续性评分
 
-- visual continuity: background, product, person, color palette, composition;
-- action continuity: motion direction, movement strength, continuous gesture or product demonstration;
-- audio continuity: uninterrupted music, voiceover, sound effect, or silence pattern;
-- text continuity: subtitles or speech transcript continuing the same sentence or selling point;
-- transition signals: black frame, white flash, logo card, title card, hard visual reset.
+分割系统应判断“相邻镜头是否应合并”，而不是判断“这个片段是否有商业价值”。
 
-The decision produced by this stage is:
+对每一对相邻镜头，系统计算它们是否可能属于同一个连续片段。可用信号包括：
+
+- 视觉连续性：背景、产品、人物、主色、构图是否延续；
+- 动作连续性：运动方向、运动强度、手势或产品演示是否延续；
+- 音频连续性：音乐、口播、音效或静音模式是否连续；
+- 文本连续性：字幕或 ASR 是否还在同一句话或同一卖点中；
+- 转场信号：黑场、白闪、logo 卡、标题卡、明显视觉重置。
+
+这一阶段内部产生的决策形态为：
 
 ```text
 merge_with_next: true | false
 reason_code: visual_continuity | action_continuity | audio_continuity | text_continuity | transition_boundary | weak_continuity
 ```
 
-The system should store this internally for traceability. It does not need to add all of these fields to user-facing spreadsheets unless needed for debugging or failure handling.
+这些信息应进入内部追溯记录。除非调试或失败处理需要，不必全部写进用户可见表格。
 
-## Semantic Segment Assembly
+## 语义段落组装
 
-Candidate shots are assembled into final candidate segments according to continuity.
+系统根据连续性结果，把候选镜头组装成最终候选段落。
 
-Rules:
+规则：
 
-- Merge adjacent shots when continuity is strong.
-- Split at strong transition signals.
-- Treat a fast-cut montage as one segment when its shots form a continuous expression unit.
-- Prefer keeping a complete action, product demonstration, or spoken sentence group together.
-- Do not merge across an obvious scene reset only to meet a target duration, unless required to avoid an invalid clip.
+- 连续性强的相邻镜头应合并。
+- 强转场信号处应切分。
+- 快切蒙太奇如果共同表达一个连续单元，应作为一个片段。
+- 完整动作、产品演示、口播句群应尽量保持完整。
+- 不应仅为了凑时长跨过明显场景重置；只有避免无效片段时才允许弱合并。
 
-This stage aims to create meaningful segments before duration constraints are applied.
+这一阶段的目标是先得到有意义的片段，再执行时长约束。
 
-## Duration Governance
+## 时长治理
 
-Final output clips must obey:
+最终输出片段必须遵守：
 
-- hard minimum: `3s`
-- preferred minimum: `5s`
-- hard maximum: `30s`
+- 硬性最短：`3s`
+- 推荐最短：`5s`
+- 硬性最长：`30s`
 
-Short segment rules:
+短片段规则：
 
-- `<3s` segments should first merge with the adjacent segment that has the strongest continuity.
-- If both sides are weak and no merge can produce a valid segment, route the isolated segment to problem clips.
-- `3-5s` segments are allowed to enter the normal flow without extra marking.
+- `<3s` 片段优先与连续性最强的相邻片段合并。
+- 如果前后连续性都弱，且无法合并成合法片段，则进入问题片段目录。
+- `3-5s` 片段允许进入正常流程，不需要额外标注。
 
-Long segment rules:
+长片段规则：
 
-- `>30s` segments must be split again.
-- First retry inside the long segment with stricter or more sensitive candidate cut detection.
-- If internal cuts exist, choose the weakest continuity boundary that keeps resulting clips valid.
-- If no usable boundary exists, force split near a stable point before `30s` and allow the resulting valid clips into normal `AfterEdit`.
+- `>30s` 片段必须继续拆分。
+- 首先在长片段内部用更敏感的候选切点检测重试。
+- 如果存在内部切点，选择连续性最弱且能产生合法片段的边界。
+- 如果没有可用边界，则在 `30s` 前的稳定位置强制切分；只要导出片段满足时长规则，就允许进入正常 `AfterEdit`。
 
-Overlap rule:
+重叠规则：
 
-- Adjacent clips may include a small overlap when it avoids cutting an action or sentence unnaturally.
-- Initial default overlap should be conservative, such as `0.3-0.8s`.
+- 如果能避免切断动作或句子，相邻片段可以保留少量重叠。
+- 第一版默认重叠应保守，例如 `0.3-0.8s`。
 
-## Problem Clips
+## 问题片段
 
-Normal automation should not stop the whole task when a small number of clips are unresolved.
+少量异常片段不应阻断整个自动流程。
 
-Problem clips are written to a dedicated folder under the download cache:
+问题片段写入下载缓存下的专用目录：
 
 ```text
 视频数据下载缓存/ProblemClips
 ```
 
-Initial problem categories:
+第一版问题分类：
 
-- source media unreadable;
-- candidate cut detection failed;
-- clip cannot satisfy `3-30s`;
-- export failed;
-- exported clip missing;
-- segmentation result empty.
+- 源媒体无法读取；
+- 候选切点检测失败；
+- 片段无法满足 `3-30s`；
+- 导出失败；
+- 导出后文件不存在；
+- 分割结果为空。
 
-The generated table should mark problem rows with a status such as:
+生成表中应把问题行标记为：
 
 ```text
 自动分割待处理
 ```
 
-Detailed failure handling can be expanded later, but these categories are enough to preserve automation without hiding invalid outputs.
+更细的失败处理可以后续扩展。第一版只需要保证自动流程不掩盖异常输出。
 
-## AfterEdit Integration
+## AfterEdit 接入
 
-When automatic segmentation is enabled, the workflow becomes:
+启用自动分割后，工作流变为：
 
 ```text
 downloaded_waiting_after_edit
@@ -178,13 +190,13 @@ downloaded_waiting_after_edit
 -> completed
 ```
 
-The segmentation stage writes valid clips into the existing `AfterEdit` folder. Existing AfterEdit scanning, filename governance, record table generation, validation, tagging, writeback, and archive behavior should be reused.
+自动分割阶段把合法片段写入现有 `AfterEdit` 目录。后续扫描、文件名治理、记录表生成、二阶段校验、打标、回表和归档都应复用现有 AfterEdit 能力。
 
-Original downloaded files remain in the download cache and are traceable as source files, but they do not continue into tagging when auto segmentation succeeds.
+原始下载文件保留在下载缓存中，并可作为来源追溯，但自动分割成功后不继续进入打标。
 
-## File Naming
+## 文件命名
 
-The user-facing naming rule should be simple:
+面向用户的命名规则应保持简单：
 
 ```text
 原剪辑文件名_01.mp4
@@ -192,92 +204,92 @@ The user-facing naming rule should be simple:
 原剪辑文件名_03.mp4
 ```
 
-The actual file should still pass existing AfterEdit filename governance. If the existing system requires resolution/date/duration metadata, the segment suffix should be added without losing that compatibility.
+实际文件仍必须通过现有 AfterEdit 文件名治理。如果现有系统要求分辨率、日期、时长元数据，片段序号应在不破坏兼容性的前提下追加。
 
-Recommended normalized form:
+推荐标准化形式：
 
 ```text
 清洗后的原文件名_分辨率P_YYMMDD_片段秒数_01.mp4
 ```
 
-The numeric suffix is the segment order within the source video.
+数字后缀表示该片段在源视频中的顺序。
 
-## Data and Traceability
+## 数据与追溯
 
-The system should record segmentation metadata internally:
+系统应在内部记录自动分割元数据：
 
-- source file path;
-- source file hash;
-- detector profile;
-- continuity scoring profile;
-- segment index;
-- start time;
-- end time;
-- duration;
-- output path;
-- problem category when applicable.
+- 源文件路径；
+- 源文件哈希；
+- 检测器 profile；
+- 连续性评分 profile；
+- 片段序号；
+- 起始时间；
+- 结束时间；
+- 片段时长；
+- 输出路径；
+- 问题分类。
 
-These fields are not all required in the user-facing spreadsheet. They are needed for retry, debugging, and future audits.
+这些字段不必全部进入用户可见表格。它们主要服务于重试、调试和后续审计。
 
-## User Interface
+## Web UI
 
-The Web UI should present automatic segmentation as part of the post-download stage.
+Web UI 应把自动分割呈现为下载后的一个阶段。
 
-Initial UI behavior:
+第一版 UI 行为：
 
-- offer an `自动分割` action when downloads are ready;
-- show progress as `自动分割中`;
-- show valid clip count and problem clip count;
-- let the existing `生成 AfterEdit 表格` path continue after segmentation;
-- expose problem clips as a clear folder/status instead of blocking the whole task.
+- 下载完成后提供 `自动分割` 操作；
+- 进度显示为 `自动分割中`；
+- 显示有效片段数量和问题片段数量；
+- 自动分割后继续复用现有 `生成 AfterEdit 表格` 路径；
+- 问题片段以清晰目录和状态呈现，不阻断正常片段继续处理。
 
-The UI should avoid exposing low-level detector parameters in the first version. Profiles are better than raw thresholds.
+第一版不应暴露底层检测阈值。用户选择 profile 比直接调参数更稳。
 
-## Configuration Profiles
+## 配置 Profile
 
-Initial profiles:
+第一版提供三个 profile：
 
-- `standard_ad`: balanced scene continuity for commercials and common short-video ads.
-- `fast_cut`: more willing to merge fast short shots into montage groups.
-- `conservative`: fewer semantic merges, stronger respect for visual transitions.
+- `standard_ad`：商业广告和常见短视频广告的平衡配置。
+- `fast_cut`：更愿意把连续快切镜头合并为蒙太奇组。
+- `conservative`：减少语义合并，更尊重明显视觉转场。
 
-Each profile maps to detector thresholds, continuity scoring weights, overlap policy, and long-segment retry behavior.
+每个 profile 映射检测阈值、连续性评分权重、重叠策略和长片段重试策略。
 
-## Testing
+## 测试
 
-Unit tests:
+单元测试：
 
-- duration governance for `<3s`, `3-5s`, `5-30s`, and `>30s`;
-- continuity merge decisions;
-- suffix naming order;
-- problem clip routing;
-- source-to-segment trace records.
+- `<3s`、`3-5s`、`5-30s`、`>30s` 的时长治理；
+- 连续性合并决策；
+- `_01`、`_02` 后缀命名顺序；
+- 问题片段路由；
+- 源文件到片段的追溯记录。
 
-Integration tests:
+集成测试：
 
-- one long source splits into multiple valid `AfterEdit` clips;
-- fast-cut source groups short shots instead of exporting unusable tiny clips;
-- long continuous source is recursively split under `30s`;
-- problem clips do not block valid clips;
-- generated `AfterEdit_归档记录表.xlsx` only sends valid clips into tagging.
+- 一条长视频可分割成多个合法 `AfterEdit` 片段；
+- 快切素材会合并短镜头，而不是导出不可用碎片；
+- 长连续素材会递归拆到 `30s` 以下；
+- 问题片段不会阻断合法片段；
+- 生成的 `AfterEdit_归档记录表.xlsx` 只把合法片段送入打标。
 
-Manual acceptance:
+人工验收：
 
-- use a 2-3 minute commercial;
-- verify final clips are all `3-30s`;
-- verify most source content is covered;
-- verify clips mostly correspond to scenes, continuous action groups, or montage groups;
-- verify original full video is not tagged or archived when segmentation succeeds.
+- 使用一条 2-3 分钟商业广告；
+- 验证所有最终片段都在 `3-30s`；
+- 验证大部分源内容被覆盖；
+- 验证片段基本对应场景、连续动作组或快切蒙太奇组；
+- 验证启用自动分割后，原始完整视频不会被打标或归档。
 
-## Forced Split Policy
+## 强制切分策略
 
-If a `>30s` segment has no reliable internal boundary, the default behavior is to force split and allow the resulting valid clips into normal `AfterEdit`.
+如果 `>30s` 片段没有可靠内部边界，默认行为是强制切分，并把满足时长规则的输出片段放入正常 `AfterEdit`。
 
-This default preserves automation and near-complete content coverage. The segment should only enter `ProblemClips` when the system cannot export valid media, cannot keep the output within `3-30s`, or cannot read the source segment safely.
+这个默认值优先保证自动化和接近完整的内容覆盖。只有系统无法导出合法媒体、无法让结果满足 `3-30s`，或无法安全读取源片段时，才进入 `ProblemClips`。
 
-## References
+## 参考
 
-- PySceneDetect detector API: `https://www.scenedetect.com/docs/latest/api/detectors.html`
-- FFmpeg `scdet` filter: `https://ayosec.github.io/ffmpeg-filters-docs/8.0/Filters/Video/scdet.html`
-- TransNetV2 repository: `https://github.com/soCzech/TransNetV2`
-- Microsoft Research shot grouping paper: `https://www.microsoft.com/en-us/research/publication/automatic-video-scene-extraction-by-shot-grouping/`
+- PySceneDetect detector API：`https://www.scenedetect.com/docs/latest/api/detectors.html`
+- FFmpeg `scdet` filter：`https://ayosec.github.io/ffmpeg-filters-docs/8.0/Filters/Video/scdet.html`
+- TransNetV2 repository：`https://github.com/soCzech/TransNetV2`
+- Microsoft Research shot grouping paper：`https://www.microsoft.com/en-us/research/publication/automatic-video-scene-extraction-by-shot-grouping/`
