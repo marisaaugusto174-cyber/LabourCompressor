@@ -1,6 +1,6 @@
 # LabourCompressor
 
-LabourCompressor is a local-first video collection, tagging, and archive workflow for short video datasets. V0.2 focuses on a single-user desktop workflow: import a spreadsheet, download supported platform videos, pause for manual editing, run native video-level model tagging, write results back to spreadsheets, and archive files by the unique `内容题材` path.
+LabourCompressor is a local-first video collection, tagging, and archive workflow for short video datasets. V0.3 makes automatic segmentation the mainline: import a spreadsheet, download supported platform videos, split long videos into `3-30s` clips, tag each accepted clip with native video-level models, write results back to spreadsheets, and archive files by the unique `内容题材` path.
 
 This repository is currently prepared for private GitHub hosting. Do not commit real API keys, cookies, downloaded videos, user spreadsheets, runtime state, or local cache files.
 
@@ -27,6 +27,7 @@ What the setup command does:
 - checks Homebrew;
 - installs `yt-dlp` if missing;
 - installs `ffmpeg` if missing;
+- installs `scenedetect` if missing;
 - runs `npm install`.
 - creates local config files from templates when they do not exist.
 
@@ -56,12 +57,17 @@ In the Web UI:
 
 Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or runtime state.
 
-## V0.2 Capabilities
+## V0.3 Capabilities
 
 - Local Web UI for selecting task inputs, running preflight, starting jobs, and viewing task state.
 - Spreadsheet-driven workflow with `xlsx` as the complete standard format and `numbers` as a compatibility path.
 - Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
-- `AfterEdit` manual editing gate between download and model tagging.
+- Automatic segmentation before tagging: scene detection, `3-30s` duration governance, and forced split when a long segment has no safe cut.
+- Effective-content coverage target is about `80%`; pure heads/tails, blank screens, posters, and small cutting loss are acceptable.
+- Original downloaded full videos remain in the download cache, but only accepted segmented clips enter tagging and archive.
+- `AfterEdit` receives generated clips such as `原名_720P_260512_000023_01.mp4`.
+- `ProblemClips` receives exceptional clips, with problem categories limited to `无法满足 3-30s`, `导出失败`, and `检测结果异常`.
+- V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
 - Native video-level multimodal tagging with Qwen and Gemini provider profiles.
 - Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.
 - Multi-branch tag writeback plus exactly one unique `内容题材` terminal path for archive placement.
@@ -73,6 +79,7 @@ Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or run
 - Node.js 22 or newer.
 - `yt-dlp` available in `PATH` or configured through the UI/CLI.
 - `ffmpeg` and `ffprobe` available in `PATH`.
+- `scenedetect` available in `PATH`.
 - Model provider API credentials for the selected video model.
 - Platform cookies when the target platform requires login, higher quality formats, or anti-abuse verification.
 
@@ -109,7 +116,7 @@ Use template files as structure references only. Real credential files are inten
 - Fill only the providers and platforms you need for local testing.
 - Keep real `apiKey`, cookies, browser sessions, and OAuth values out of commits and screenshots.
 
-Curated V0.2 video model profiles:
+Curated V0.3 video model profiles:
 
 - `Qwen 3.6 Flash` -> `qwen3.6-flash`
 - `Qwen 3.6 Plus` -> `qwen3.6-plus`
@@ -125,10 +132,11 @@ Qwen profiles default to higher tagging concurrency. Gemini profiles default to 
 2. Configure model API credentials and download platform credentials.
 3. Import a user spreadsheet with source URLs.
 4. Run preflight and fix any blocking issues.
-5. Start the download task.
-6. If the manual edit gate is enabled, export edited videos into the generated `AfterEdit` folder.
-7. Generate the `AfterEdit` record spreadsheet and continue tagging.
-8. Review writeback, archive results, and the per-task result spreadsheet.
+5. Start the task with `自动分割长视频` enabled.
+6. The system downloads full source videos, writes segmented clips into `AfterEdit`, writes problem clips into `ProblemClips`, and tags accepted clips.
+7. Review writeback, archive results, `AfterEdit_归档记录表.xlsx`, and the per-task result spreadsheet.
+
+V0.2 is retained as the local tag `v0.2.0` and GitHub baseline. To use the old manual edit workflow, turn off automatic segmentation and enable the manual edit gate.
 
 For formal spreadsheet rules, see `CSV格式要求.md`, `NUMBERS格式要求.md`, and the project PRD.
 
@@ -149,14 +157,15 @@ The following must remain local-only:
 
 The repository includes `.gitignore` entries for these local artifacts. Always inspect staged files before committing.
 
-## Known V0.2 Limits
+## Known V0.3 Limits
 
 - This is a local single-user workflow, not a cloud service.
 - The system does not perform automatic browser login or guarantee bypassing platform risk controls.
 - Download success depends on platform policy, account state, cookies freshness, `yt-dlp` support, and local network conditions.
+- Automatic segmentation is rule-based in V0.3; it does not yet perform full semantic story analysis.
 - `Numbers` support is compatibility-oriented and does not guarantee local file hyperlinks or automatic styling.
 - Model quality, speed, and rate limits vary by provider account, quota, and selected model.
-- OpenAI GPT models are not included in the V0.2 video model candidate pool because this workflow requires native video input.
+- OpenAI GPT models are not included in the V0.3 video model candidate pool because this workflow requires native video input.
 
 ## Release Baseline
 

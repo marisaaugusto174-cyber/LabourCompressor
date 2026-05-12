@@ -44,6 +44,7 @@ install_brew_package() {
 
 install_brew_package "yt-dlp" "yt-dlp"
 install_brew_package "ffmpeg" "ffmpeg"
+install_brew_package "scenedetect" "scenedetect"
 
 echo "Installing Node dependencies..."
 cd "${ROOT_DIR}"

@@ -3,7 +3,7 @@
 ## Status
 
 - Project Name: `LabourCompressor`
-- Product Version: `v0.2`
+- Product Version: `v0.3`
 - Data Strategy: `SSOT-driven`
 - Sync Strategy: `Hybrid`
 - Push Channel: `Task State / Workflow State`
@@ -16,7 +16,7 @@
 
 本文件定义系统真相来源、核心实体、状态分区、数据流和一致性规则，防止任务状态、文件索引、标签版本、凭证配置、调用报告和 UI 状态混杂。
 
-V0.2 数据模型必须支撑 Web UI 两阶段流程：第一阶段下载后暂停，第二阶段只处理 `AfterEdit` 中的剪辑后视频。
+V0.3 数据模型必须支撑 Web UI 自动分割流程：下载后把长视频拆为 `3-30s` 片段，合法片段进入 `AfterEdit`，问题片段进入 `ProblemClips`。
 
 ---
 
@@ -38,16 +38,17 @@ V0.2 数据模型必须支撑 Web UI 两阶段流程：第一阶段下载后暂�
 
 ---
 
-## V0.2 Workflow State
+## V0.3 Workflow State
 
-V0.2 标准状态流：
+V0.3 标准状态流：
 
 ```text
 created
 -> preflight_checked
 -> downloading
--> downloaded_waiting_after_edit
--> after_edit_table_generated
+-> downloaded
+-> auto_segmenting
+-> auto_segmented
 -> after_edit_validated
 -> video_cache_created
 -> video_tagged
@@ -66,7 +67,7 @@ created
 - `sourceRow`
 - `url` 或 `fileName`
 
-下载后不得直接进入 `video_cache_created`；必须先经过 `downloaded_waiting_after_edit` 与 `after_edit_validated`。
+下载后不得直接进入 `video_cache_created`；自动分割开启时必须先经过 `auto_segmenting` 与 `auto_segmented`。V0.2 人工 `AfterEdit` 状态作为兼容路径保留。
 
 ---
 
@@ -98,6 +99,8 @@ Explicit Non-SSOT：
 - `SourceUrl`
 - `PlatformCredentialRef`
 - `MediaAsset`
+- `SegmentRecord`
+- `ProblemClipRecord`
 - `AfterEditAsset`
 - `VideoCacheAsset`
 - `TaxonomyVersion`
@@ -111,6 +114,8 @@ Explicit Non-SSOT：
 
 - `PlatformCredentialRef` 只保存凭证引用、平台、来源类型和校验状态，不保存真实 cookies 或 key 内容。
 - `AfterEditAsset` 是第二阶段输入，不等同于原下载文件。
+- `SegmentRecord` 表示通过 `3-30s` 时长治理的可打标片段。
+- `ProblemClipRecord` 只允许三类问题：`无法满足 3-30s`、`导出失败`、`检测结果异常`。
 - `VideoCacheAsset` 记录压缩 profile、源文件哈希、缓存路径和大小。
 - `TagAssignment` 必须绑定 `TaxonomyVersion` 与 `DecisionFingerprint`。
 - `ArchiveRecord` 只能绑定唯一 `内容题材` 路径。
@@ -125,7 +130,9 @@ flowchart TD
     B --> C[Preflight]
     C --> D[Download Workflow]
     D --> E[Downloaded Asset]
-    E --> F[AfterEdit Folder]
+    E --> S[Auto Segmentation]
+    S --> F[AfterEdit Segments]
+    S --> X[ProblemClips]
     F --> G[AfterEdit Table]
     G --> H[Validation]
     H --> I[Video Cache]
@@ -348,4 +355,4 @@ Agent 或 UI 的压缩上下文不得成为事实来源。
 
 ## Final Position
 
-V0.2 的数据纪律是：凭证只存引用，候选不当事实，剪辑后文件才进入第二阶段，视频级打标才是正式链路，唯一 `内容题材` 才驱动归档，所有关键结果都可追溯。
+V0.3 的数据纪律是：凭证只存引用，候选不当事实，自动分割后的合法片段才进入正式打标链路，问题片段必须挂起标记，唯一 `内容题材` 才驱动归档，所有关键结果都可追溯。

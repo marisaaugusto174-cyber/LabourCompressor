@@ -3,25 +3,25 @@
 ## Planning Status
 
 - Project Name: `LabourCompressor`
-- Product Version: `v0.2`
-- Planning Mode: `Web UI Productization Plan`
-- Primary Workflow: `Two-stage AfterEdit workflow`
+- Product Version: `v0.3`
+- Planning Mode: `Auto Segmentation Productization Plan`
+- Primary Workflow: `Download -> Auto Segmentation -> Clip Tagging`
 - Verification Standard: `Relevant tests + document line-count check`
 
 ---
 
-## V0.2 Target
+## V0.3 Target
 
-V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
+V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少人工剪辑前置步骤。
 
 用户应能完成：
 
 1. 配置模型 API 和平台下载凭证。
 2. 导入用户表并运行 Preflight。
 3. 启动第一阶段下载。
-4. 下载后在 `AfterEdit` 进行人工剪辑。
-5. 生成 `AfterEdit_归档记录表.xlsx` 并自动载入。
-6. 启动第二阶段视频级打标、回表、归档。
+4. 下载后自动分割为 `3-30s` 片段。
+5. 合法片段进入 `AfterEdit`，问题片段进入 `ProblemClips`。
+6. 对片段进行视频级打标、回表、归档。
 7. 查看成功结果、失败原因和失败 CSV。
 
 ---
@@ -30,12 +30,12 @@ V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
 
 ### Product Proof Rule
 
-不得用以下结果冒充 V0.2 完成：
+不得用以下结果冒充 V0.3 完成：
 
 - CLI-only 流程
-- 单阶段下载后直接打标
+- 单阶段下载后直接打完整原片
 - 只处理原下载文件
-- 跳过 `AfterEdit` 表生成
+- 跳过自动分割与问题片段标记
 - 抽帧图片理解替代正式视频级打标
 - 多分支标签只写回 `内容题材`
 - 凭证配置只支持全局 cookies
@@ -52,7 +52,7 @@ V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
 
 ## Milestone 1: Documentation and Governance Sync
 
-目标：让核心文档统一 V0.2 口径。
+目标：让核心文档统一 V0.3 口径。
 
 范围：
 
@@ -65,8 +65,8 @@ V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
 
 交付：
 
-- V0.2 目标明确。
-- AfterEdit 两阶段流程明确。
+- V0.3 目标明确。
+- 自动分割主线和 V0.2 人工兼容路径明确。
 - 视频级打标、不默认抽帧明确。
 - 平台凭证和多平台下载边界明确。
 - 500 行规则明确。
@@ -106,9 +106,9 @@ V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
 
 ---
 
-## Milestone 3: First Stage Download
+## Milestone 3: Download and Auto Segmentation
 
-目标：表格驱动 URL 下载并暂停等待人工剪辑。
+目标：表格驱动 URL 下载，并自动分割为可入库短片段。
 
 任务：
 
@@ -118,34 +118,42 @@ V0.2 的目标是把已跑通的本地引擎收敛为 Web UI 可操作产品。
 - 按平台选择凭证。
 - 调用 `yt-dlp` 与 `ffmpeg`。
 - 标准化下载文件名。
-- 创建 `下载缓存目录/AfterEdit`。
-- 回写 `已下载待剪辑`。
+- 创建 `下载缓存目录/AfterEdit` 和 `下载缓存目录/ProblemClips`。
+- 用 `ffprobe / scenedetect / ffmpeg` 执行检测和导出。
+- 执行 `3-30s` 时长治理，首选 `5-30s`。
+- 对超长片段继续拆分或强制切分。
+- 原下载文件保留但不进入打标。
 
 退出条件：
 
-- 下载成功项不会自动进入打标。
-- 任务状态显示下一步为人工剪辑。
+- 合法片段继续进入打标。
+- 问题片段标记 `自动分割待处理`。
 - 常见下载失败有分类和下一步建议。
 
 ---
 
-## Milestone 4: AfterEdit Gate
+## Milestone 4: AfterEdit Clip Table
 
-目标：把人工剪辑结果转换为第二阶段标准输入。
+目标：把自动分割结果转换为标准片段表，并保留 V0.2 人工兼容路径。
 
 任务：
 
-- 扫描 `AfterEdit`。
-- 校验支持的视频文件。
 - 生成 `AfterEdit_归档记录表.xlsx`。
 - 第一行第一列固定为 `文件名`。
-- 自动把该表载入用户表路径。
-- 第二阶段启动前校验文件名、重复项和文件存在性。
+- 合法片段行不带问题状态。
+- 问题片段行写入 `归档状态 = 自动分割待处理` 和中文 `失败信息`。
+- 手动兼容路径启动打标前仍校验文件名、重复项和文件存在性。
 
 文件名标准：
 
 ```text
 原视频标题_视频下载分辨率_下载年月日_视频时长秒数.mp4
+```
+
+自动分割片段追加序号：
+
+```text
+原视频标题_720P_260512_000023_01.mp4
 ```
 
 退出条件：
@@ -247,7 +255,7 @@ Web UI 配置
 
 ## Deferred Scope
 
-V0.2 延后：
+V0.3 延后：
 
 - 云端账号系统
 - 多人协作权限
@@ -264,4 +272,4 @@ V0.2 延后：
 
 ## Current Conclusion
 
-V0.2 的执行顺序是先同步文档和治理口径，再产品化 Web UI 配置与两阶段工作流，最后做端到端验收。所有实现都必须围绕 `AfterEdit` 闸门、视频级打标、凭证安全和 500 行规则收敛。
+V0.3 的执行顺序是先同步文档和治理口径，再产品化自动分割、问题片段和 Web UI 默认主线，最后做端到端验收。所有实现都必须围绕 `下载 -> 自动分割 -> 片段级打标 -> 归档`、凭证安全和 500 行规则收敛。
