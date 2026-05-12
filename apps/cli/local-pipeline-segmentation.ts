@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createFfmpegSegmentExporter } from '../../packages/adapters/media/ffmpeg-segment-exporter.ts';
 import { createFfprobeMediaInfoReader, type MediaInfoProbeResult } from '../../packages/adapters/media/ffprobe-media-info.ts';
 import { createPySceneDetectBoundaryDetector } from '../../packages/adapters/media/pyscenedetect-boundary-detector.ts';
+import { type PostEditArchiveRecordFileEntry } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { type DownloadedMediaAsset } from '../../packages/features/download/domain/index.ts';
 import {
   enforceSegmentDurations,
@@ -47,16 +48,15 @@ export interface AutoSegmentationStageResult {
   readonly segmentedRows: readonly SpreadsheetTaskRow[];
   readonly sourceRowStates: readonly PipelineRowState[];
   readonly problemRows: readonly PipelineRowState[];
+  readonly postEditEntries: readonly PostEditArchiveRecordFileEntry[];
   readonly failures: readonly RunLocalPipelineFailure[];
 }
-
 interface SegmentationProfileRules {
   readonly detector: 'adaptive' | 'content';
   readonly minimumSeconds: number;
   readonly preferredMinimumSeconds: number;
   readonly maximumSeconds: number;
 }
-
 const PROFILE_RULES: Readonly<Record<SegmentationProfileId, SegmentationProfileRules>> = Object.freeze({
   standard_ad: Object.freeze({
     detector: 'adaptive',
@@ -105,6 +105,7 @@ export async function runAutoSegmentationStage(input: {
     segmentedRows: Object.freeze(state.segmentedRows),
     sourceRowStates: Object.freeze(state.sourceRowStates),
     problemRows: Object.freeze(state.problemRows),
+    postEditEntries: Object.freeze(state.postEditEntries),
     failures: Object.freeze(state.failures)
   });
 }
@@ -216,6 +217,12 @@ async function exportAcceptedSegments(input: {
         outputFileName,
         segmentIndex
       }));
+      input.input.state.postEditEntries.push({
+        fileName: outputFileName,
+        relativePath: outputFileName,
+        originalFileName: input.input.asset.fileName,
+        sourceUrl: input.row.url
+      });
     } catch (error) {
       await pushProblemForSegment({
         input: input.input,
@@ -265,7 +272,7 @@ async function pushProblemForSegment(input: {
     startSeconds: input.segment.startSeconds,
     endSeconds: input.segment.endSeconds
   }).catch(() => copyFile(input.input.asset.filePath, outputFilePath));
-  pushProblemState(input);
+  pushProblemState({ ...input, outputFilePath, outputFileName });
 }
 
 async function pushProblemForWholeAsset(input: {
@@ -278,7 +285,7 @@ async function pushProblemForWholeAsset(input: {
   const outputFilePath = path.join(input.input.input.problemClipsDirectoryPath, outputFileName);
   await mkdir(path.dirname(outputFilePath), { recursive: true });
   await copyFile(input.input.asset.filePath, outputFilePath).catch(() => undefined);
-  pushProblemState({ ...input });
+  pushProblemState({ ...input, outputFilePath, outputFileName });
 }
 
 function pushProblemState(input: {
@@ -286,12 +293,15 @@ function pushProblemState(input: {
   readonly row: SpreadsheetTaskRow;
   readonly error: unknown;
   readonly errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid';
+  readonly outputFilePath: string;
+  readonly outputFileName: string;
 }): void {
+  const problemMessage = createProblemFailureMessage(input.errorCode, input.error);
   const failure = buildFailure({
     row: input.row,
     phase: 'segmentation',
     errorCode: input.errorCode,
-    errorMessage: input.error instanceof Error ? input.error.message : 'Auto segmentation failed.',
+    errorMessage: problemMessage,
     timestamp: input.input.input.startedAt
   });
   input.input.state.failures.push(failure);
@@ -300,6 +310,17 @@ function pushProblemState(input: {
     archiveState: '自动分割待处理',
     failure
   }));
+  input.input.state.postEditEntries.push({
+    fileName: input.outputFileName,
+    relativePath: toPortableRelativePath(
+      input.input.input.afterEditDirectoryPath,
+      input.outputFilePath
+    ),
+    originalFileName: input.input.asset.fileName,
+    sourceUrl: input.row.url,
+    archiveState: '自动分割待处理',
+    failureMessage: problemMessage
+  });
 }
 
 function pushSourceState(input: {
@@ -376,11 +397,9 @@ function resolveSegmentationDependencies(
 
 function resolveProfileRules(profileId: SegmentationProfileId): SegmentationProfileRules {
   const rules = PROFILE_RULES[profileId];
-
   if (rules === undefined) {
     throw new Error(`Unknown segmentation profile: ${profileId}`);
   }
-
   return rules;
 }
 
@@ -389,6 +408,7 @@ function createSegmentationState(): {
   readonly segmentedRows: SpreadsheetTaskRow[];
   readonly sourceRowStates: PipelineRowState[];
   readonly problemRows: PipelineRowState[];
+  readonly postEditEntries: PostEditArchiveRecordFileEntry[];
   readonly failures: RunLocalPipelineFailure[];
 } {
   return {
@@ -396,6 +416,7 @@ function createSegmentationState(): {
     segmentedRows: [],
     sourceRowStates: [],
     problemRows: [],
+    postEditEntries: [],
     failures: []
   };
 }
@@ -447,6 +468,31 @@ function buildProblemFileName(sourceFileName: string, problemIndex: number): str
 
 function createSyntheticRowNumber(rowNumber: number, segmentIndex: number): number {
   return rowNumber * 10000 + segmentIndex;
+}
+
+function createProblemFailureMessage(
+  errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid',
+  error: unknown
+): string {
+  const category = humanizeProblemCategory(errorCode);
+  const detail = error instanceof Error ? error.message : '';
+  return detail.length === 0 ? category : `${category}：${detail}`;
+}
+
+function humanizeProblemCategory(
+  errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid'
+): string {
+  if (errorCode === 'duration-rule-unsatisfied') {
+    return '无法满足 3-30s';
+  }
+  if (errorCode === 'export-failed') {
+    return '导出失败';
+  }
+  return '检测结果异常';
+}
+
+function toPortableRelativePath(rootPath: string, filePath: string): string {
+  return path.relative(rootPath, filePath).split(path.sep).join('/');
 }
 
 function sanitizeFileToken(value: string): string {

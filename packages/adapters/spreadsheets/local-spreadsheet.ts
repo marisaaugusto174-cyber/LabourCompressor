@@ -228,6 +228,8 @@ export interface PostEditArchiveRecordFileEntry {
   readonly relativePath?: string;
   readonly originalFileName?: string;
   readonly sourceUrl?: string;
+  readonly archiveState?: string;
+  readonly failureMessage?: string;
 }
 
 export function createPostEditArchiveRecordSpreadsheet(input: {
@@ -250,14 +252,14 @@ export function createPostEditArchiveRecordSpreadsheet(input: {
       entry.relativePath ?? entry.fileName,
       entry.originalFileName ?? entry.fileName,
       entry.sourceUrl ?? '',
+      entry.archiveState ?? '',
       '',
       '',
       '',
       '',
       '',
       '',
-      '',
-      ''
+      entry.failureMessage ?? ''
     ])
   ]);
   xlsx.utils.book_append_sheet(workbook, worksheet, input.sheetName ?? 'Sheet1');

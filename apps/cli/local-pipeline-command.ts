@@ -5,7 +5,7 @@ import { createSimulatedDownloaderAdapter } from '../../packages/adapters/downlo
 import { createYtDlpDownloaderAdapter } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
 import { createFfmpegMergeOperator } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
 import { mergeDownloadedStreams } from '../../packages/adapters/media/local-merge-operator.ts';
-import { readSpreadsheetTaskSheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
+import { createPostEditArchiveRecordSpreadsheet, readSpreadsheetTaskSheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { archiveFileByPlans } from '../../packages/adapters/storage/filesystem/archive-file-operator.ts';
 import { buildArchivePlacementPlans } from '../../packages/features/archive/domain/index.ts';
 import { runSpreadsheetDownloadBatch } from '../../packages/features/download/domain/index.ts';
@@ -225,6 +225,12 @@ export async function runLocalPipelineCommand(input: {
     }
     for (const failure of segmentation.failures) {
       failures.push(failure);
+    }
+    if (segmentation.postEditEntries.length > 0) {
+      createPostEditArchiveRecordSpreadsheet({
+        filePath: path.join(afterEditDirectoryPath, 'AfterEdit_归档记录表.xlsx'),
+        fileEntries: segmentation.postEditEntries
+      });
     }
     emit('segmentation', 'succeeded', `Automatic segmentation produced ${segmentation.segmentedAssets.length} clip(s)`);
   }

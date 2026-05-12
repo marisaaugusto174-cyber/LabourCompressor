@@ -338,7 +338,10 @@ export function isDownloadAlreadySatisfied(row: SpreadsheetTaskRow): boolean {
     archiveState === '已归档' ||
     archiveState === '已下载未归档' ||
     archiveState === '已下载待剪辑' ||
-    archiveState === '已跳过：视频过短'
+    archiveState === '已跳过：视频过短' ||
+    archiveState === '自动分割完成' ||
+    archiveState === '自动分割完成，含问题片段' ||
+    archiveState === '自动分割待处理'
   );
 }
 

@@ -67,6 +67,10 @@ test('auto segmentation forced-splits a long detected scene into valid AfterEdit
       'Sample_A_720P_260512_000023_01.mp4',
       'Sample_A_720P_260512_000023_02.mp4'
     ]);
+    assert.deepEqual(result.postEditEntries.map((entry) => entry.fileName), [
+      'Sample_A_720P_260512_000023_01.mp4',
+      'Sample_A_720P_260512_000023_02.mp4'
+    ]);
     assert.equal(
       await readFile(path.join(afterEditDirectoryPath, 'Sample_A_720P_260512_000023_01.mp4'), 'utf8'),
       '0-22.5'
@@ -111,6 +115,8 @@ test('auto segmentation routes invalid detection to problem clips', async () => 
 
     assert.equal(result.segmentedAssets.length, 0);
     assert.equal(result.failures[0]?.errorCode, 'detection-result-invalid');
+    assert.equal(result.postEditEntries[0]?.archiveState, '自动分割待处理');
+    assert.equal(result.postEditEntries[0]?.failureMessage?.startsWith('检测结果异常'), true);
     assert.equal(result.problemRows[0]?.archiveState, '自动分割待处理');
     assert.equal(
       await readFile(path.join(tempDir, 'ProblemClips', 'Sample_A_720P_260512_000010_problem_01.mp4'), 'utf8'),

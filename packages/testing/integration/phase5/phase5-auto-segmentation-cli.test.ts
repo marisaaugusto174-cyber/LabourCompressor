@@ -75,6 +75,16 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
     assert.equal(existsSync(sourceArchivePath), false);
     assert.equal(await readFile(firstClip, 'utf8'), '0-22.5');
     assert.equal(await readFile(secondClip, 'utf8'), '22.5-45');
+
+    const postEditWorkbook = xlsx.readFile(path.join(downloadDir, 'AfterEdit', 'AfterEdit_归档记录表.xlsx'));
+    const postEditRows = xlsx.utils.sheet_to_json<Record<string, string>>(
+      postEditWorkbook.Sheets[postEditWorkbook.SheetNames[0]!],
+      { defval: '' }
+    );
+    assert.deepEqual(postEditRows.map((row) => row.文件名), [
+      'Sample_A_720P_260512_000023_01.mp4',
+      'Sample_A_720P_260512_000023_02.mp4'
+    ]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
