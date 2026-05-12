@@ -75,6 +75,20 @@
               </label>
             </div>
 
+            <div class="inline-grid compact-grid">
+              <label class="checkbox-field">
+                <input id="auto-segmentation" name="autoSegmentation" type="checkbox" />
+                <span>自动分割长视频</span>
+              </label>
+              <label>分割方案
+                <select id="segmentation-profile" name="segmentationProfileId">
+                  <option value="standard_ad">standard_ad</option>
+                  <option value="fast_cut">fast_cut</option>
+                  <option value="conservative">conservative</option>
+                </select>
+              </label>
+            </div>
+
             <div class="readonly-grid">
               <div class="readonly-item">
                 <span class="readonly-label">标签库</span>
@@ -130,6 +144,7 @@
           <input id="taggingMode" name="taggingMode" type="hidden" />
           <input id="manualEditGate" name="manualEditGate" type="hidden" />
           <input id="afterEditDirectoryName" name="afterEditDirectoryName" type="hidden" />
+          <input id="problemClipsDirectoryName" name="problemClipsDirectoryName" type="hidden" />
         </form>
       </section>
 

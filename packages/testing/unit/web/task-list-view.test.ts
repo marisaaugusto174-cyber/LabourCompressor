@@ -63,6 +63,13 @@ test('renders task events as compact phase timeline', () => {
       message: 'Tagging row 2',
       currentItem: '样本A.mp4',
       timestamp: '2026-05-04T10:01:00.000Z'
+    },
+    {
+      phase: 'segmentation',
+      status: 'running',
+      message: 'Segmenting row 2',
+      currentItem: '样本A.mp4',
+      timestamp: '2026-05-04T10:01:10.000Z'
     }
   ]);
 
@@ -71,5 +78,6 @@ test('renders task events as compact phase timeline', () => {
   assert.equal(html.includes('下载中'), true);
   assert.equal(html.includes('1/20'), true);
   assert.equal(html.includes('打标中'), true);
+  assert.equal(html.includes('自动分割中'), true);
   assert.equal(html.includes('样本A.mp4'), true);
 });

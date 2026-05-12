@@ -14,7 +14,10 @@ export function collectFormData() {
       continue;
     }
 
-    payload[field.name] = field.value;
+    payload[field.name] =
+      field instanceof HTMLInputElement && field.type === 'checkbox'
+        ? field.checked
+        : field.value;
   }
 
   return payload;
@@ -24,7 +27,11 @@ export function setField(name, value) {
   const field = findNamedField(name);
 
   if (field) {
-    field.value = value ?? '';
+    if (field instanceof HTMLInputElement && field.type === 'checkbox') {
+      field.checked = value === true || value === 'true';
+    } else {
+      field.value = value ?? '';
+    }
     updateFilledState();
     onFieldChange(name);
   }
@@ -32,6 +39,10 @@ export function setField(name, value) {
 
 export function fieldValue(name) {
   const field = findNamedField(name);
+  if (field instanceof HTMLInputElement && field.type === 'checkbox') {
+    return String(field.checked);
+  }
+
   return field?.value ?? '';
 }
 

@@ -89,7 +89,7 @@ function initModules() {
   initFormState({
     form,
     onFieldChange: (name) => {
-      if (name === 'spreadsheet' || name === 'manualEditGate') {
+      if (name === 'spreadsheet' || name === 'manualEditGate' || name === 'autoSegmentation') {
         updateSourceModeLabel();
         updatePlatformLabel();
         updateNextActionLabel();
@@ -189,7 +189,10 @@ async function loadDefaults() {
   setField('taggingMode', 'qwen');
   setField('archiveRoot', defaultsPayload.defaults.archiveRoot);
   setField('manualEditGate', String(defaultsPayload.defaults.manualEditGate));
+  setField('autoSegmentation', defaultsPayload.defaults.autoSegmentation);
+  setField('segmentationProfileId', defaultsPayload.defaults.segmentationProfileId);
   setField('afterEditDirectoryName', defaultsPayload.defaults.afterEditDirectoryName);
+  setField('problemClipsDirectoryName', defaultsPayload.defaults.problemClipsDirectoryName);
 
   masterSpreadsheetDisplay.textContent = defaultsPayload.defaults.masterSpreadsheetPath;
   taxonomyPresetDisplay.textContent = resolveTaxonomyPresetLabel(defaultsPayload.defaults.taxonomyPreset);

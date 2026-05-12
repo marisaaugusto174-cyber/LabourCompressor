@@ -99,7 +99,10 @@ const server = createServer(async (request, response) => {
           downloadDir: path.join(PROJECT_ROOT, '视频数据下载缓存'),
           archiveRoot: path.dirname(PROJECT_ROOT),
           afterEditDirectoryName: 'AfterEdit',
-          manualEditGate: true,
+          problemClipsDirectoryName: 'ProblemClips',
+          manualEditGate: false,
+          autoSegmentation: true,
+          segmentationProfileId: 'standard_ad',
           selectedModelProfileId: 'qwen-3.6-flash'
         }
       });
@@ -352,6 +355,11 @@ function resolveUiOptions(body: Record<string, unknown>): RunLocalPipelineOption
     masterSpreadsheetPath: readString(body.masterSpreadsheetPath) || DEFAULT_MASTER_SPREADSHEET,
     manualEditGate: readBoolean(body.manualEditGate, true),
     afterEditDirectoryName: readString(body.afterEditDirectoryName) || 'AfterEdit',
+    autoSegmentation: readBoolean(body.autoSegmentation, false),
+    segmentationProfileId:
+      (readString(body.segmentationProfileId) as RunLocalPipelineOptions['segmentationProfileId']) ||
+      'standard_ad',
+    problemClipsDirectoryName: readString(body.problemClipsDirectoryName) || 'ProblemClips',
     selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.6-flash'
   });
 }
@@ -443,7 +451,19 @@ function readString(value: unknown): string {
 }
 
 function readBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  return fallback;
 }
 
 function requireBodyString(body: Record<string, unknown>, key: string): string {

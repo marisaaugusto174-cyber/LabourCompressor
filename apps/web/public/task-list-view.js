@@ -15,6 +15,8 @@ const PHASE_LABELS = {
   spreadsheet: '读取表格',
   fixtures: '准备配置',
   download: '下载中',
+  segmentation: '自动分割中',
+  'segmentation-item': '自动分割中',
   archive: '归档中',
   taxonomy: '加载标签库',
   tagging: '等待打标',

@@ -18,6 +18,11 @@ export function updateSourceModeLabel() {
     return;
   }
 
+  if (getFieldValue('autoSegmentation') === 'true') {
+    refs.statusSource.textContent = '下载后自动分割';
+    return;
+  }
+
   refs.statusSource.textContent = getFieldValue('manualEditGate') === 'true' ? '下载后进入人工剪辑' : '平台自动识别';
 }
 
@@ -72,6 +77,9 @@ function inferTaskSourceLabel(task) {
   if (spreadsheetPath.includes('AfterEdit')) {
     return 'AfterEdit 二阶段继续处理';
   }
+  if (task?.options?.autoSegmentation) {
+    return '下载后自动分割';
+  }
   return task?.options?.manualEditGate ? '下载后进入人工剪辑' : '平台自动识别';
 }
 
@@ -93,6 +101,10 @@ function inferNextAction(task) {
 
   if (results.some((item) => item.archiveState === '已下载待剪辑')) {
     return '等待人工剪辑';
+  }
+
+  if (results.some((item) => item.archiveState === '自动分割待处理')) {
+    return '处理问题片段';
   }
 
   if (results.some((item) => item.archiveState === '已下载未归档')) {
@@ -153,6 +165,8 @@ function humanizePhase(phase, status) {
     spreadsheet: '读取表格',
     fixtures: '准备配置',
     download: '下载中',
+    segmentation: status === 'succeeded' ? '自动分割完成' : '自动分割中',
+    'segmentation-item': '自动分割中',
     archive: '归档中',
     taxonomy: '加载标签库',
     tagging: '等待打标',
@@ -179,6 +193,10 @@ function deriveOverallStatusFromEvent(event) {
     return '失败';
   }
 
+  if (phase === 'segmentation' || phase === 'segmentation-item') {
+    return event?.status === 'succeeded' ? '自动分割完成' : '自动分割中';
+  }
+
   if (phase === 'download' || phase === 'spreadsheet' || phase === 'fixtures') {
     return '下载中';
   }
@@ -193,12 +211,16 @@ function deriveOverallStatusFromEvent(event) {
 function deriveOverallStatusFromTask(task) {
   const results = task?.result?.results ?? [];
 
-  if (task?.status === 'failed' || results.some((item) => item.failure)) {
-    return '失败';
+  if (results.some((item) => item.archiveState === '自动分割待处理')) {
+    return '自动分割待处理';
   }
 
   if (results.some((item) => item.archiveState === '已下载待剪辑')) {
     return '等待剪辑';
+  }
+
+  if (task?.status === 'failed' || results.some((item) => item.failure)) {
+    return '失败';
   }
 
   if (task?.status === 'succeeded' && results.length > 0) {
