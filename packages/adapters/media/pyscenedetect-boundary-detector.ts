@@ -58,16 +58,21 @@ export function parseSceneDetectCsv(raw: string): readonly CandidateShot[] {
     return Object.freeze([]);
   }
 
-  const headers = splitCsvLine(lines[0]);
-  const startIndex = headers.indexOf('Start Timecode');
-  const endIndex = headers.indexOf('End Timecode');
+  const headerLineIndex = lines.findIndex((line) => {
+    const headers = splitCsvLine(line);
+    return headers.includes('Start Timecode') && headers.includes('End Timecode');
+  });
 
-  if (startIndex === -1 || endIndex === -1) {
+  if (headerLineIndex === -1) {
     throw new Error('SceneDetect CSV must include Start Timecode and End Timecode.');
   }
 
+  const headers = splitCsvLine(lines[headerLineIndex]);
+  const startIndex = headers.indexOf('Start Timecode');
+  const endIndex = headers.indexOf('End Timecode');
+
   return Object.freeze(
-    lines.slice(1).map((line) => {
+    lines.slice(headerLineIndex + 1).map((line) => {
       const cells = splitCsvLine(line);
       return Object.freeze({
         startSeconds: parseTimecode(cells[startIndex] ?? ''),

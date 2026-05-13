@@ -36,6 +36,22 @@ test('parses scenedetect csv into candidate shot ranges', () => {
   ]);
 });
 
+test('parses scenedetect csv with leading timecode list metadata', () => {
+  const shots = parseSceneDetectCsv(
+    [
+      'Timecode List:,00:00:02.400,00:00:04.300',
+      'Scene Number,Start Frame,Start Timecode,Start Time (seconds),End Frame,End Timecode,End Time (seconds)',
+      '1,1,00:00:00.000,0.000,72,00:00:02.400,2.400',
+      '2,73,00:00:02.400,2.400,129,00:00:04.300,4.300'
+    ].join('\n')
+  );
+
+  assert.deepEqual(shots, [
+    { startSeconds: 0, endSeconds: 2.4 },
+    { startSeconds: 2.4, endSeconds: 4.3 }
+  ]);
+});
+
 test('rejects malformed scenedetect csv rows', () => {
   assert.throws(() => {
     parseSceneDetectCsv('Start Timecode,End Timecode\nbad,00:00:05.000\n');

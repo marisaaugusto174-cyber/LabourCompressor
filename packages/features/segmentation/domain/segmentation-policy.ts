@@ -152,8 +152,27 @@ function mergeShortSegmentsIntoAccepted(
 ): GovernedIndexedSegments {
   let accepted = [...classifiedSegments.accepted];
   const problems: SegmentDurationProblem[] = [...classifiedSegments.problems];
+  const remainingShortSegments: ClassifiedSegments['shortSegments'][number][] = [];
 
-  for (const shortSegment of classifiedSegments.shortSegments) {
+  for (const run of groupConsecutiveShortSegments(classifiedSegments.shortSegments)) {
+    const mergedRun = mergeSegmentRun(run);
+    const durationSeconds = mergedRun.endSeconds - mergedRun.startSeconds;
+
+    if (durationSeconds < minimumSeconds) {
+      remainingShortSegments.push(...run);
+      continue;
+    }
+
+    const splitResult = splitSegmentWhenNeeded(
+      mergedRun,
+      { minimumSeconds, maximumSeconds },
+      run[0].sourceIndex
+    );
+    accepted.push(...splitResult.accepted);
+    problems.push(...splitResult.problems);
+  }
+
+  for (const shortSegment of remainingShortSegments) {
     const targetIndex = findNearestAcceptedSegmentIndex(
       accepted,
       shortSegment.segment,
@@ -185,6 +204,43 @@ function mergeShortSegmentsIntoAccepted(
   return {
     accepted: splitResult.accepted,
     problems: [...problems, ...splitResult.problems]
+  };
+}
+
+function groupConsecutiveShortSegments(
+  shortSegments: ClassifiedSegments['shortSegments']
+): readonly (readonly ClassifiedSegments['shortSegments'][number][])[] {
+  const runs: ClassifiedSegments['shortSegments'][number][][] = [];
+  let currentRun: ClassifiedSegments['shortSegments'][number][] = [];
+
+  for (const shortSegment of shortSegments) {
+    const previous = currentRun[currentRun.length - 1];
+    const isConsecutive =
+      previous !== undefined &&
+      shortSegment.sourceIndex === previous.sourceIndex + 1 &&
+      shortSegment.segment.startSeconds === previous.segment.endSeconds;
+
+    if (previous !== undefined && !isConsecutive) {
+      runs.push(currentRun);
+      currentRun = [];
+    }
+
+    currentRun.push(shortSegment);
+  }
+
+  if (currentRun.length > 0) {
+    runs.push(currentRun);
+  }
+
+  return runs;
+}
+
+function mergeSegmentRun(
+  run: readonly ClassifiedSegments['shortSegments'][number][]
+): SegmentTimeRange {
+  return {
+    startSeconds: run[0].segment.startSeconds,
+    endSeconds: run[run.length - 1].segment.endSeconds
   };
 }
 

@@ -120,6 +120,45 @@ test('merges sub-minimum segment into nearest accepted neighbor', () => {
   assert.deepEqual(governed.problems, []);
 });
 
+test('merges consecutive fast-cut short shots into a valid segment', () => {
+  const governed = enforceSegmentDurations({
+    segments: [
+      { startSeconds: 0, endSeconds: 2.4 },
+      { startSeconds: 2.4, endSeconds: 4.3 },
+      { startSeconds: 4.3, endSeconds: 6.433 },
+      { startSeconds: 6.433, endSeconds: 8.533 }
+    ],
+    minimumSeconds: 3,
+    preferredMinimumSeconds: 5,
+    maximumSeconds: 30
+  });
+
+  assert.deepEqual(governed.accepted, [
+    { startSeconds: 0, endSeconds: 8.533 }
+  ]);
+  assert.deepEqual(governed.problems, []);
+});
+
+test('keeps short-shot runs before forced-splitting a later long segment', () => {
+  const governed = enforceSegmentDurations({
+    segments: [
+      { startSeconds: 0, endSeconds: 2 },
+      { startSeconds: 2, endSeconds: 4 },
+      { startSeconds: 4, endSeconds: 36 }
+    ],
+    minimumSeconds: 3,
+    preferredMinimumSeconds: 5,
+    maximumSeconds: 30
+  });
+
+  assert.deepEqual(governed.accepted, [
+    { startSeconds: 0, endSeconds: 4 },
+    { startSeconds: 4, endSeconds: 20, forced: true },
+    { startSeconds: 20, endSeconds: 36, forced: true }
+  ]);
+  assert.deepEqual(governed.problems, []);
+});
+
 test('rounds accepted and problem output ranges to 3 decimals', () => {
   const acceptedGoverned = enforceSegmentDurations({
     segments: [
