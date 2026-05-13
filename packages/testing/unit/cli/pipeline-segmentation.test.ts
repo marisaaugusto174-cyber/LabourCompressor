@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { resolveSceneDetectBinaryPath } from '../../../../apps/cli/local-pipeline-segmentation-binaries.ts';
 import { runAutoSegmentationStage } from '../../../../apps/cli/local-pipeline-segmentation.ts';
 import { type DownloadedMediaAsset } from '../../../features/download/domain/index.ts';
 import { type SpreadsheetTaskRow } from '../../../features/spreadsheet-tasks/domain/index.ts';
@@ -122,6 +123,31 @@ test('auto segmentation routes invalid detection to problem clips', async () => 
       await readFile(path.join(tempDir, 'ProblemClips', 'Sample_A_720P_260512_000010_problem_01.mp4'), 'utf8'),
       'source-video'
     );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('resolves project-local scenedetect binary before shell path lookup', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-scenedetect-'));
+  const binaryPath = path.join(tempDir, '.tools', 'bin', 'scenedetect');
+
+  try {
+    mkdirSync(path.dirname(binaryPath), { recursive: true });
+    writeFileSync(binaryPath, '#!/usr/bin/env bash\n', 'utf8');
+    chmodSync(binaryPath, 0o755);
+
+    assert.equal(resolveSceneDetectBinaryPath(tempDir), binaryPath);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('falls back to scenedetect command when project-local binary is absent', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-scenedetect-'));
+
+  try {
+    assert.equal(resolveSceneDetectBinaryPath(tempDir), 'scenedetect');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

@@ -1,9 +1,7 @@
 import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import { createFfmpegSegmentExporter } from '../../packages/adapters/media/ffmpeg-segment-exporter.ts';
-import { createFfprobeMediaInfoReader, type MediaInfoProbeResult } from '../../packages/adapters/media/ffprobe-media-info.ts';
-import { createPySceneDetectBoundaryDetector } from '../../packages/adapters/media/pyscenedetect-boundary-detector.ts';
+import { type MediaInfoProbeResult } from '../../packages/adapters/media/ffprobe-media-info.ts';
 import { type PostEditArchiveRecordFileEntry } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { type DownloadedMediaAsset } from '../../packages/features/download/domain/index.ts';
 import {
@@ -19,6 +17,7 @@ import {
   requireSheetRow,
   type PipelineRowState
 } from './local-pipeline-helpers.ts';
+import { resolveSegmentationDependencies } from './local-pipeline-segmentation-dependencies.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 
@@ -382,16 +381,6 @@ function createSegmentedRow(input: {
       title: path.parse(input.outputFileName).name,
       文件名: input.outputFileName
     })
-  });
-}
-
-function resolveSegmentationDependencies(
-  dependencies: AutoSegmentationDependencies | undefined
-): Required<AutoSegmentationDependencies> {
-  return Object.freeze({
-    mediaInfoReader: dependencies?.mediaInfoReader ?? createFfprobeMediaInfoReader(),
-    boundaryDetector: dependencies?.boundaryDetector ?? createPySceneDetectBoundaryDetector(),
-    segmentExporter: dependencies?.segmentExporter ?? createFfmpegSegmentExporter()
   });
 }
 
