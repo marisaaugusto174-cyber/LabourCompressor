@@ -16,7 +16,8 @@ test('creates a macos app bundle spec for the local web ui launcher', () => {
   const bundle = createMacosAppBundleSpec({
     appName: 'LabourCompressor',
     projectRoot: '/Users/tianyi/Desktop/codex/jobtask',
-    defaultPort: 4311
+    defaultPort: 4311,
+    nodeExecutablePath: '/opt/homebrew/bin/node'
   });
 
   assert.equal(bundle.bundleDirectoryName, 'LabourCompressor.app');
@@ -31,7 +32,9 @@ test('creates a macos app bundle spec for the local web ui launcher', () => {
   assert.equal(bundle.files[1].relativePath, 'Contents/Resources/launcher.sh');
   assert.equal(bundle.files[1].executable, true);
   assert.match(bundle.files[1].content, /LABOUR_COMPRESSOR_WEB_PORT/);
-  assert.match(bundle.files[1].content, /node apps\/cli\/main\.ts serve-web-ui/);
+  assert.match(bundle.files[1].content, /NODE_BIN='\/opt\/homebrew\/bin\/node'/);
+  assert.match(bundle.files[1].content, /\/opt\/homebrew\/bin/);
+  assert.match(bundle.files[1].content, /"\$\{NODE_BIN\}" apps\/cli\/main\.ts serve-web-ui/);
   assert.match(bundle.files[1].content, /Library\/Logs\/LabourCompressor/);
   assert.match(bundle.files[1].content, /\/usr\/bin\/open/);
   assert.match(bundle.files[1].content, /api\/defaults/);

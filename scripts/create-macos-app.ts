@@ -88,7 +88,8 @@ if (isMainModule()) {
     bundle: createMacosAppBundleSpec({
       appName,
       projectRoot,
-      defaultPort
+      defaultPort,
+      nodeExecutablePath: process.execPath
     })
   });
 

@@ -2,6 +2,7 @@ export interface MacosAppBundleInput {
   readonly appName: string;
   readonly projectRoot: string;
   readonly defaultPort: number;
+  readonly nodeExecutablePath?: string;
 }
 
 export interface MacosAppBundleFile {
@@ -114,11 +115,14 @@ function createLauncherScript(input: MacosAppBundleInput): string {
 set -euo pipefail
 
 PROJECT_ROOT=${shellSingleQuote(input.projectRoot)}
+NODE_BIN=${shellSingleQuote(input.nodeExecutablePath ?? '')}
 HOST='127.0.0.1'
 DEFAULT_PORT='${input.defaultPort}'
 LOG_DIR="\${HOME}/Library/Logs/LabourCompressor"
 PID_FILE="\${LOG_DIR}/web-ui.pid"
 LOG_FILE="\${LOG_DIR}/web-ui.log"
+
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\${PATH:-}"
 
 mkdir -p "\${LOG_DIR}"
 cd "\${PROJECT_ROOT}"
@@ -128,9 +132,28 @@ fail() {
   exit 1
 }
 
-if ! command -v node >/dev/null 2>&1; then
-  fail 'Node.js 22+ is required. Run scripts/setup-macos.sh first.'
-fi
+resolve_node() {
+  if [ -n "\${NODE_BIN}" ] && [ -x "\${NODE_BIN}" ]; then
+    return
+  fi
+
+  NODE_BIN="$(command -v node || true)"
+  if [ -z "\${NODE_BIN}" ]; then
+    fail 'Node.js 22+ is required. Run scripts/setup-macos.sh first.'
+  fi
+}
+
+validate_node() {
+  local node_major
+  node_major="\$("\${NODE_BIN}" -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || true)"
+
+  if [ -z "\${node_major}" ] || [ "\${node_major}" -lt 22 ]; then
+    fail "Node.js 22+ is required. Current node: \${NODE_BIN}"
+  fi
+}
+
+resolve_node
+validate_node
 
 is_labour_compressor() {
   local port="$1"
@@ -178,7 +201,7 @@ if ! is_labour_compressor "\${PORT}"; then
   echo "Starting LabourCompressor Web UI on \${HOST}:\${PORT}" >>"\${LOG_FILE}"
   LABOUR_COMPRESSOR_WEB_HOST="\${HOST}" \\
     LABOUR_COMPRESSOR_WEB_PORT="\${PORT}" \\
-    /usr/bin/env node apps/cli/main.ts serve-web-ui >>"\${LOG_FILE}" 2>&1 &
+    "\${NODE_BIN}" apps/cli/main.ts serve-web-ui >>"\${LOG_FILE}" 2>&1 &
   echo "$!" >"\${PID_FILE}"
 fi
 
