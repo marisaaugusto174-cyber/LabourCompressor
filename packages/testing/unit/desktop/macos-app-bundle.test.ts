@@ -33,6 +33,7 @@ test('creates a macos app bundle spec for the local web ui launcher', () => {
   assert.equal(bundle.files[1].executable, true);
   assert.match(bundle.files[1].content, /LABOUR_COMPRESSOR_WEB_PORT/);
   assert.match(bundle.files[1].content, /NODE_BIN='\/opt\/homebrew\/bin\/node'/);
+  assert.match(bundle.files[1].content, /\$\{PROJECT_ROOT\}\/\.tools\/bin/);
   assert.match(bundle.files[1].content, /\/opt\/homebrew\/bin/);
   assert.match(bundle.files[1].content, /"\$\{NODE_BIN\}" apps\/cli\/main\.ts serve-web-ui/);
   assert.match(bundle.files[1].content, /Library\/Logs\/LabourCompressor/);

@@ -56,7 +56,37 @@ install_brew_package() {
 
 install_brew_package "yt-dlp" "yt-dlp"
 install_brew_package "ffmpeg" "ffmpeg"
-install_brew_package "scenedetect" "scenedetect"
+install_brew_package "python@3.11" "python3.11"
+
+PYTHON_FOR_SCENEDETECT="$(command -v python3.11 || true)"
+if [ -z "${PYTHON_FOR_SCENEDETECT}" ]; then
+  echo "ERROR: Python 3.11 is required for PySceneDetect."
+  exit 1
+fi
+
+install_scenedetect() {
+  local tools_bin="${ROOT_DIR}/.tools/bin"
+  local venv_dir="${ROOT_DIR}/.tools/scenedetect-venv"
+  local scenedetect_bin="${tools_bin}/scenedetect"
+
+  mkdir -p "${tools_bin}"
+
+  if [ -x "${scenedetect_bin}" ]; then
+    echo "OK: scenedetect is already available at ${scenedetect_bin}."
+    return
+  fi
+
+  echo "Installing PySceneDetect into project-local venv..."
+  rm -rf "${venv_dir}"
+  "${PYTHON_FOR_SCENEDETECT}" -m venv "${venv_dir}"
+  "${venv_dir}/bin/python" -m pip install --upgrade pip
+  "${venv_dir}/bin/python" -m pip install "scenedetect[opencv]"
+
+  ln -sf "${venv_dir}/bin/scenedetect" "${scenedetect_bin}"
+  echo "Created: ${scenedetect_bin}"
+}
+
+install_scenedetect
 
 echo "Installing Node dependencies..."
 cd "${ROOT_DIR}"

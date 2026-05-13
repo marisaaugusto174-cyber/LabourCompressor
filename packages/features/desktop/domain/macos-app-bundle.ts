@@ -122,7 +122,7 @@ LOG_DIR="\${HOME}/Library/Logs/LabourCompressor"
 PID_FILE="\${LOG_DIR}/web-ui.pid"
 LOG_FILE="\${LOG_DIR}/web-ui.log"
 
-export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\${PATH:-}"
+export PATH="\${PROJECT_ROOT}/.tools/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\${PATH:-}"
 
 mkdir -p "\${LOG_DIR}"
 cd "\${PROJECT_ROOT}"
