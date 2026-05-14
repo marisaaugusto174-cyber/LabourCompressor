@@ -27,7 +27,7 @@ What the setup command does:
 - checks Homebrew;
 - installs `yt-dlp` if missing;
 - installs `ffmpeg` if missing;
-- installs `scenedetect` if missing;
+- installs project-local PySceneDetect under `.tools/` if missing;
 - runs `npm install`.
 - creates local config files from templates when they do not exist.
 - creates `dist/LabourCompressor.app` as a double-click macOS launcher.
@@ -90,7 +90,7 @@ Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or run
 - Xcode Command Line Tools for building the native arm64 launcher: `xcode-select --install`.
 - `yt-dlp` available in `PATH` or configured through the UI/CLI.
 - `ffmpeg` and `ffprobe` available in `PATH`.
-- `scenedetect` available in `PATH`.
+- PySceneDetect installed by `npm run setup:mac` under `.tools/`.
 - Model provider API credentials for the selected video model.
 - Platform cookies when the target platform requires login, higher quality formats, or anti-abuse verification.
 
@@ -180,10 +180,11 @@ The repository includes `.gitignore` entries for these local artifacts. Always i
 
 ## Release Baseline
 
-V0.2 release notes are stored in `docs/release/V0.2_RELEASE_NOTES.md`.
+V0.3 release notes are stored in `docs/release/V0.3_RELEASE_NOTES.md`.
+V0.2 release notes remain stored in `docs/release/V0.2_RELEASE_NOTES.md`.
 
 The current private baseline should be tagged as:
 
 ```bash
-v0.2.0
+v0.3.0
 ```
