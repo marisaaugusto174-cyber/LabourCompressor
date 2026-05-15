@@ -7,6 +7,11 @@ import {
   type MergeStreamsInput,
   type MergeStreamsResult
 } from '../../features/download/domain/index.ts';
+import {
+  resolveFfmpegBinaryPath,
+  validateLocalBinary,
+  type ResolveLocalMediaBinaryPathOptions
+} from './local-media-binaries.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +24,7 @@ export function createFfmpegMergeOperator(
 ): {
   mergeStreams(input: MergeStreamsInput): Promise<MergeStreamsResult>;
 } {
-  const binaryPath = options.binaryPath ?? 'ffmpeg';
+  const binaryPath = resolveFfmpegBinaryPath(options.binaryPath);
 
   return Object.freeze({
     async mergeStreams(input: MergeStreamsInput): Promise<MergeStreamsResult> {
@@ -63,12 +68,10 @@ export function buildFfmpegMergeArgs(input: {
 }
 
 export async function validateFfmpegBinary(
-  binaryPath = 'ffmpeg'
+  binaryPath?: string,
+  options: ResolveLocalMediaBinaryPathOptions = {}
 ): Promise<boolean> {
-  try {
-    await execFileAsync(binaryPath, ['-version']);
-    return true;
-  } catch {
-    return false;
-  }
+  return validateLocalBinary(resolveFfmpegBinaryPath(binaryPath, options), ['-version']);
 }
+
+export { resolveFfmpegBinaryPath };

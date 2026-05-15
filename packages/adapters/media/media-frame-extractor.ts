@@ -4,6 +4,11 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
+import {
+  resolveFfmpegBinaryPath,
+  resolveFfprobeBinaryPath
+} from './local-media-binaries.ts';
+
 export interface ExtractRepresentativeFramesInput {
   readonly mediaFilePath: string;
   readonly outputDirectory: string;
@@ -79,7 +84,7 @@ export async function extractRepresentativeFrames(
     outputPattern
   ];
 
-  await spawnAndWait('ffmpeg', args);
+  await spawnAndWait(resolveFfmpegBinaryPath(), args);
 
   const framePaths = [];
 
@@ -151,7 +156,7 @@ export async function prepareVideoTaggingCache(input: {
     }
   }
 
-  await spawnAndWait('ffmpeg', buildVideoTaggingCacheArgs({
+  await spawnAndWait(resolveFfmpegBinaryPath(), buildVideoTaggingCacheArgs({
     inputFilePath: input.mediaFilePath,
     outputFilePath: cachePath,
     profile
@@ -276,7 +281,7 @@ function getMimeTypeForExtension(extension: string): string {
 }
 
 async function readVideoMetadata(filePath: string): Promise<VideoMetadata> {
-  const output = await spawnAndCollect('ffprobe', [
+  const output = await spawnAndCollect(resolveFfprobeBinaryPath(), [
     '-v',
     'error',
     '-select_streams',

@@ -1,7 +1,12 @@
 import { validateYtDlpBinary } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
 import { validateFfmpegBinary } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
+import {
+  resolveFfprobeBinaryPath,
+  validateLocalBinary
+} from '../../packages/adapters/media/local-media-binaries.ts';
 import { resolveTaxonomyInput } from '../cli/taxonomy-presets.ts';
 import { type RunLocalPipelineOptions } from '../cli/local-pipeline-command.ts';
+import { resolveSceneDetectBinaryPath } from '../cli/local-pipeline-segmentation-binaries.ts';
 import { checkProvider } from './runtime-support-provider.ts';
 import {
   checkDirectoryWritable,
@@ -24,6 +29,8 @@ export async function runPipelinePreflight(
     checkDirectoryWritable('archive-root', options.archiveRoot),
     checkYtDlp(options),
     checkFfmpeg(),
+    checkFfprobe(),
+    checkSceneDetect(),
     checkProvider(options)
   ];
 
@@ -69,6 +76,36 @@ async function checkFfmpeg(): Promise<RuntimeCheckResult> {
     });
   } catch (error) {
     return buildFailedCheck('ffmpeg', 'ffmpeg validation failed.', error);
+  }
+}
+
+async function checkFfprobe(): Promise<RuntimeCheckResult> {
+  try {
+    const binaryPath = resolveFfprobeBinaryPath();
+    const ok = await validateLocalBinary(binaryPath, ['-version']);
+    return Object.freeze({
+      key: 'ffprobe',
+      ok,
+      message: ok ? 'ffprobe is available.' : 'ffprobe validation failed.',
+      details: { binaryPath }
+    });
+  } catch (error) {
+    return buildFailedCheck('ffprobe', 'ffprobe validation failed.', error);
+  }
+}
+
+async function checkSceneDetect(): Promise<RuntimeCheckResult> {
+  try {
+    const binaryPath = resolveSceneDetectBinaryPath(process.cwd());
+    const ok = await validateLocalBinary(binaryPath, ['--version']);
+    return Object.freeze({
+      key: 'scenedetect',
+      ok,
+      message: ok ? 'PySceneDetect is available.' : 'PySceneDetect validation failed.',
+      details: { binaryPath }
+    });
+  } catch (error) {
+    return buildFailedCheck('scenedetect', 'PySceneDetect validation failed.', error);
   }
 }
 

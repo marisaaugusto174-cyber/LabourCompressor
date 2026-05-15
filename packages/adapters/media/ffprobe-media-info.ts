@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { resolveFfprobeBinaryPath } from './local-media-binaries.ts';
+
 const execFileAsync = promisify(execFile);
 
 export interface MediaInfoProbeResult {
@@ -18,7 +20,7 @@ export function createFfprobeMediaInfoReader(
 ): {
   readMediaInfo(filePath: string): Promise<MediaInfoProbeResult>;
 } {
-  const binaryPath = options.binaryPath ?? 'ffprobe';
+  const binaryPath = resolveFfprobeBinaryPath(options.binaryPath);
 
   return Object.freeze({
     async readMediaInfo(filePath: string): Promise<MediaInfoProbeResult> {

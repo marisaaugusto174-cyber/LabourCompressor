@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
+  buildChooseLocalPathCommand,
   buildPostEditRecordSheet,
   ensureFirstRunLocalState,
   exportFailuresAsCsv,
@@ -39,6 +40,41 @@ test('exports pipeline failures as csv', () => {
     csv,
     'row_number,url,phase,error_code,error_message,timestamp\n3,https://example.com/watch?v=1,download,missing-credentials,需要 cookies,2026-05-02T10:00:30.000Z\n'
   );
+});
+
+test('builds Windows PowerShell file picker command', () => {
+  const command = buildChooseLocalPathCommand({
+    kind: 'file',
+    prompt: '选择 cookies.txt',
+    defaultPath: 'C:\\Users\\tester\\Downloads\\cookies.txt',
+    platform: 'win32'
+  });
+
+  assert.equal(command.executable, 'powershell.exe');
+  assert.deepEqual(command.args.slice(0, 3), [
+    '-NoProfile',
+    '-STA',
+    '-ExecutionPolicy'
+  ]);
+  assert.equal(command.args.includes('Bypass'), true);
+  assert.equal(command.args.includes('-Command'), true);
+  assert.equal(command.script.includes('System.Windows.Forms.OpenFileDialog'), true);
+  assert.equal(command.script.includes('InitialDirectory'), true);
+  assert.equal(command.script.includes('C:\\Users\\tester\\Downloads'), true);
+});
+
+test('builds Windows PowerShell folder picker command', () => {
+  const command = buildChooseLocalPathCommand({
+    kind: 'folder',
+    prompt: '选择下载目录',
+    defaultPath: 'C:\\Users\\tester\\Videos',
+    platform: 'win32'
+  });
+
+  assert.equal(command.executable, 'powershell.exe');
+  assert.equal(command.script.includes('System.Windows.Forms.FolderBrowserDialog'), true);
+  assert.equal(command.script.includes('SelectedPath'), true);
+  assert.equal(command.script.includes('C:\\Users\\tester\\Videos'), true);
 });
 
 test('loads platform credential summary for supported platforms', async () => {
