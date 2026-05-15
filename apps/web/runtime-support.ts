@@ -10,6 +10,7 @@ export type {
 
 export { runPipelinePreflight } from './runtime-support-checks.ts';
 export {
+  buildChooseLocalPathCommand,
   buildPostEditRecordSheet,
   chooseLocalPath,
   ensureDefaultMasterSpreadsheet

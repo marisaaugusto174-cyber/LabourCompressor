@@ -184,6 +184,30 @@ test('resolves configured yt-dlp binary or Homebrew fallback path', () => {
   }
 });
 
+test('resolves project-local Windows yt-dlp executable before PATH fallback', () => {
+  const existingPaths = new Set([
+    path.join('C:\\labour', '.tools', 'bin', 'yt-dlp.exe')
+  ]);
+
+  assert.equal(
+    resolveYtDlpBinaryPath(undefined, {
+      platform: 'win32',
+      projectRoot: 'C:\\labour',
+      exists: (candidatePath) => existingPaths.has(candidatePath)
+    }),
+    path.join('C:\\labour', '.tools', 'bin', 'yt-dlp.exe')
+  );
+
+  assert.equal(
+    resolveYtDlpBinaryPath(undefined, {
+      platform: 'win32',
+      projectRoot: 'C:\\missing',
+      exists: () => false
+    }),
+    'yt-dlp'
+  );
+});
+
 test('classifies fresh cookies and bilibili 412 errors', () => {
   assert.equal(
     classifyYtDlpErrorMessage('ERROR: Fresh cookies (not necessarily logged in) are needed').status,

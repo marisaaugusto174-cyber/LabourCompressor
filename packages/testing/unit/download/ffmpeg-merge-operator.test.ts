@@ -8,6 +8,7 @@ import path from 'node:path';
 import {
   buildFfmpegMergeArgs,
   createFfmpegMergeOperator,
+  resolveFfmpegBinaryPath,
   validateFfmpegBinary
 } from '../../../adapters/media/ffmpeg-merge-operator.ts';
 import { createDownloadRequest } from '../../../features/download/domain/index.ts';
@@ -88,4 +89,19 @@ test('merges video and audio with ffmpeg binary', async () => {
 
 test('validates that ffmpeg binary is available', async () => {
   assert.equal(await validateFfmpegBinary(), true);
+});
+
+test('resolves project-local Windows ffmpeg executable before PATH fallback', () => {
+  const existingPaths = new Set([
+    path.join('C:\\labour', '.tools', 'bin', 'ffmpeg.exe')
+  ]);
+
+  assert.equal(
+    resolveFfmpegBinaryPath(undefined, {
+      platform: 'win32',
+      projectRoot: 'C:\\labour',
+      exists: (candidatePath) => existingPaths.has(candidatePath)
+    }),
+    path.join('C:\\labour', '.tools', 'bin', 'ffmpeg.exe')
+  );
 });

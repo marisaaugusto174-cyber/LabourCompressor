@@ -8,11 +8,19 @@ import {
   ensureMasterSpreadsheetTemplate,
   type PostEditArchiveRecordFileEntry
 } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
+import { resolveFfprobeBinaryPath } from '../../packages/adapters/media/local-media-binaries.ts';
 import { STANDARDIZED_VIDEO_FILE_NAME_PATTERN } from '../cli/local-pipeline-helpers.ts';
 import { type LocalDialogResult } from './runtime-support-types.ts';
 
 const execFileAsync = promisify(execFile);
 const VIDEO_FILE_NAME_PATTERN = /\.(mp4|mov|m4v|mkv|avi|webm)$/iu;
+const WINDOWS_DIALOG_CANCELLED = '__LABOUR_COMPRESSOR_DIALOG_CANCELLED__';
+
+export interface ChooseLocalPathCommand {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly script: string;
+}
 
 export async function ensureDefaultMasterSpreadsheet(filePath: string): Promise<string> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -233,7 +241,7 @@ async function probeVideoMetadata(filePath: string): Promise<{
   readonly durationSeconds: number;
 }> {
   try {
-    const { stdout } = await execFileAsync('ffprobe', [
+    const { stdout } = await execFileAsync(resolveFfprobeBinaryPath(), [
       '-v',
       'error',
       '-show_entries',
@@ -293,22 +301,25 @@ export async function chooseLocalPath(input: {
   readonly prompt: string;
   readonly defaultPath?: string;
 }): Promise<LocalDialogResult> {
-  const script = buildChoosePathScript(input);
+  const command = buildChooseLocalPathCommand(input);
 
   try {
-    const { stdout } = await execFileAsync('osascript', ['-e', script], {
+    const { stdout } = await execFileAsync(command.executable, command.args, {
       encoding: 'utf8'
     });
     const selectedPath = stdout.trim();
 
     return Object.freeze({
-      cancelled: false,
-      path: selectedPath.length === 0 ? null : selectedPath
+      cancelled: selectedPath === WINDOWS_DIALOG_CANCELLED,
+      path:
+        selectedPath.length === 0 || selectedPath === WINDOWS_DIALOG_CANCELLED
+          ? null
+          : selectedPath
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    if (/User canceled|execution error: User canceled|用户已取消/iu.test(message)) {
+    if (/User canceled|execution error: User canceled|用户已取消|OperationCanceled/iu.test(message)) {
       return Object.freeze({
         cancelled: true,
         path: null
@@ -317,6 +328,38 @@ export async function chooseLocalPath(input: {
 
     throw error;
   }
+}
+
+export function buildChooseLocalPathCommand(input: {
+  readonly kind: 'file' | 'folder';
+  readonly prompt: string;
+  readonly defaultPath?: string;
+  readonly platform?: NodeJS.Platform;
+}): ChooseLocalPathCommand {
+  const platform = input.platform ?? process.platform;
+
+  if (platform === 'win32') {
+    const script = buildWindowsChoosePathScript(input);
+    return Object.freeze({
+      executable: 'powershell.exe',
+      args: Object.freeze([
+        '-NoProfile',
+        '-STA',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script
+      ]),
+      script
+    });
+  }
+
+  const script = buildChoosePathScript(input);
+  return Object.freeze({
+    executable: 'osascript',
+    args: Object.freeze(['-e', script]),
+    script
+  });
 }
 
 export async function checkFileReadable(
@@ -393,6 +436,56 @@ function buildDefaultLocationClause(input: {
 
 function escapeAppleScriptString(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function buildWindowsChoosePathScript(input: {
+  readonly kind: 'file' | 'folder';
+  readonly prompt: string;
+  readonly defaultPath?: string;
+}): string {
+  const defaultDirectory = resolveWindowsDefaultDirectory(input);
+  const title = escapePowerShellSingleQuotedString(input.prompt);
+  const initialDirectoryClause =
+    defaultDirectory === undefined
+      ? ''
+      : `$dialog.${input.kind === 'folder' ? 'SelectedPath' : 'InitialDirectory'} = '${escapePowerShellSingleQuotedString(defaultDirectory)}';`;
+
+  if (input.kind === 'folder') {
+    return [
+      'Add-Type -AssemblyName System.Windows.Forms;',
+      '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;',
+      `$dialog.Description = '${title}';`,
+      initialDirectoryClause,
+      '$result = $dialog.ShowDialog();',
+      `if ($result -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) } else { [Console]::Out.Write('${WINDOWS_DIALOG_CANCELLED}') }`
+    ].filter((line) => line.length > 0).join(' ');
+  }
+
+  return [
+    'Add-Type -AssemblyName System.Windows.Forms;',
+    '$dialog = New-Object System.Windows.Forms.OpenFileDialog;',
+    `$dialog.Title = '${title}';`,
+    initialDirectoryClause,
+    '$result = $dialog.ShowDialog();',
+    `if ($result -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) } else { [Console]::Out.Write('${WINDOWS_DIALOG_CANCELLED}') }`
+  ].filter((line) => line.length > 0).join(' ');
+}
+
+function resolveWindowsDefaultDirectory(input: {
+  readonly kind: 'file' | 'folder';
+  readonly defaultPath?: string;
+}): string | undefined {
+  if (typeof input.defaultPath !== 'string' || input.defaultPath.trim().length === 0) {
+    return undefined;
+  }
+
+  return input.kind === 'folder'
+    ? input.defaultPath
+    : path.win32.dirname(input.defaultPath);
+}
+
+function escapePowerShellSingleQuotedString(value: string): string {
+  return value.replaceAll('\'', '\'\'');
 }
 
 function buildFailedCheck(

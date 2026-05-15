@@ -153,6 +153,20 @@ test('falls back to scenedetect command when project-local binary is absent', ()
   }
 });
 
+test('resolves project-local Windows scenedetect executable before PATH lookup', () => {
+  const existingPaths = new Set([
+    path.join('C:\\labour', '.tools', 'scenedetect-venv', 'Scripts', 'scenedetect.exe')
+  ]);
+
+  assert.equal(
+    resolveSceneDetectBinaryPath('C:\\labour', {
+      platform: 'win32',
+      exists: (candidatePath) => existingPaths.has(candidatePath)
+    }),
+    path.join('C:\\labour', '.tools', 'scenedetect-venv', 'Scripts', 'scenedetect.exe')
+  );
+});
+
 function createAsset(input: { readonly sourcePath: string }): DownloadedMediaAsset {
   return Object.freeze({
     mediaAssetId: 'task-1::asset',

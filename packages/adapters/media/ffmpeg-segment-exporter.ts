@@ -3,6 +3,8 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { resolveFfmpegBinaryPath } from './local-media-binaries.ts';
+
 const execFileAsync = promisify(execFile);
 
 export interface ExportSegmentInput {
@@ -25,7 +27,7 @@ export function createFfmpegSegmentExporter(
 ): {
   exportSegment(input: ExportSegmentInput): Promise<ExportSegmentResult>;
 } {
-  const binaryPath = options.binaryPath ?? 'ffmpeg';
+  const binaryPath = resolveFfmpegBinaryPath(options.binaryPath);
 
   return Object.freeze({
     async exportSegment(input: ExportSegmentInput): Promise<ExportSegmentResult> {

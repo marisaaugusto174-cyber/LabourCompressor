@@ -1,12 +1,12 @@
 # LabourCompressor
 
-LabourCompressor is a local-first video collection, tagging, and archive workflow for short video datasets. V0.3 makes automatic segmentation the mainline: import a spreadsheet, download supported platform videos, split long videos into `3-30s` clips, tag each accepted clip with native video-level models, write results back to spreadsheets, and archive files by the unique `内容题材` path.
+LabourCompressor 是一个本地优先的短视频数据采集、打标和归档工作流。V0.3 以自动分割为主线：导入表格，下载受支持平台的视频，把长视频切成 `3-30s` 片段，对合格片段使用原生视频理解模型打标，回写表格，并按唯一 `内容题材` 路径归档文件。
 
-This repository is currently prepared for private GitHub hosting. Do not commit real API keys, cookies, downloaded videos, user spreadsheets, runtime state, or local cache files.
+本仓库按私有 GitHub 托管准备。不要提交真实 API key、cookies、下载视频、用户表格、运行状态或本地缓存文件。
 
-## Quick Start
+## 快速开始
 
-Use these commands on macOS after installing Node.js 22+ and Homebrew.
+macOS 先安装 Node.js 22+ 和 Homebrew，然后执行：
 
 ```bash
 git clone https://github.com/marisaaugusto174-cyber/LabourCompressor.git
@@ -15,119 +15,146 @@ npm run setup:mac
 npm run web
 ```
 
-Then open:
+Windows 10/11 先安装 Node.js 22+，然后在项目根目录打开 PowerShell 执行：
+
+```powershell
+npm run setup:windows
+npm run web
+```
+
+启动后打开：
 
 ```text
 http://127.0.0.1:4311/
 ```
 
-What the setup command does:
+macOS setup 会做这些事：
 
-- checks Node.js version;
-- checks Homebrew;
-- installs `yt-dlp` if missing;
-- installs `ffmpeg` if missing;
-- installs project-local PySceneDetect under `.tools/` if missing;
-- runs `npm install`.
-- creates local config files from templates when they do not exist.
-- creates `dist/LabourCompressor.app` as a double-click macOS launcher.
+- 检查 Node.js 版本；
+- 检查 Homebrew；
+- 缺少 `yt-dlp` 时安装它；
+- 缺少 `ffmpeg` 时安装它；
+- 缺少 PySceneDetect 时安装到项目本地 `.tools/`；
+- 运行 `npm install`；
+- 本地配置文件不存在时，从模板创建；
+- 创建可双击启动的 `dist/LabourCompressor.app`。
 
-If setup stops with a Node.js or Homebrew error, install the missing prerequisite first:
+如果 setup 因 Node.js 或 Homebrew 停止，先安装缺失依赖：
 
-- Node.js 22+: `https://nodejs.org/`
-- Homebrew: `https://brew.sh/`
+- Node.js 22+：`https://nodejs.org/`
+- Homebrew：`https://brew.sh/`
 
-## First Local Configuration
+Windows setup 会做这些事：
 
-`npm run setup:mac` creates these local-only config files automatically when they do not exist:
+- 检查 Node.js 22+ 和 npm；
+- 优先使用 `winget` 安装 `yt-dlp`、`ffmpeg` 和 Python；
+- 把 PySceneDetect 安装到项目本地 `.tools/scenedetect-venv/`；
+- 运行 `npm install`；
+- 本地配置文件不存在时，从模板创建；
+- 创建可双击打开的 Windows 启动入口 `dist/LabourCompressor.vbs`，并同时创建排错用的 `dist/LabourCompressor.cmd` 和底层 PowerShell 启动脚本 `dist/LabourCompressor.ps1`。
+
+如果没有 `winget`，请手动安装缺失依赖后重新运行 setup。当前仓库已用可模拟的平台分支测试覆盖 Windows 行为；在真实 Windows 部署前，仍应在 Windows 机器上做一次手工验收。
+
+## 首次本地配置
+
+`npm run setup:mac` 和 `npm run setup:windows` 会在这些本地配置文件不存在时自动创建：
 
 - `config/model-providers/providers.local.json`
 - `config/download-platform-credentials.local.json`
 
-Then open the Web UI app:
+macOS 可以打开 Web UI app：
 
 ```bash
 open dist/LabourCompressor.app
 ```
 
-The app starts or reuses the local Web UI service, writes logs to `~/Library/Logs/LabourCompressor/web-ui.log`, and opens the browser automatically.
+该 app 会启动或复用本地 Web UI 服务，把日志写到 `~/Library/Logs/LabourCompressor/web-ui.log`，并自动打开浏览器。
 
-Command-line fallback:
+Windows 可以双击 `dist/LabourCompressor.vbs`。它会像本地应用入口一样启动或复用 Web UI 服务，把日志写到 `%LOCALAPPDATA%\\LabourCompressor\\logs\\web-ui.log`，并自动打开浏览器。若双击后没有反应，请改用 `dist/LabourCompressor.cmd` 启动，它会保留命令行窗口，方便查看错误信息。
+
+命令行兜底方式：
 
 ```bash
 npm run web
 ```
 
-In the Web UI:
+在 Web UI 中：
 
-- use model API configuration to paste the selected provider API key;
-- use platform credential configuration to select platform cookies when needed;
-- run Preflight before starting a task.
+- 用模型 API 配置入口填写所选 provider 的 API key；
+- 用平台凭证配置入口按需选择平台 cookies；
+- 开始任务前先运行 Preflight。
 
-Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or runtime state.
+不要提交 `*.local.json`、cookies、视频、表格、缓存文件或运行状态。
 
-## V0.3 Capabilities
+## V0.3 能力
 
-- Local Web UI for selecting task inputs, running preflight, starting jobs, and viewing task state.
-- Spreadsheet-driven workflow with `xlsx` as the complete standard format and `numbers` as a compatibility path.
-- Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
-- Automatic segmentation before tagging: scene detection, `3-30s` duration governance, and forced split when a long segment has no safe cut.
-- Effective-content coverage target is about `80%`; pure heads/tails, blank screens, posters, and small cutting loss are acceptable.
-- Original downloaded full videos remain in the download cache, but only accepted segmented clips enter tagging and archive.
-- `AfterEdit` receives generated clips such as `原名_720P_260512_000023_01.mp4`.
-- `ProblemClips` receives exceptional clips, with problem categories limited to `无法满足 3-30s`, `导出失败`, and `检测结果异常`.
-- V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
-- Native video-level multimodal tagging with Qwen and Gemini provider profiles.
-- Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.
-- Multi-branch tag writeback plus exactly one unique `内容题材` terminal path for archive placement.
-- Per-task result spreadsheet generation under `<downloadDir>/本次打标结果/`.
-- Local archive layout rooted at `视频数据归档库/内容题材`.
+- 本地 Web UI：选择任务输入、运行 preflight、启动任务、查看任务状态。
+- 表格驱动工作流：`xlsx` 是完整标准格式，`numbers` 是兼容路径。
+- 平台下载流程基于 `yt-dlp` 和 `ffmpeg`，支持平台级凭证引用。
+- 打标前自动分割：场景检测、`3-30s` 时长治理，长段没有安全切点时强制切分。
+- 有效内容覆盖目标约为 `80%`；纯片头片尾、黑屏、海报画面和少量切分损耗可以接受。
+- 原始完整下载视频保留在下载缓存，只有合格分割片段进入打标和归档。
+- `AfterEdit` 接收生成片段，例如 `原名_720P_260512_000023_01.mp4`。
+- `ProblemClips` 接收异常片段，问题分类只允许 `无法满足 3-30s`、`导出失败`、`检测结果异常`。
+- 关闭自动分割后，仍可使用 V0.2 的人工 `AfterEdit` 流程。
+- 使用 Qwen 和 Gemini provider profile 做原生视频级多模态打标。
+- 送模前创建标准视频打标缓存：`360p`、原帧率、`650 kbps` 视频、`AAC 64 kbps` 音频，并按 hash 复用。
+- 多分支标签回表，同时只用唯一 `内容题材` 终端路径做归档。
+- 每次任务会在 `<downloadDir>/本次打标结果/` 下生成结果表。
+- 本地归档库根路径为 `视频数据归档库/内容题材`。
 
-## Requirements
+## 运行要求
 
-- Node.js 22 or newer.
-- Apple Silicon Mac for the generated `LabourCompressor.app` launcher.
-- Xcode Command Line Tools for building the native arm64 launcher: `xcode-select --install`.
-- `yt-dlp` available in `PATH` or configured through the UI/CLI.
-- `ffmpeg` and `ffprobe` available in `PATH`.
-- PySceneDetect installed by `npm run setup:mac` under `.tools/`.
-- Model provider API credentials for the selected video model.
-- Platform cookies when the target platform requires login, higher quality formats, or anti-abuse verification.
+- Node.js 22 或更新版本。
+- macOS：Apple Silicon Mac，用于生成 `LabourCompressor.app` 启动器。
+- macOS：Xcode Command Line Tools，用于构建原生 arm64 启动器：`xcode-select --install`。
+- Windows：Windows 10/11 和 PowerShell；推荐使用 `winget` 安装依赖。
+- `yt-dlp` 可在 `PATH` 中找到，或通过 UI/CLI 显式配置。
+- `ffmpeg` 和 `ffprobe` 可在 `PATH` 中找到。
+- PySceneDetect 由 `npm run setup:mac` 或 `npm run setup:windows` 安装到 `.tools/`。
+- 所选视频模型需要对应的模型 provider API 凭证。
+- 当目标平台需要登录态、更高码率或反滥用验证时，需要平台 cookies。
 
-Install Node dependencies only:
+只安装 Node 依赖：
 
 ```bash
 npm install
 ```
 
-Install macOS dependencies and Node dependencies:
+安装 macOS 依赖和 Node 依赖：
 
 ```bash
 npm run setup:mac
 ```
 
-Run the local Web UI:
+安装 Windows 依赖和 Node 依赖：
+
+```powershell
+npm run setup:windows
+```
+
+运行本地 Web UI：
 
 ```bash
 npm run web
 ```
 
-Run the full test suite:
+运行完整测试：
 
 ```bash
 npm run test:taxonomy-domain
 ```
 
-## Local Configuration
+## 本地配置
 
-Use template files as structure references only. Real credential files are intentionally ignored by Git.
+模板文件只用于参考结构。真实凭证文件会被 Git 忽略。
 
-- Copy `config/model-providers/providers.template.json` to `config/model-providers/providers.local.json`.
-- Copy `config/download-platform-credentials.template.json` to `config/download-platform-credentials.local.json`.
-- Fill only the providers and platforms you need for local testing.
-- Keep real `apiKey`, cookies, browser sessions, and OAuth values out of commits and screenshots.
+- 复制 `config/model-providers/providers.template.json` 到 `config/model-providers/providers.local.json`。
+- 复制 `config/download-platform-credentials.template.json` 到 `config/download-platform-credentials.local.json`。
+- 只填写本地测试需要的 provider 和平台。
+- 不要把真实 `apiKey`、cookies、浏览器 session 或 OAuth 值提交到仓库，也不要放进截图。
 
-Curated V0.3 video model profiles:
+V0.3 内置视频模型 profile：
 
 - `Qwen 3.6 Flash` -> `qwen3.6-flash`
 - `Qwen 3.6 Plus` -> `qwen3.6-plus`
@@ -135,25 +162,25 @@ Curated V0.3 video model profiles:
 - `Gemini 3 Flash Thinking` -> `gemini-3-flash-preview`
 - `Gemini 3.1 Pro` -> `gemini-3.1-pro-preview`
 
-Qwen profiles default to higher tagging concurrency. Gemini profiles default to lower concurrency because preview model rate limits depend on the Google AI Studio project tier.
+Qwen profile 默认使用较高打标并发。Gemini profile 默认使用较低并发，因为 preview 模型限流取决于 Google AI Studio 项目额度。
 
-## Workflow
+## 工作流
 
-1. Start the Web UI with `npm run web`.
-2. Configure model API credentials and download platform credentials.
-3. Import a user spreadsheet with source URLs.
-4. Run preflight and fix any blocking issues.
-5. Start the task with `自动分割长视频` enabled.
-6. The system downloads full source videos, writes segmented clips into `AfterEdit`, writes problem clips into `ProblemClips`, and tags accepted clips.
-7. Review writeback, archive results, `AfterEdit_归档记录表.xlsx`, and the per-task result spreadsheet.
+1. 用 `npm run web` 启动 Web UI。
+2. 配置模型 API 凭证和下载平台凭证。
+3. 导入包含源 URL 的用户表格。
+4. 运行 Preflight，并修复阻断项。
+5. 开启 `自动分割长视频` 后启动任务。
+6. 系统下载源视频，把合格分割片段写入 `AfterEdit`，把问题片段写入 `ProblemClips`，并对合格片段打标。
+7. 检查回写结果、归档结果、`AfterEdit_归档记录表.xlsx` 和本次任务结果表。
 
-V0.2 is retained as the local tag `v0.2.0` and GitHub baseline. To use the old manual edit workflow, turn off automatic segmentation and enable the manual edit gate.
+V0.2 保留为本地 tag `v0.2.0` 和 GitHub baseline。若要使用旧的人工剪辑流程，请关闭自动分割，并开启人工剪辑闸门。
 
-For formal spreadsheet rules, see `CSV格式要求.md`, `NUMBERS格式要求.md`, and the project PRD.
+正式表格规则见 `CSV格式要求.md`、`NUMBERS格式要求.md` 和项目 PRD。
 
-## Data Safety
+## 数据安全
 
-The following must remain local-only:
+以下内容必须只保存在本地：
 
 - `*.local.json`
 - `.cache/`
@@ -162,29 +189,30 @@ The following must remain local-only:
 - `.web-ui.log`
 - `视频数据下载缓存/`
 - `视频数据采集总表.xlsx`
-- downloaded or edited videos
-- user spreadsheets and exported result files
-- cookies, API keys, OAuth secrets, tokens
+- 下载或剪辑后的视频
+- 用户表格和导出的结果文件
+- cookies、API key、OAuth secret、token
 
-The repository includes `.gitignore` entries for these local artifacts. Always inspect staged files before committing.
+仓库已在 `.gitignore` 中忽略这些本地文件。提交前务必检查 staged files。
 
-## Known V0.3 Limits
+## V0.3 已知限制
 
-- This is a local single-user workflow, not a cloud service.
-- The system does not perform automatic browser login or guarantee bypassing platform risk controls.
-- Download success depends on platform policy, account state, cookies freshness, `yt-dlp` support, and local network conditions.
-- Automatic segmentation is rule-based in V0.3; it does not yet perform full semantic story analysis.
-- `Numbers` support is compatibility-oriented and does not guarantee local file hyperlinks or automatic styling.
-- Model quality, speed, and rate limits vary by provider account, quota, and selected model.
-- OpenAI GPT models are not included in the V0.3 video model candidate pool because this workflow requires native video input.
+- 这是本地单用户工作流，不是云服务。
+- 系统不会自动浏览器登录，也不保证绕过平台风控。
+- 下载成功率取决于平台策略、账号状态、cookies 新鲜度、`yt-dlp` 支持状态和本地网络。
+- V0.3 自动分割是规则驱动，不做完整语义故事分析。
+- `Numbers` 支持以兼容为目标，不保证本地文件超链接或自动样式完整可用。
+- 模型质量、速度和限流取决于 provider 账号、额度和所选模型。
+- OpenAI GPT 模型不在 V0.3 视频模型候选池中，因为该工作流要求原生视频输入。
 
-## Release Baseline
+## 发布基线
 
-V0.3 release notes are stored in `docs/release/V0.3_RELEASE_NOTES.md`.
-V0.2 release notes remain stored in `docs/release/V0.2_RELEASE_NOTES.md`.
+V0.3.1 发布说明在 `docs/release/V0.3.1_RELEASE_NOTES.md`。
+V0.3 发布说明在 `docs/release/V0.3_RELEASE_NOTES.md`。
+V0.2 发布说明保留在 `docs/release/V0.2_RELEASE_NOTES.md`。
 
-The current private baseline should be tagged as:
+当前私有基线应打 tag：
 
 ```bash
-v0.3.0
+v0.3.1
 ```

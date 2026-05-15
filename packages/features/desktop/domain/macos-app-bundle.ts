@@ -64,6 +64,106 @@ export function createNativeLauncherCompileArgs(
   ];
 }
 
+export function createWindowsLauncherScript(
+  input: MacosAppBundleInput
+): string {
+  assertValidBundleInput(input);
+
+  const projectRoot = escapePowerShellSingleQuotedString(input.projectRoot);
+  const nodeExecutablePath = escapePowerShellSingleQuotedString(input.nodeExecutablePath ?? '');
+  const appName = escapePowerShellSingleQuotedString(input.appName);
+
+  return `$ErrorActionPreference = 'Stop'
+
+$ProjectRoot = '${projectRoot}'
+$NodeBin = '${nodeExecutablePath}'
+$HostName = '127.0.0.1'
+$DefaultPort = ${input.defaultPort}
+$AppName = '${appName}'
+$LocalAppData = if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { Join-Path $env:USERPROFILE 'AppData\\Local' } else { $env:LOCALAPPDATA }
+$LogDir = Join-Path $LocalAppData "${appName}\\logs"
+$PidFile = Join-Path $LogDir 'web-ui.pid'
+$LogFile = Join-Path $LogDir 'web-ui.log'
+$LaunchArgsText = 'apps\\cli\\main.ts serve-web-ui'
+$ToolBin = '${projectRoot}\\.tools\\bin'
+$SceneDetectScripts = '${projectRoot}\\.tools\\scenedetect-venv\\Scripts'
+
+$env:PATH = "$ToolBin;$SceneDetectScripts;$env:PATH"
+
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+Set-Location $ProjectRoot
+
+function Resolve-Node {
+  if (-not [string]::IsNullOrWhiteSpace($NodeBin) -and (Test-Path $NodeBin)) {
+    return $NodeBin
+  }
+
+  $resolved = Get-Command node -ErrorAction SilentlyContinue
+  if ($null -eq $resolved) {
+    throw 'Node.js 22+ is required. Run npm run setup:windows first.'
+  }
+  return $resolved.Source
+}
+
+function Test-LabourCompressorPort {
+  param([int] $Port)
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 -Uri "http://$HostName\`:$Port/api/defaults"
+    return $response.Content.Contains('autoSegmentation')
+  } catch {
+    return $false
+  }
+}
+
+function Test-PortInUse {
+  param([int] $Port)
+  $connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+  return $null -ne $connection
+}
+
+function Find-WebPort {
+  for ($Port = $DefaultPort; $Port -le $DefaultPort + 50; $Port += 1) {
+    if (Test-LabourCompressorPort -Port $Port) {
+      return $Port
+    }
+    if (-not (Test-PortInUse -Port $Port)) {
+      return $Port
+    }
+  }
+  throw 'No available local Web UI port found between 4311 and 4361.'
+}
+
+function Wait-WebServer {
+  param([int] $Port)
+  for ($Attempt = 1; $Attempt -le 40; $Attempt += 1) {
+    if (Test-LabourCompressorPort -Port $Port) {
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "LabourCompressor Web UI did not start. Check $LogFile."
+}
+
+$NodeBin = Resolve-Node
+$NodeMajor = & $NodeBin -p "Number(process.versions.node.split('.')[0])"
+if ([int] $NodeMajor -lt 22) {
+  throw "Node.js 22+ is required. Current node: $NodeBin"
+}
+
+$Port = Find-WebPort
+if (-not (Test-LabourCompressorPort -Port $Port)) {
+  "Starting LabourCompressor Web UI on $HostName\`:$Port" | Out-File -FilePath $LogFile -Append -Encoding utf8
+  $env:LABOUR_COMPRESSOR_WEB_HOST = $HostName
+  $env:LABOUR_COMPRESSOR_WEB_PORT = [string] $Port
+  $process = Start-Process -FilePath $NodeBin -ArgumentList $LaunchArgsText -WorkingDirectory $ProjectRoot -RedirectStandardOutput $LogFile -RedirectStandardError $LogFile -PassThru
+  [string] $process.Id | Out-File -FilePath $PidFile -Encoding utf8
+}
+
+Wait-WebServer -Port $Port
+Start-Process "http://127.0.0.1:$Port"
+`;
+}
+
 function assertValidBundleInput(input: MacosAppBundleInput): void {
   if (input.appName.trim().length === 0) {
     throw new Error('appName is required.');
@@ -264,4 +364,8 @@ function escapeXml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll('\'', '&apos;');
+}
+
+function escapePowerShellSingleQuotedString(value: string): string {
+  return value.replaceAll('\'', '\'\'');
 }

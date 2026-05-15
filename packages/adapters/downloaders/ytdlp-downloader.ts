@@ -211,22 +211,55 @@ export async function validateYtDlpBinary(
   }
 }
 
-export function resolveYtDlpBinaryPath(binaryPath?: string): string {
+export interface ResolveYtDlpBinaryPathOptions {
+  readonly platform?: NodeJS.Platform;
+  readonly projectRoot?: string;
+  readonly exists?: (filePath: string) => boolean;
+}
+
+export function resolveYtDlpBinaryPath(
+  binaryPath?: string,
+  options: ResolveYtDlpBinaryPathOptions = {}
+): string {
   if (binaryPath !== undefined && binaryPath.trim().length > 0) {
     return binaryPath;
   }
 
+  const platform = options.platform ?? process.platform;
+  const exists = options.exists ?? existsSync;
+  const projectRoot = options.projectRoot ?? process.cwd();
+
+  if (platform === 'win32') {
+    const localWindowsBinaryPath = resolveFirstExistingPath(
+      [
+        path.join(projectRoot, '.tools', 'bin', 'yt-dlp.exe'),
+        path.join(projectRoot, '.tools', 'bin', 'yt-dlp.cmd'),
+        path.join(projectRoot, '.tools', 'bin', 'yt-dlp.bat')
+      ],
+      exists
+    );
+
+    return localWindowsBinaryPath ?? 'yt-dlp';
+  }
+
   const homebrewBinaryPath = '/opt/homebrew/bin/yt-dlp';
-  if (existsSync(homebrewBinaryPath)) {
+  if (exists(homebrewBinaryPath)) {
     return homebrewBinaryPath;
   }
 
   const intelHomebrewBinaryPath = '/usr/local/bin/yt-dlp';
-  if (existsSync(intelHomebrewBinaryPath)) {
+  if (exists(intelHomebrewBinaryPath)) {
     return intelHomebrewBinaryPath;
   }
 
   return 'yt-dlp';
+}
+
+function resolveFirstExistingPath(
+  candidatePaths: readonly string[],
+  exists: (filePath: string) => boolean
+): string | undefined {
+  return candidatePaths.find((candidatePath) => exists(candidatePath));
 }
 
 export function classifyYtDlpErrorMessage(

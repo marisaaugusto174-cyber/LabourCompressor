@@ -29,7 +29,7 @@ export async function openProviderConfigDialog() {
     refs.providerConfigOutput.textContent = [
       '无法读取本地模型配置。',
       '',
-      '请先确认你是通过 npm run web 启动，并且已经执行 npm run setup:mac。',
+      '请先确认你是通过 npm run web 启动，并且已经执行 npm run setup:mac 或 npm run setup:windows。',
       '如果仍然失败，请关闭 Web UI 后重新运行 npm run web。',
       '',
       `技术信息：${error instanceof Error ? error.message : String(error)}`
