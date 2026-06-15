@@ -38,9 +38,7 @@ export function renderLiveEvent(event) {
   refs.statusOverall.textContent = deriveOverallStatusFromEvent(event);
   refs.statusPhase.textContent = humanizePhase(event.phase ?? event.stage, event.status);
   refs.statusItem.textContent = event.currentItem || '—';
-  refs.statusProgress.textContent = event.progress
-    ? `${event.progress.current}/${event.progress.total} (${Math.round((event.progress.current / Math.max(1, event.progress.total)) * 100)}%)`
-    : '—';
+  refs.statusProgress.textContent = formatProgress(event);
 }
 
 export function renderTaskStatus(task) {
@@ -127,6 +125,18 @@ function inferNextAction(task) {
     return '等待当前任务完成';
   }
 
+  if (task?.status === 'pausing') {
+    return '等待当前处理项完成后暂停';
+  }
+
+  if (task?.status === 'paused') {
+    return '恢复任务或强制停止';
+  }
+
+  if (task?.status === 'cancelling') {
+    return '正在取消任务';
+  }
+
   if (task?.status === 'succeeded') {
     return '无';
   }
@@ -158,7 +168,10 @@ function derivePlatformLabelFromText(text) {
 
 function humanizePhase(phase, status) {
   if (phase === 'task') {
-    return status === 'failed' ? '任务失败' : '任务完成';
+    if (status === 'failed') {
+      return '任务失败';
+    }
+    return status === 'succeeded' ? '任务完成' : '任务控制';
   }
 
   return {
@@ -181,6 +194,10 @@ function mapTaskStatus(status) {
   return {
     pending: '等待中',
     running: '运行中',
+    pausing: '暂停中',
+    paused: '已暂停',
+    cancelling: '取消中',
+    cancelled: '已取消',
     succeeded: '已完成',
     failed: '失败'
   }[status] ?? status;
@@ -223,6 +240,22 @@ function deriveOverallStatusFromTask(task) {
     return '失败';
   }
 
+  if (task?.status === 'cancelled') {
+    return '已取消';
+  }
+
+  if (task?.status === 'paused') {
+    return '已暂停';
+  }
+
+  if (task?.status === 'pausing') {
+    return '暂停中';
+  }
+
+  if (task?.status === 'cancelling') {
+    return '取消中';
+  }
+
   if (task?.status === 'succeeded' && results.length > 0) {
     return '归档成功';
   }
@@ -232,4 +265,27 @@ function deriveOverallStatusFromTask(task) {
   }
 
   return '未开始';
+}
+
+function formatProgress(event) {
+  if (!event.progress) {
+    return '—';
+  }
+
+  const current = event.progress.current;
+  const total = event.progress.total;
+  const percent = Math.round((current / Math.max(1, total)) * 100);
+  const parts = [`${current}/${total} (${percent}%)`];
+  const speed = event.details?.downloadSpeed;
+  const eta = event.details?.downloadEta;
+
+  if (typeof speed === 'string' && speed.length > 0) {
+    parts.push(speed);
+  }
+
+  if (typeof eta === 'string' && eta.length > 0) {
+    parts.push(`ETA ${eta}`);
+  }
+
+  return parts.join(' · ');
 }

@@ -35,6 +35,10 @@ import {
 const form = document.querySelector('#task-form');
 const preflightOutput = document.querySelector('#preflight-output');
 const eventLog = document.querySelector('#event-log');
+const pauseTaskButton = document.querySelector('#pause-task');
+const resumeTaskButton = document.querySelector('#resume-task');
+const partialWritebackButton = document.querySelector('#partial-writeback');
+const stopTaskButton = document.querySelector('#stop-task');
 const exportFailuresButton = document.querySelector('#export-failures');
 const providerProfile = document.querySelector('#provider-profile');
 const fileProtocolWarning = document.querySelector('#file-protocol-warning');
@@ -47,6 +51,7 @@ const statusModel = document.querySelector('#status-model');
 const statusSource = document.querySelector('#status-source');
 const statusPlatform = document.querySelector('#status-platform');
 const statusNextAction = document.querySelector('#status-next-action');
+const taxonomyPreset = document.querySelector('#taxonomy-preset');
 const taxonomyPresetDisplay = document.querySelector('#taxonomy-preset-display');
 const masterSpreadsheetDisplay = document.querySelector('#master-spreadsheet-display');
 const downloadDirDisplay = document.querySelector('#download-dir-display');
@@ -94,6 +99,12 @@ function initModules() {
         updatePlatformLabel();
         updateNextActionLabel();
       }
+      if (name === 'taxonomyPreset') {
+        syncPresetDefaults();
+        if (taxonomyPresetDisplay) {
+          taxonomyPresetDisplay.textContent = resolveTaxonomyPresetLabel(fieldValue('taxonomyPreset'));
+        }
+      }
     }
   });
   initPathInputs({ outputNode: preflightOutput });
@@ -138,12 +149,21 @@ function bindActions() {
   document
     .querySelector('#preflight-button')
     .addEventListener('click', () => wrapAction(runPreflight, preflightOutput));
-  document
-    .querySelector('#run-button')
-    .addEventListener('click', () => wrapAction(startTask, eventLog));
+  for (const button of document.querySelectorAll('[data-pipeline-stage]')) {
+    button.addEventListener('click', () =>
+      wrapAction(() => startTask(button.dataset.pipelineStage), eventLog)
+    );
+  }
   document
     .querySelector('#build-afteredit-sheet')
     .addEventListener('click', () => wrapAction(buildAfterEditSheet, preflightOutput));
+  document
+    .querySelector('#build-afteredit-batch-sheet')
+    .addEventListener('click', () => wrapAction(buildAfterEditBatchSheet, preflightOutput));
+  pauseTaskButton.addEventListener('click', () => wrapAction(() => controlTask('pause'), eventLog));
+  resumeTaskButton.addEventListener('click', () => wrapAction(() => controlTask('resume'), eventLog));
+  partialWritebackButton.addEventListener('click', () => wrapAction(writePartialResults, eventLog));
+  stopTaskButton.addEventListener('click', () => wrapAction(() => controlTask('stop'), eventLog));
   document
     .querySelector('#close-provider-config')
     .addEventListener('click', () => providerConfigDialog.close());
@@ -176,6 +196,9 @@ async function loadDefaults() {
   providerProfile.innerHTML = defaultsPayload.modelProfiles
     .map((item) => `<option value="${item.id}">${escapeHtml(item.label)}</option>`)
     .join('');
+  taxonomyPreset.innerHTML = defaultsPayload.taxonomyPresets
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`)
+    .join('');
 
   setField('taxonomyPreset', defaultsPayload.defaults.taxonomyPreset);
   setField('selectedModelProfileId', defaultsPayload.defaults.selectedModelProfileId);
@@ -195,7 +218,9 @@ async function loadDefaults() {
   setField('problemClipsDirectoryName', defaultsPayload.defaults.problemClipsDirectoryName);
 
   masterSpreadsheetDisplay.textContent = defaultsPayload.defaults.masterSpreadsheetPath;
-  taxonomyPresetDisplay.textContent = resolveTaxonomyPresetLabel(defaultsPayload.defaults.taxonomyPreset);
+  if (taxonomyPresetDisplay) {
+    taxonomyPresetDisplay.textContent = resolveTaxonomyPresetLabel(defaultsPayload.defaults.taxonomyPreset);
+  }
   downloadDirDisplay.textContent = defaultsPayload.defaults.downloadDir;
   afterEditDirDisplay.textContent = `${defaultsPayload.defaults.downloadDir}/${defaultsPayload.defaults.afterEditDirectoryName}`;
   statusModel.textContent = resolveSelectedModelLabel();
@@ -216,9 +241,11 @@ async function restoreLatestTask() {
   currentTaskId = latestTask.id;
   renderTask(latestTask);
 
-  if (latestTask.status === 'running' || latestTask.status === 'queued') {
+  if (isControllableTaskStatus(latestTask.status)) {
     openEventStream(latestTask.id);
-    pollTask(latestTask.id);
+    if (shouldPollTaskStatus(latestTask.status)) {
+      pollTask(latestTask.id);
+    }
   }
 }
 
@@ -259,7 +286,7 @@ async function runPreflight() {
   preflightOutput.textContent = JSON.stringify(payload.checks, null, 2);
 }
 
-async function startTask() {
+async function startTask(pipelineStage = 'all') {
   const missingField = validateRequiredFields();
 
   if (missingField) {
@@ -276,25 +303,46 @@ async function startTask() {
   exportFailuresButton.disabled = true;
   resetStatusShell();
   statusOverall.textContent = '启动中';
+  setField('pipelineStage', pipelineStage);
   const task = await apiPost('/api/tasks', collectFormData());
   currentTaskId = task.id;
   statusOverall.textContent = '运行中';
+  updateTaskControls(task);
   openEventStream(task.id);
   pollTask(task.id);
 }
 
-async function buildAfterEditSheet() {
+async function controlTask(action) {
+  if (!currentTaskId) {
+    return;
+  }
+
+  const task = await apiPost(`/api/tasks/${currentTaskId}/${action}`, {});
+  renderTask(task);
+  if (isControllableTaskStatus(task.status)) {
+    openEventStream(task.id);
+  }
+  if (shouldPollTaskStatus(task.status)) {
+    pollTask(task.id);
+  }
+}
+
+async function buildAfterEditSheet(options = {}) {
   preflightOutput.textContent = '正在扫描 AfterEdit 并生成标准表格...';
   const payload = await apiPost('/api/post-edit-sheet', {
     downloadDir: fieldValue('downloadDir'),
-    afterEditDirectoryName: fieldValue('afterEditDirectoryName')
+    afterEditDirectoryName: fieldValue('afterEditDirectoryName'),
+    batchSampleFilePath: options.batchSampleFilePath
   });
   if (typeof payload.outputFilePath === 'string' && payload.outputFilePath.length > 0) {
     setField('spreadsheet', payload.outputFilePath);
     statusOverall.textContent = '待继续';
     statusPhase.textContent = '等待第二阶段启动';
+    const batchLabel = payload.filterMode === 'batch-sample' && typeof payload.batchKey === 'string'
+      ? `批次 ${payload.batchKey}，`
+      : '';
     statusItem.textContent = payload.fileCount > 0
-      ? `已载入 ${payload.fileCount} 个剪辑文件，修正 ${payload.renamedCount ?? 0} 个文件名`
+      ? `已载入 ${batchLabel}${payload.fileCount} 个剪辑文件，修正 ${payload.renamedCount ?? 0} 个文件名`
       : 'AfterEdit 表格已生成';
     statusProgress.textContent = '—';
     statusSource.textContent = 'AfterEdit 二阶段继续处理';
@@ -302,6 +350,34 @@ async function buildAfterEditSheet() {
     statusNextAction.textContent = '启动第二阶段任务';
     renderAfterEditFiles(payload.files ?? [], resultsList);
   }
+  preflightOutput.textContent = JSON.stringify(payload, null, 2);
+}
+
+async function buildAfterEditBatchSheet() {
+  const batchSampleFilePath = fieldValue('afterEditBatchSampleFile').trim();
+
+  if (batchSampleFilePath.length === 0) {
+    throw new Error('请先选择一个 AfterEdit 批次样例文件。');
+  }
+
+  return buildAfterEditSheet({ batchSampleFilePath });
+}
+
+async function writePartialResults() {
+  const payload = currentTaskId
+    ? await apiPost(`/api/tasks/${currentTaskId}/partial-writeback`, {})
+    : await apiPost('/api/partial-writeback', collectFormData());
+  const message = [
+    `部分回表完成：更新 ${payload.updatedRows ?? 0} 行`,
+    `匹配 JSON ${payload.matchedJsonFiles ?? 0} 个`,
+    `失败 ${payload.failedRows ?? 0} 行`
+  ].join('，');
+  eventLog.textContent += `${new Date().toISOString()} [succeeded] writeback: ${message}\n`;
+  eventLog.scrollTop = eventLog.scrollHeight;
+  statusOverall.textContent = '部分回表完成';
+  statusPhase.textContent = '写回表格';
+  statusItem.textContent = message;
+  statusProgress.textContent = `${payload.updatedRows ?? 0}/${payload.totalRows ?? 0}`;
   preflightOutput.textContent = JSON.stringify(payload, null, 2);
 }
 
@@ -322,13 +398,14 @@ async function pollTask(taskId) {
   const task = await apiGet(`/api/tasks/${taskId}`);
   renderTask(task);
 
-  if (task.status === 'running' || task.status === 'queued') {
+  if (shouldPollTaskStatus(task.status)) {
     setTimeout(() => pollTask(taskId), 1500);
   }
 }
 
 function renderTask(task) {
   renderTaskStatus(task);
+  updateTaskControls(task);
 
   if (!task.result) {
     return;
@@ -336,6 +413,30 @@ function renderTask(task) {
 
   exportFailuresButton.disabled = task.result.failedRows === 0;
   renderResultCards(task.result.results, resultsList, task.result.currentRunSpreadsheetPath);
+}
+
+function updateTaskControls(task) {
+  const status = task?.status;
+  const hasTask = Boolean(task?.id);
+  pauseTaskButton.disabled = !hasTask || !(status === 'queued' || status === 'running');
+  resumeTaskButton.disabled = !hasTask || !(status === 'paused' || status === 'pausing');
+  partialWritebackButton.disabled = !hasTask && !fieldValue('spreadsheet');
+  stopTaskButton.disabled = !hasTask || !isControllableTaskStatus(status);
+}
+
+function isControllableTaskStatus(status) {
+  return status === 'queued' ||
+    status === 'running' ||
+    status === 'pausing' ||
+    status === 'paused' ||
+    status === 'cancelling';
+}
+
+function shouldPollTaskStatus(status) {
+  return status === 'queued' ||
+    status === 'running' ||
+    status === 'pausing' ||
+    status === 'cancelling';
 }
 
 function exportFailures() {

@@ -11,10 +11,11 @@
       <header class="page-header">
         <div>
           <h1>Labour Compressor</h1>
-          <p>本地任务入口：导表、下载、视频级打标、回表、归档。</p>
-          <p class="build-version">UI build: 20260504b</p>
+          <p>本地任务入口：按阶段启动、阶段完成后自动回表。</p>
+          <p class="build-version">UI build: 20260515-v04</p>
         </div>
         <div class="header-chip-list">
+          <a class="chip" href="/review.html">打标质检</a>
           <span class="chip">Bilibili + yt-dlp</span>
           <span class="chip">Qwen 视频级检测</span>
           <span class="chip">Numbers / XLSX</span>
@@ -41,8 +42,8 @@
             <button id="open-provider-config" type="button">配置模型 API</button>
             <button id="open-platform-credentials" type="button">配置下载凭证</button>
             <button id="preflight-button" type="button">运行 Preflight</button>
-            <button id="run-button" type="button">启动任务</button>
             <button id="build-afteredit-sheet" type="button">一键从 AfterEdit 生成表并载入</button>
+            <button id="build-afteredit-batch-sheet" type="button">按样例批次生成表并载入</button>
           </div>
         </div>
 
@@ -69,6 +70,40 @@
               </div>
             </div>
 
+            <div class="path-field drop-target" data-target="afterEditBatchSampleFile" data-kind="file">
+              <div class="path-meta">
+                <label for="afterEditBatchSampleFile">批次样例文件</label>
+                <span>选择本次只想继续处理的一个 AfterEdit 分割文件。</span>
+              </div>
+              <div class="path-control">
+                <input id="afterEditBatchSampleFile" name="afterEditBatchSampleFile" />
+                <button
+                  class="picker-button"
+                  type="button"
+                  data-dialog-kind="file"
+                  data-target="afterEditBatchSampleFile"
+                  data-prompt="选择批次样例文件"
+                >
+                  选择文件
+                </button>
+              </div>
+            </div>
+
+            <div class="stage-launcher">
+              <button type="button" data-pipeline-stage="download">下载</button>
+              <button type="button" data-pipeline-stage="segment">分割</button>
+              <button type="button" data-pipeline-stage="compress">压缩</button>
+              <button type="button" data-pipeline-stage="tag">打标</button>
+              <button type="button" data-pipeline-stage="archive">归档</button>
+            </div>
+
+            <details class="advanced-run-panel">
+              <summary>高级：一键连续执行</summary>
+              <div class="actions compact">
+                <button id="run-button" type="button" data-pipeline-stage="all">一键全流程</button>
+              </div>
+            </details>
+
             <div class="inline-grid compact-grid single-field-grid">
               <label>打标模型
                 <select id="provider-profile" name="selectedModelProfileId"></select>
@@ -91,8 +126,8 @@
 
             <div class="readonly-grid">
               <div class="readonly-item">
-                <span class="readonly-label">标签库</span>
-                <span id="taxonomy-preset-display" class="readonly-value"></span>
+                <label class="readonly-label" for="taxonomy-preset">标签库</label>
+                <select id="taxonomy-preset" name="taxonomyPreset"></select>
               </div>
               <div class="readonly-item">
                 <span class="readonly-label">程序内总表</span>
@@ -132,7 +167,6 @@
             </div>
           </section>
 
-          <input id="taxonomy-preset" name="taxonomyPreset" type="hidden" />
           <input id="masterSpreadsheetPath" name="masterSpreadsheetPath" type="hidden" />
           <input id="writebackTarget" name="writebackTarget" type="hidden" />
           <input id="promptLibrary" name="promptLibrary" type="hidden" />
@@ -145,6 +179,7 @@
           <input id="manualEditGate" name="manualEditGate" type="hidden" />
           <input id="afterEditDirectoryName" name="afterEditDirectoryName" type="hidden" />
           <input id="problemClipsDirectoryName" name="problemClipsDirectoryName" type="hidden" />
+          <input id="pipelineStage" name="pipelineStage" type="hidden" />
         </form>
       </section>
 
@@ -155,6 +190,10 @@
             <p>任务状态只显示用户需要判断下一步的信息，原始日志收在调试区。</p>
           </div>
           <div class="actions compact">
+            <button id="pause-task" type="button" class="secondary-button" disabled>暂停</button>
+            <button id="resume-task" type="button" class="secondary-button" disabled>恢复</button>
+            <button id="partial-writeback" type="button" class="secondary-button" disabled>部分回表</button>
+            <button id="stop-task" type="button" class="danger-button" disabled>强制停止</button>
             <button id="export-failures" type="button" disabled>导出失败 CSV</button>
           </div>
         </div>

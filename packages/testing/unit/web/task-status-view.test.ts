@@ -56,6 +56,47 @@ test('task status view marks problem clips as pending manual handling', () => {
   assert.equal(refs.statusNextAction.textContent, '处理问题片段');
 });
 
+test('task status view displays download count, speed and eta', () => {
+  const refs = createRefs();
+  initTaskStatusView({
+    refs,
+    getDefaults: () => ({ modelProfiles: [] }),
+    getFieldValue: () => '',
+    getSelectedModelLabel: () => '测试模型'
+  });
+
+  renderLiveEvent({
+    phase: 'download',
+    status: 'running',
+    message: 'Downloading row 53 of 55',
+    currentItem: '样本A.mp4',
+    progress: { current: 53, total: 55 },
+    details: {
+      downloadSpeed: '1.24MiB/s',
+      downloadEta: '00:18'
+    }
+  });
+
+  assert.equal(refs.statusProgress.textContent, '53/55 (96%) · 1.24MiB/s · ETA 00:18');
+});
+
+test('task status view maps paused and cancelled task statuses', () => {
+  const refs = createRefs();
+  initTaskStatusView({
+    refs,
+    getDefaults: () => ({ modelProfiles: [] }),
+    getFieldValue: () => '',
+    getSelectedModelLabel: () => '测试模型'
+  });
+
+  renderTaskStatus({ status: 'paused', options: {}, result: { results: [] } });
+  assert.equal(refs.statusOverall.textContent, '已暂停');
+  assert.equal(refs.statusNextAction.textContent, '恢复任务或强制停止');
+
+  renderTaskStatus({ status: 'cancelled', options: {}, result: { results: [] } });
+  assert.equal(refs.statusOverall.textContent, '已取消');
+});
+
 function createRefs() {
   return {
     statusOverall: createTextRef(),

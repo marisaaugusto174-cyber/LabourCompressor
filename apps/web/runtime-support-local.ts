@@ -24,11 +24,10 @@ export async function buildPostEditRecordSheet(input: {
   readonly downloadDirectory: string;
   readonly afterEditDirectoryName?: string;
   readonly outputFilePath?: string;
+  readonly batchSampleFilePath?: string;
 }): Promise<Readonly<Record<string, unknown>>> {
   const afterEditDirectoryName = input.afterEditDirectoryName ?? 'AfterEdit';
   const afterEditDirectoryPath = path.join(input.downloadDirectory, afterEditDirectoryName);
-  const outputFilePath =
-    input.outputFilePath ?? path.join(afterEditDirectoryPath, 'AfterEdit_归档记录表.xlsx');
 
   await mkdir(afterEditDirectoryPath, { recursive: true });
   const scannedFiles = await scanAfterEditVideoFiles(afterEditDirectoryPath);
@@ -37,9 +36,33 @@ export async function buildPostEditRecordSheet(input: {
     throw new Error('AfterEdit 目录中没有可用视频文件。');
   }
 
+  const batchFilter = resolveAfterEditBatchFilter({
+    afterEditDirectoryPath,
+    batchSampleFilePath: input.batchSampleFilePath
+  });
+  const selectedFiles = batchFilter === null
+    ? scannedFiles
+    : filterAfterEditFilesByBatchSample({
+      files: scannedFiles,
+      batchFilter
+    });
+
+  if (selectedFiles.length === 0) {
+    throw new Error(`AfterEdit 目录中没有找到批次 ${batchFilter?.batchKey ?? ''} 的视频文件。`);
+  }
+
+  const outputFilePath =
+    input.outputFilePath ??
+    path.join(
+      afterEditDirectoryPath,
+      batchFilter === null
+        ? 'AfterEdit_归档记录表.xlsx'
+        : `AfterEdit_归档记录表_${sanitizeOutputFileStem(batchFilter.batchKey)}.xlsx`
+    );
+
   const preparedFiles = await standardizeAfterEditFiles({
     afterEditDirectoryPath,
-    files: scannedFiles
+    files: selectedFiles
   });
 
   createPostEditArchiveRecordSpreadsheet({
@@ -48,7 +71,10 @@ export async function buildPostEditRecordSheet(input: {
       preparedFiles.map((file) => ({
         fileName: file.fileName,
         relativePath: file.relativePath,
-        originalFileName: file.originalFileName
+        originalFileName: file.originalFileName,
+        archiveState: '待压缩',
+        sourceFilePath: path.join(afterEditDirectoryPath, file.relativePath),
+        currentFilePath: path.join(afterEditDirectoryPath, file.relativePath)
       }))
     )
   });
@@ -56,6 +82,8 @@ export async function buildPostEditRecordSheet(input: {
   return Object.freeze({
     afterEditDirectoryPath,
     outputFilePath,
+    filterMode: batchFilter === null ? 'all' : 'batch-sample',
+    batchKey: batchFilter?.batchKey,
     fileCount: preparedFiles.length,
     renamedCount: preparedFiles.filter((file) => file.renamed).length,
     files: Object.freeze(
@@ -80,6 +108,60 @@ interface PreparedAfterEditFile extends PostEditArchiveRecordFileEntry {
   readonly originalRelativePath: string;
   readonly relativePath: string;
   readonly renamed: boolean;
+}
+
+interface AfterEditBatchFilter {
+  readonly batchKey: string;
+  readonly sampleRelativePath: string;
+}
+
+function resolveAfterEditBatchFilter(input: {
+  readonly afterEditDirectoryPath: string;
+  readonly batchSampleFilePath?: string;
+}): AfterEditBatchFilter | null {
+  if (typeof input.batchSampleFilePath !== 'string' || input.batchSampleFilePath.trim().length === 0) {
+    return null;
+  }
+
+  const sampleFilePath = path.resolve(input.batchSampleFilePath);
+  const relativePath = path.relative(input.afterEditDirectoryPath, sampleFilePath);
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error('批次样例文件必须位于当前 AfterEdit 目录内。');
+  }
+
+  return Object.freeze({
+    batchKey: parseSegmentedAfterEditBatchKey(path.basename(sampleFilePath)),
+    sampleRelativePath: relativePath.split(path.sep).join('/')
+  });
+}
+
+function filterAfterEditFilesByBatchSample(input: {
+  readonly files: readonly ScannedAfterEditFile[];
+  readonly batchFilter: AfterEditBatchFilter;
+}): readonly ScannedAfterEditFile[] {
+  return Object.freeze(
+    input.files.filter((file) => {
+      try {
+        return parseSegmentedAfterEditBatchKey(file.fileName) === input.batchFilter.batchKey;
+      } catch {
+        return file.relativePath === input.batchFilter.sampleRelativePath;
+      }
+    })
+  );
+}
+
+function parseSegmentedAfterEditBatchKey(fileName: string): string {
+  const stem = path.basename(fileName, path.extname(fileName));
+  const match = /^(.+)_([A-Z0-9]+P)_(\d{6})_\d{6}_\d+$/u.exec(stem);
+
+  if (match === null) {
+    throw new Error(
+      `批次样例文件名必须是“标题_清晰度_日期_时长_分段序号”格式，当前为：${fileName}`
+    );
+  }
+
+  return `${match[1]}_${match[2]}_${match[3]}`;
 }
 
 async function scanAfterEditVideoFiles(
@@ -286,6 +368,15 @@ function stemKey(fileName: string): string {
 
 function toPortableRelativePath(rootDirectory: string, filePath: string): string {
   return path.relative(rootDirectory, filePath).split(path.sep).join('/');
+}
+
+function sanitizeOutputFileStem(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/gu, '_')
+    .replace(/\s+/gu, '_')
+    .replace(/_+/gu, '_')
+    .replace(/^_+|_+$/gu, '') || 'batch';
 }
 
 export async function chooseLocalPath(input: {

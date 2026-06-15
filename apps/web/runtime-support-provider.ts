@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { createGeminiCompatibleClient } from '../../packages/adapters/models/gemini-compatible-client.ts';
@@ -11,6 +10,7 @@ import {
 } from '../../packages/features/tagging/domain/index.ts';
 import { type RunLocalPipelineOptions } from '../cli/local-pipeline-command.ts';
 import { type RuntimeCheckResult } from './runtime-support-types.ts';
+import { DEFAULT_PROVIDER_CONFIG_PATH } from '../cli/project-paths.ts';
 
 export async function probeSelectedProvider(input: {
   readonly providerConfigPath: string;
@@ -164,7 +164,7 @@ export async function checkProvider(
   try {
     const providerConfigPath =
       options.providerConfigPath ??
-      path.join(process.cwd(), 'config/model-providers/providers.local.json');
+      DEFAULT_PROVIDER_CONFIG_PATH;
     const configMap = await loadLocalProviderConfigFile(providerConfigPath);
     const providerConfig = getEnabledProviderConfig(configMap, selectedProfile.provider);
     const resolvedConfig = Object.freeze({

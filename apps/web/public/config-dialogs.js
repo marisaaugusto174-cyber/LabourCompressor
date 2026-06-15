@@ -25,12 +25,16 @@ export async function openProviderConfigDialog() {
   } catch (error) {
     refs.providerConfigProfileLabel.textContent = '当前选择的模型';
     refs.providerConfigProviderLabel.textContent = '等待本地配置';
-    refs.providerConfigStatusLabel.textContent = '配置文件暂不可读';
+    refs.providerConfigStatusLabel.textContent = isFetchFailure(error)
+      ? '本地服务未连接'
+      : '配置文件暂不可读';
     refs.providerConfigOutput.textContent = [
-      '无法读取本地模型配置。',
+      isFetchFailure(error)
+        ? '无法连接本地 Web UI 服务。'
+        : '无法读取本地模型配置。',
       '',
-      '请先确认你是通过 npm run web 启动，并且已经执行 npm run setup:mac。',
-      '如果仍然失败，请关闭 Web UI 后重新运行 npm run web。',
+      '请确认地址栏是 http://127.0.0.1:4311/，并且本地服务正在运行。',
+      '如果页面是之前打开后保留下来的，请重新启动 Labour Compressor 或重新运行 npm run web 后刷新页面。',
       '',
       `技术信息：${error instanceof Error ? error.message : String(error)}`
     ].join('\n');
@@ -60,11 +64,25 @@ export async function saveProviderConfig() {
 }
 
 export async function openPlatformCredentialsDialog() {
-  const payload = await apiGet(
-    `/api/platform-credentials?platformCredentialConfigPath=${encodeURIComponent(fieldValue('platformCredentialConfigPath'))}`
-  );
-  renderPlatformCredentialFields(payload);
-  refs.platformCredentialsOutput.textContent = buildDebugJson(payload);
+  try {
+    const payload = await apiGet(
+      `/api/platform-credentials?platformCredentialConfigPath=${encodeURIComponent(fieldValue('platformCredentialConfigPath'))}`
+    );
+    renderPlatformCredentialFields(payload);
+    refs.platformCredentialsOutput.textContent = buildDebugJson(payload);
+  } catch (error) {
+    refs.platformCredentialsFields.innerHTML = '';
+    refs.platformCredentialsOutput.textContent = [
+      isFetchFailure(error)
+        ? '无法连接本地 Web UI 服务。'
+        : '无法读取本地下载凭证配置。',
+      '',
+      '请确认地址栏是 http://127.0.0.1:4311/，并且本地服务正在运行。',
+      '如果页面是之前打开后保留下来的，请重新启动 Labour Compressor 或重新运行 npm run web 后刷新页面。',
+      '',
+      `技术信息：${error instanceof Error ? error.message : String(error)}`
+    ].join('\n');
+  }
   refs.platformCredentialsDialog.showModal();
 }
 
@@ -137,4 +155,8 @@ function renderPlatformCredentialFields(entries) {
     .join('');
   bindPickerButtons();
   updateFilledState();
+}
+
+function isFetchFailure(error) {
+  return error instanceof TypeError && /fetch/iu.test(error.message);
 }

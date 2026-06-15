@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 
 import {
   buildPostEditRecordSheet,
@@ -13,6 +14,8 @@ import {
   loadProviderConfigSummary,
   probePlatformDownload
 } from '../../../../apps/web/runtime-support.ts';
+
+const xlsx = XLSX.default ?? XLSX;
 
 test('exports pipeline failures as csv', () => {
   const csv = exportFailuresAsCsv({
@@ -167,6 +170,52 @@ test('renames duplicate standardized AfterEdit stems when building post-edit rec
   }
 });
 
+test('builds post-edit record sheet for only the selected AfterEdit batch sample', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-runtime-'));
+  const downloadDirectory = path.join(tempDir, 'downloads');
+  const afterEditDirectory = path.join(downloadDirectory, 'AfterEdit');
+  const samplePath = path.join(afterEditDirectory, '粤语版_1600P_260611_000004_715.mp4');
+
+  try {
+    mkdirSync(afterEditDirectory, { recursive: true });
+    writeFileSync(samplePath, '');
+    writeFileSync(path.join(afterEditDirectory, '粤语版_1600P_260611_000005_716.mp4'), '');
+    writeFileSync(path.join(afterEditDirectory, '粤语版_1600P_260612_000004_01.mp4'), '');
+    writeFileSync(path.join(afterEditDirectory, '其他_720P_260611_000004_01.mp4'), '');
+
+    const result = await buildPostEditRecordSheet({
+      downloadDirectory,
+      batchSampleFilePath: samplePath
+    });
+    const fileNames = (result.files as readonly Record<string, unknown>[])
+      .map((file) => String(file.fileName))
+      .sort((left, right) => left.localeCompare(right));
+
+    assert.equal(result.filterMode, 'batch-sample');
+    assert.equal(result.batchKey, '粤语版_1600P_260611');
+    assert.equal(result.fileCount, 2);
+    assert.equal(path.basename(String(result.outputFilePath)), 'AfterEdit_归档记录表_粤语版_1600P_260611.xlsx');
+    assert.deepEqual(fileNames, [
+      '粤语版_1600P_260611_000004_715.mp4',
+      '粤语版_1600P_260611_000005_716.mp4'
+    ]);
+
+    const workbook = xlsx.readFile(String(result.outputFilePath));
+    const records = xlsx.utils.sheet_to_json<Record<string, string>>(
+      workbook.Sheets[workbook.SheetNames[0]!]!,
+      { defval: '' }
+    );
+
+    assert.equal(records.length, 2);
+    assert.equal(
+      records.every((record) => record.文件名.startsWith('粤语版_1600P_260611_')),
+      true
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('recursively scans AfterEdit and renames invalid exported files before sheet creation', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-runtime-'));
   const downloadDirectory = path.join(tempDir, 'downloads');
@@ -189,6 +238,17 @@ test('recursively scans AfterEdit and renames invalid exported files before shee
     assert.equal(renamed?.relativePath, '崩铁二创测试output/崩铁二创测试output1_720P_260503_000001.mp4');
     assert.equal(existsSync(path.join(nestedDirectory, '崩铁二创测试output1_720P_260503_000001.mp4')), true);
     assert.equal(existsSync(exportedPath), false);
+
+    const workbook = xlsx.readFile(String(result.outputFilePath));
+    const records = xlsx.utils.sheet_to_json<Record<string, string>>(
+      workbook.Sheets[workbook.SheetNames[0]!]!,
+      { defval: '' }
+    );
+    const expectedPath = path.join(downloadDirectory, 'AfterEdit', '崩铁二创测试output', '崩铁二创测试output1_720P_260503_000001.mp4');
+
+    assert.equal(records[0]?.归档状态, '待压缩');
+    assert.equal(records[0]?.源文件路径, expectedPath);
+    assert.equal(records[0]?.当前文件路径, expectedPath);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
