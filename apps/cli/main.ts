@@ -30,9 +30,11 @@ import {
   createDownloadRequest,
   parsePlatformCredentialConfig
 } from '../../packages/features/download/domain/index.ts';
-import { runLocalPipelineCommand, type RunLocalPipelineOptions } from './local-pipeline-command.ts';
+import { runLocalPipelineCommand } from './local-pipeline-command.ts';
 import { createCliStatusReporter } from './status-reporter.ts';
-import { listTaxonomyPresets, resolveTaxonomyInput } from './taxonomy-presets.ts';
+import { listTaxonomyPresets } from './taxonomy-presets.ts';
+import { DEFAULT_PROVIDER_CONFIG_PATH } from './project-paths.ts';
+import { buildCliPipelineOptions } from './pipeline/options.ts';
 
 const reporter = createCliStatusReporter({
   log: (line) => console.log(line),
@@ -50,7 +52,7 @@ try {
 
   if (command === 'run-local-pipeline') {
     await runLocalPipelineCommand({
-      options: requirePipelineOptions(args),
+      options: buildCliPipelineOptions(args),
       report: reporter.report
     });
     process.exit(0);
@@ -176,7 +178,7 @@ try {
     );
     const configMap = await loadLocalProviderConfigFile(
       args['provider-config'] ??
-        '/Users/tianyi/Desktop/codex/jobtask/config/model-providers/providers.local.json'
+        DEFAULT_PROVIDER_CONFIG_PATH
     );
     const config = getEnabledProviderConfig(configMap, selectedProfile.provider);
     const resolvedConfig = Object.freeze({
@@ -250,42 +252,6 @@ try {
   process.exit(1);
 }
 
-function requirePipelineOptions(
-  args: Record<string, string>
-): RunLocalPipelineOptions {
-  return Object.freeze({
-    spreadsheet: getRequiredArg(args, 'spreadsheet'),
-    downloadDir: getRequiredArg(args, 'download-dir'),
-    taxonomy: resolveTaxonomyInput({
-      taxonomyPath: args.taxonomy,
-      taxonomyPreset: args['taxonomy-preset']
-    }),
-    promptLibrary: getRequiredArg(args, 'prompt-library'),
-    archiveRoot: getRequiredArg(args, 'archive-root'),
-    downloadFixtures: readOptionalArg(args, 'download-fixtures'),
-    candidateFixtures: readOptionalArg(args, 'candidate-fixtures'),
-    workflowSessionId: args['workflow-session-id'],
-    acceptedTagsColumnName: args['accepted-tags-column-name'],
-    timestamp: args.timestamp,
-    downloaderMode: (args['downloader-mode'] as 'simulated' | 'yt-dlp' | undefined) ?? 'simulated',
-    mergeMode: (args['merge-mode'] as 'local' | 'ffmpeg' | undefined) ?? 'local',
-    taggingMode: (args['tagging-mode'] as 'simulated' | 'qwen' | undefined) ?? 'simulated',
-    providerConfigPath: args['provider-config'],
-    selectedModelProfileId: args['selected-model-profile-id'],
-    ytDlpBinary: args['yt-dlp-binary'],
-    cookiesFilePath: args['cookies-file'],
-    cookiesFromBrowser: args['cookies-from-browser'],
-    platformCredentialConfigPath: args['platform-credential-config'],
-    writebackTarget: (args['writeback-target'] as 'user' | 'master' | 'both' | undefined) ?? 'user',
-    masterSpreadsheetPath: args['master-spreadsheet'],
-    manualEditGate: parseBooleanArg(args['manual-edit-gate']),
-    afterEditDirectoryName: readOptionalArg(args, 'after-edit-directory-name'),
-    autoSegmentation: parseBooleanArg(args['auto-segmentation']),
-    segmentationProfileId: args['segmentation-profile'] as RunLocalPipelineOptions['segmentationProfileId'],
-    problemClipsDirectoryName: readOptionalArg(args, 'problem-clips-directory-name')
-  });
-}
-
 function parseArgs(argv: readonly string[]): Record<string, string> {
   const parsed: Record<string, string> = {};
   const booleanFlags = new Set(['auto-segmentation']);
@@ -324,38 +290,13 @@ function getRequiredArg(args: Record<string, string>, key: string): string {
   return value.trim();
 }
 
-function readOptionalArg(
-  args: Record<string, string>,
-  key: string
-): string | undefined {
-  const value = args[key];
-  return value === undefined || value.trim().length === 0
-    ? undefined
-    : value.trim();
-}
-
-function parseBooleanArg(value: string | undefined): boolean | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === 'true') {
-    return true;
-  }
-
-  if (value === 'false') {
-    return false;
-  }
-
-  throw new Error(`Invalid boolean CLI argument: "${value}"`);
-}
-
 function printUsage(): void {
   console.log(
     [
       'Usage:',
       '  node apps/cli/main.ts serve-web-ui',
-      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset business|v0] --prompt-library <path> --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
+      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset core-v0.2|core-v0.1|full-v0.2|business|v0] [--prompt-library <path>] --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
+      '  V0.4 staged mode: add --pipeline-stage download|segment|compress|tag|archive|all',
       '    Optional writeback: [--writeback-target user|master|both] [--master-spreadsheet <path>]',
       '  node apps/cli/main.ts list-taxonomy-presets',
       '  node apps/cli/main.ts list-model-options',

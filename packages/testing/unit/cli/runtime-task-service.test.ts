@@ -84,17 +84,109 @@ test('persists completed runtime tasks and restores them after service restart',
   }
 });
 
+test('pauses running runtime tasks at the next cooperative checkpoint and resumes them', async () => {
+  const service = createRuntimeTaskService({
+    pipelineRunner: async ({ control }) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await control.waitIfPaused();
+      return createEmptyPipelineResult('paused-workflow');
+    }
+  });
+
+  const task = await service.startTask(createMinimalPipelineOptions());
+  const pausingTask = service.pauseTask(task.id);
+  assert.equal(pausingTask?.status, 'pausing');
+
+  const pausedTask = await waitForTaskStatus(service, task.id, 'paused');
+  assert.equal(pausedTask.status, 'paused');
+
+  const resumedTask = service.resumeTask(task.id);
+  assert.equal(resumedTask?.status, 'running');
+
+  const completedTask = await waitForTask(service, task.id);
+  assert.equal(completedTask.status, 'succeeded');
+});
+
+test('stops running runtime tasks and marks them cancelled', async () => {
+  const service = createRuntimeTaskService({
+    pipelineRunner: async ({ control }) => {
+      await new Promise<void>((resolve, reject) => {
+        control.signal.addEventListener('abort', () => reject(control.createAbortError()), {
+          once: true
+        });
+      });
+      return createEmptyPipelineResult('cancelled-workflow');
+    }
+  });
+
+  const task = await service.startTask(createMinimalPipelineOptions());
+  const cancellingTask = service.stopTask(task.id);
+  assert.equal(cancellingTask?.status, 'cancelling');
+
+  const cancelledTask = await waitForTask(service, task.id);
+  assert.equal(cancelledTask.status, 'cancelled');
+  assert.equal(cancelledTask.result, undefined);
+  assert.match(cancelledTask.error ?? '', /cancelled|取消/iu);
+});
+
 async function waitForTask(
   service: ReturnType<typeof createRuntimeTaskService>,
   taskId: string
 ) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const task = service.getTask(taskId);
-    if (task !== undefined && task.status !== 'queued' && task.status !== 'running') {
+    if (task !== undefined && !isActiveTaskStatus(task.status)) {
       return task;
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 
   throw new Error(`Timed out waiting for task ${taskId}.`);
+}
+
+function isActiveTaskStatus(status: string): boolean {
+  return status === 'queued' ||
+    status === 'running' ||
+    status === 'pausing' ||
+    status === 'paused' ||
+    status === 'cancelling';
+}
+
+async function waitForTaskStatus(
+  service: ReturnType<typeof createRuntimeTaskService>,
+  taskId: string,
+  status: string
+) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const task = service.getTask(taskId);
+    if (task?.status === status) {
+      return task;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  throw new Error(`Timed out waiting for task ${taskId} to become ${status}.`);
+}
+
+function createMinimalPipelineOptions() {
+  return {
+    spreadsheet: '/tmp/tasks.xlsx',
+    downloadDir: '/tmp/downloads',
+    taxonomy: '/tmp/taxonomy.md',
+    promptLibrary: '/tmp/prompts.md',
+    archiveRoot: '/tmp/archive'
+  };
+}
+
+function createEmptyPipelineResult(workflowSessionId: string) {
+  return {
+    workflowSessionId,
+    startedAt: '2026-06-10T00:00:00.000Z',
+    completedAt: '2026-06-10T00:00:01.000Z',
+    totalRows: 0,
+    succeededRows: 0,
+    failedRows: 0,
+    results: [],
+    failures: []
+  };
 }

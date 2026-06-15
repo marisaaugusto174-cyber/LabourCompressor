@@ -8,6 +8,7 @@ import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type PipelineItemTimings } from './local-pipeline-tagging.ts';
+import { DEFAULT_MASTER_SPREADSHEET_PATH } from './project-paths.ts';
 
 export const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
   /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}(?:_\d{2,4})?\.[A-Za-z0-9]+$/u;
@@ -17,9 +18,18 @@ export interface PipelineRowState {
   readonly url: string;
   readonly collector: string;
   readonly archiveState: string;
+  readonly sourceFilePath?: string;
+  readonly currentFilePath?: string;
+  readonly compressedCachePath?: string;
+  readonly sourceRowNumber?: number;
+  readonly segmentIndex?: number;
+  readonly errorMessage?: string;
   readonly levelValues: Readonly<Record<string, string>>;
   readonly archivePath: string;
   readonly archiveFileName: string;
+  readonly taggingJsonFileName?: string;
+  readonly taggingJsonArchivePath?: string;
+  readonly taggingJsonPayload?: unknown;
   readonly acceptedPaths: readonly string[];
   readonly selectedContentTopicPath?: string;
   readonly timings?: PipelineItemTimings;
@@ -107,7 +117,14 @@ export async function writePipelineResults(input: {
           四级标签: result.levelValues['四级标签'] ?? '',
           归档路径: result.archivePath,
           归档文件名: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
-          失败信息: result.failure?.errorMessage ?? ''
+          标签JSON文件: toTaggingJsonSpreadsheetCell(result, input.archiveLibraryRoot),
+          失败信息: result.failure?.errorMessage ?? '',
+          源文件路径: result.sourceFilePath ?? '',
+          当前文件路径: result.currentFilePath ?? '',
+          压缩缓存路径: result.compressedCachePath ?? '',
+          源行号: result.sourceRowNumber === undefined ? '' : String(result.sourceRowNumber),
+          片段序号: result.segmentIndex === undefined ? '' : String(result.segmentIndex),
+          错误信息: result.errorMessage ?? result.failure?.errorMessage ?? ''
         }
       }))
     });
@@ -117,14 +134,21 @@ export async function writePipelineResults(input: {
     appendRowsToMasterSpreadsheet({
       filePath:
         input.options.masterSpreadsheetPath ??
-        path.join(process.cwd(), '视频数据采集总表.xlsx'),
+        DEFAULT_MASTER_SPREADSHEET_PATH,
       entries: input.results.map((result) => ({
         url: result.url,
         collector: result.collector,
         archiveState: result.archiveState,
+        sourceFilePath: result.sourceFilePath,
+        currentFilePath: result.currentFilePath,
+        compressedCachePath: result.compressedCachePath,
+        sourceRowNumber: result.sourceRowNumber,
+        segmentIndex: result.segmentIndex,
+        errorMessage: result.errorMessage ?? result.failure?.errorMessage,
         levelValues: result.levelValues,
         archivePath: result.archivePath,
         archiveFileName: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
+        taggingJsonFileName: toTaggingJsonSpreadsheetCell(result, input.archiveLibraryRoot),
         sourceSpreadsheet: path.basename(input.options.spreadsheet),
         processedAt: input.startedAt
       }))
@@ -145,9 +169,16 @@ export async function writeCurrentRunTaggingSpreadsheet(input: {
       url: result.url,
       collector: result.collector,
       archiveState: result.archiveState,
+      sourceFilePath: result.sourceFilePath,
+      currentFilePath: result.currentFilePath,
+      compressedCachePath: result.compressedCachePath,
+      sourceRowNumber: result.sourceRowNumber,
+      segmentIndex: result.segmentIndex,
+      errorMessage: result.errorMessage ?? result.failure?.errorMessage,
       levelValues: result.levelValues,
       archivePath: result.archivePath,
       archiveFileName: toArchiveSpreadsheetCell(result, input.archiveLibraryRoot),
+      taggingJsonFileName: toTaggingJsonSpreadsheetCell(result, input.archiveLibraryRoot),
       sourceSpreadsheet: input.sourceSpreadsheetName,
       processedAt: input.startedAt
     }))
@@ -273,6 +304,32 @@ function toArchiveSpreadsheetCell(
     label: result.archiveFileName,
     target: pathToFileURL(
       path.join(archiveLibraryRoot, result.archivePath, result.archiveFileName)
+    ).toString()
+  };
+}
+
+function toTaggingJsonSpreadsheetCell(
+  result: PipelineRowState,
+  archiveLibraryRoot: string
+): string | { readonly kind: 'hyperlink'; readonly label: string; readonly target: string } {
+  if (
+    result.taggingJsonFileName === undefined ||
+    result.taggingJsonFileName.length === 0
+  ) {
+    return '';
+  }
+
+  const archivePath = result.taggingJsonArchivePath ?? result.archivePath;
+
+  if (archivePath.length === 0) {
+    return result.taggingJsonFileName;
+  }
+
+  return {
+    kind: 'hyperlink',
+    label: result.taggingJsonFileName,
+    target: pathToFileURL(
+      path.join(archiveLibraryRoot, archivePath, result.taggingJsonFileName)
     ).toString()
   };
 }

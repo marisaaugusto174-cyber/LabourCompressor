@@ -22,45 +22,31 @@ import {
   validateLocalFileRows
 } from './local-pipeline-after-edit.ts';
 import { type RunLocalPipelineFailure, type RunLocalPipelineResult } from './pipeline-result.ts';
+import { type PipelineControl, waitForPipelineCheckpoint } from './pipeline-control.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 import { runTaggingBatch } from './local-pipeline-tagging.ts';
 import { runAutoSegmentationStage, type AutoSegmentationDependencies } from './local-pipeline-segmentation.ts';
-import { type SegmentationProfileId } from '../../packages/features/segmentation/domain/index.ts';
+import { runLocalPipelineStageCommand } from './local-pipeline-stages.ts';
+import {
+  getDefaultTaxonomyPreset,
+  resolveTaxonomyPresetDefinition,
+  type TaxonomyPresetDefinition
+} from './taxonomy-presets.ts';
+import { DEFAULT_PROVIDER_CONFIG_PATH } from './project-paths.ts';
+import { type RunLocalPipelineOptions } from './pipeline/options.ts';
 
-export interface RunLocalPipelineOptions {
-  readonly spreadsheet: string;
-  readonly downloadDir: string;
-  readonly taxonomy: string;
-  readonly promptLibrary: string;
-  readonly archiveRoot: string;
-  readonly downloadFixtures?: string;
-  readonly candidateFixtures?: string;
-  readonly workflowSessionId?: string;
-  readonly acceptedTagsColumnName?: string;
-  readonly timestamp?: string;
-  readonly downloaderMode?: 'simulated' | 'yt-dlp';
-  readonly mergeMode?: 'local' | 'ffmpeg';
-  readonly taggingMode?: 'simulated' | 'qwen';
-  readonly providerConfigPath?: string;
-  readonly ytDlpBinary?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly platformCredentialConfigPath?: string;
-  readonly writebackTarget?: 'user' | 'master' | 'both';
-  readonly masterSpreadsheetPath?: string;
-  readonly manualEditGate?: boolean;
-  readonly afterEditDirectoryName?: string;
-  readonly selectedModelProfileId?: string;
-  readonly autoSegmentation?: boolean;
-  readonly segmentationProfileId?: SegmentationProfileId;
-  readonly problemClipsDirectoryName?: string;
-}
+export type { RunLocalPipelineOptions } from './pipeline/options.ts';
 
 export async function runLocalPipelineCommand(input: {
   readonly options: RunLocalPipelineOptions;
   readonly report: (event: CliStageEvent) => void;
   readonly segmentationDependencies?: AutoSegmentationDependencies;
+  readonly control?: PipelineControl;
 }): Promise<RunLocalPipelineResult> {
+  if (input.options.pipelineStage !== undefined) {
+    return runLocalPipelineStageCommand(input);
+  }
+
   const startedAt = input.options.timestamp ?? new Date().toISOString();
   const workflowSessionId =
     input.options.workflowSessionId ?? `workflow:${Date.now()}`;
@@ -74,7 +60,9 @@ export async function runLocalPipelineCommand(input: {
   const platformCredentialConfig = await loadPlatformCredentialConfig(input.options.platformCredentialConfigPath);
   const resultsByRow = new Map<number, PipelineRowState>();
   const failures: RunLocalPipelineFailure[] = [];
+  const control = input.control;
 
+  await waitForPipelineCheckpoint(control);
   emit('spreadsheet', 'running', `Reading spreadsheet ${input.options.spreadsheet}`);
   const sheet = readSpreadsheetTaskSheet({
     filePath: input.options.spreadsheet,
@@ -98,6 +86,7 @@ export async function runLocalPipelineCommand(input: {
     { progress: { current: pendingRows.length, total: sheet.rows.length } }
   );
 
+  await waitForPipelineCheckpoint(control);
   emit('fixtures', 'running', 'Loading simulation fixtures when required');
   const downloadFixtures =
     remoteRows.length > 0 ? await loadDownloadFixtures(input.options) : {};
@@ -106,6 +95,7 @@ export async function runLocalPipelineCommand(input: {
 
   await mkdir(afterEditDirectoryPath, { recursive: true });
 
+  await waitForPipelineCheckpoint(control);
   if (localFileRows.length > 0) {
     const localFileValidation = await validateLocalFileRows({ localFileRows, afterEditDirectoryPath, startedAt });
 
@@ -161,7 +151,24 @@ export async function runLocalPipelineCommand(input: {
         input.options.mergeMode === 'ffmpeg'
           ? createFfmpegMergeOperator()
           : { mergeStreams: mergeDownloadedStreams },
-      startedAt
+      startedAt,
+      signal: control?.signal,
+      waitIfPaused: control?.waitIfPaused,
+      onProgress: (event) => {
+        const speed = event.details?.downloadSpeed;
+        const eta = event.details?.downloadEta;
+        const suffix = [
+          typeof speed === 'string' && speed.length > 0 ? speed : undefined,
+          typeof eta === 'string' && eta.length > 0 ? `ETA ${eta}` : undefined
+        ].filter(Boolean).join(' · ');
+        emit('download', 'running', suffix.length > 0
+          ? `下载中 ${event.progress.current}/${event.progress.total} · ${suffix}`
+          : `下载中 ${event.progress.current}/${event.progress.total}`, {
+          currentItem: event.currentItem,
+          progress: event.progress,
+          details: event.details
+        });
+      }
     });
     downloadTasks.push(...downloadBatch.tasks);
     downloadedAssets.push(...downloadBatch.downloadedAssets);
@@ -186,6 +193,7 @@ export async function runLocalPipelineCommand(input: {
     'succeeded',
     `Downloaded ${downloadBatch.downloadedAssets.length} media assets`
   );
+  await waitForPipelineCheckpoint(control);
   applyDownloadFailureStates({
     rows: pendingSheet.rows,
     downloadTasks: downloadBatch.tasks,
@@ -203,6 +211,7 @@ export async function runLocalPipelineCommand(input: {
     const nonRemoteAssets = downloadBatch.downloadedAssets.filter((asset) => !remoteTaskIds.has(asset.taskId));
 
     emit('segmentation', 'running', 'Running automatic segmentation');
+    await waitForPipelineCheckpoint(control);
     const segmentation = await runAutoSegmentationStage({
       downloadedAssets: remoteDownloadedAssets,
       rowByTaskId,
@@ -251,6 +260,7 @@ export async function runLocalPipelineCommand(input: {
       `Manual edit gate enabled. 已进入等待人工剪辑；请把剪辑后文件导出到 ${afterEditDirectoryPath}`
     );
     emit('writeback', 'running', 'Writing download status back to spreadsheet targets');
+    await waitForPipelineCheckpoint(control);
     await writePipelineResults({
       options: {
         ...input.options,
@@ -267,7 +277,12 @@ export async function runLocalPipelineCommand(input: {
   }
 
   emit('taxonomy', 'running', 'Parsing taxonomy and prompt library');
-  const taxonomyTree = parseTaxonomyMarkdown(await readFile(input.options.taxonomy, 'utf8'));
+  await waitForPipelineCheckpoint(control);
+  const taxonomyRuntime = await loadTaxonomyRuntime(input.options);
+  const taxonomyTree = parseTaxonomyMarkdown(
+    taxonomyRuntime.taxonomyMarkdown,
+    { rootMode: taxonomyRuntime.preset.taxonomyParseMode }
+  );
   const promptLibrary = parsePromptLibraryMarkdown(await readFile(input.options.promptLibrary, 'utf8'));
   emit('taxonomy', 'succeeded', 'Taxonomy and prompt library loaded');
 
@@ -280,13 +295,14 @@ export async function runLocalPipelineCommand(input: {
       ? getEnabledProviderConfig(
           await loadLocalProviderConfigFile(
             input.options.providerConfigPath ??
-              path.join(process.cwd(), 'config/model-providers/providers.local.json')
+              DEFAULT_PROVIDER_CONFIG_PATH
           ),
           requireValue(selectedVideoModelProfile, 'Selected video model profile is required.').provider
         )
       : undefined;
 
   emit('tagging', 'running', 'Running automatic tagging');
+  await waitForPipelineCheckpoint(control);
   await runTaggingBatch({
     assets: activeDownloadBatch.downloadedAssets,
     rowByTaskId: activeRowByTaskId,
@@ -300,6 +316,10 @@ export async function runLocalPipelineCommand(input: {
     candidateFixtures,
     taxonomyTree,
     promptLibrary,
+    taxonomyBaseMarkdown: taxonomyRuntime.taxonomyMarkdown,
+    taxonomyVersionId: taxonomyRuntime.preset.taxonomyVersionId,
+    archiveDimension: taxonomyRuntime.preset.archiveDimension,
+    modelResponseShape: taxonomyRuntime.preset.modelResponseShape,
     emit
   });
   emit('tagging', 'succeeded', 'Automatic tagging finished');
@@ -308,6 +328,7 @@ export async function runLocalPipelineCommand(input: {
   const archiveLibraryRoot = buildContentTopicArchiveRoot(input.options.archiveRoot);
 
   for (const asset of activeDownloadBatch.downloadedAssets) {
+    await waitForPipelineCheckpoint(control);
     const row = requireSheetRow(activeRowByTaskId, asset.taskId);
     const rowState = resultsByRow.get(row.rowNumber);
 
@@ -331,9 +352,13 @@ export async function runLocalPipelineCommand(input: {
         placementMode: 'copy',
         taskId: asset.taskId,
         mediaAssetId: asset.mediaAssetId,
-        taxonomyVersionId: 'taxonomy-v1',
+        taxonomyVersionId: taxonomyRuntime.preset.taxonomyVersionId,
         fingerprintId: `fingerprint:${asset.taskId}`,
-        recordedAt: startedAt
+        recordedAt: startedAt,
+        jsonSidecarContent:
+          rowState.taggingJsonPayload === undefined
+            ? undefined
+            : `${JSON.stringify(rowState.taggingJsonPayload, null, 2)}\n`
       });
       const primaryArchiveRecord = archiveRecords[0];
 
@@ -371,6 +396,7 @@ export async function runLocalPipelineCommand(input: {
   emit('archive', 'succeeded', 'Archive processing completed');
 
   emit('writeback', 'running', 'Writing results back to spreadsheet targets');
+  await waitForPipelineCheckpoint(control);
   const sortedResults = [...resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber);
   const currentRunSpreadsheetPath = path.join(
     input.options.downloadDir,
@@ -422,4 +448,22 @@ export async function runLocalPipelineCommand(input: {
 
 function sanitizeFileToken(value: string): string {
   return value.replace(/[^\p{Script=Han}A-Za-z0-9_]+/gu, '_').replace(/^_+|_+$/gu, '') || 'task';
+}
+
+export async function loadTaxonomyRuntime(options: RunLocalPipelineOptions): Promise<Readonly<{
+  readonly preset: TaxonomyPresetDefinition;
+  readonly taxonomyMarkdown: string;
+}>> {
+  const defaultPreset = getDefaultTaxonomyPreset();
+  const preset =
+    options.taxonomyPreset !== undefined && options.taxonomyPreset.trim().length > 0
+      ? resolveTaxonomyPresetDefinition(options.taxonomyPreset)
+      : options.taxonomy === defaultPreset.filePath
+        ? defaultPreset
+        : resolveTaxonomyPresetDefinition('v0');
+
+  return Object.freeze({
+    preset,
+    taxonomyMarkdown: await readFile(options.taxonomy, 'utf8')
+  });
 }

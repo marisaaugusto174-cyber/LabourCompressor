@@ -4,12 +4,33 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { runLocalPipelineCommand, type RunLocalPipelineOptions } from '../cli/local-pipeline-command.ts';
+import {
+  createPipelineCancelledError,
+  isPipelineCancelledError,
+  type PipelineControl
+} from '../cli/pipeline-control.ts';
 import { type RunLocalPipelineResult } from '../cli/pipeline-result.ts';
 import { normalizeCliStageEvent, type CliStageEvent } from '../cli/status-reporter.ts';
 
+export type RuntimeTaskStatus =
+  | 'queued'
+  | 'running'
+  | 'pausing'
+  | 'paused'
+  | 'cancelling'
+  | 'cancelled'
+  | 'succeeded'
+  | 'failed';
+
+export type RuntimePipelineRunner = (input: {
+  readonly options: RunLocalPipelineOptions;
+  readonly report: (event: CliStageEvent) => void;
+  readonly control: PipelineControl;
+}) => Promise<RunLocalPipelineResult>;
+
 export interface RuntimeTaskSnapshot {
   readonly id: string;
-  readonly status: 'queued' | 'running' | 'succeeded' | 'failed';
+  readonly status: RuntimeTaskStatus;
   readonly createdAt: string;
   readonly startedAt?: string;
   readonly completedAt?: string;
@@ -21,7 +42,7 @@ export interface RuntimeTaskSnapshot {
 
 interface RuntimeTaskState {
   id: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  status: RuntimeTaskStatus;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -31,13 +52,23 @@ interface RuntimeTaskState {
   error?: string;
   events: CliStageEvent[];
   emitter: EventEmitter;
+  abortController: AbortController;
+  pauseRequested: boolean;
+  pauseWaiters: Array<() => void>;
 }
+
+type PersistedRuntimeTask = Omit<
+  RuntimeTaskState,
+  'emitter' | 'abortController' | 'pauseRequested' | 'pauseWaiters'
+>;
 
 export function createRuntimeTaskService(options: {
   readonly stateFilePath?: string;
   readonly maxPersistedTasks?: number;
+  readonly pipelineRunner?: RuntimePipelineRunner;
 } = {}) {
   const maxPersistedTasks = options.maxPersistedTasks ?? 50;
+  const pipelineRunner = options.pipelineRunner ?? runLocalPipelineCommand;
   const tasks = new Map<string, RuntimeTaskState>(
     loadPersistedTasks(options.stateFilePath).map((task) => [task.id, task] as const)
   );
@@ -51,7 +82,10 @@ export function createRuntimeTaskService(options: {
         createdAt: new Date().toISOString(),
         options,
         events: [],
-        emitter: new EventEmitter()
+        emitter: new EventEmitter(),
+        abortController: new AbortController(),
+        pauseRequested: false,
+        pauseWaiters: []
       };
       tasks.set(id, state);
       persistTasks();
@@ -68,6 +102,67 @@ export function createRuntimeTaskService(options: {
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .map(toSnapshot)
       );
+    },
+    pauseTask(taskId: string): RuntimeTaskSnapshot | undefined {
+      const task = tasks.get(taskId);
+      if (task === undefined || isTerminalTaskStatus(task.status)) {
+        return task === undefined ? undefined : toSnapshot(task);
+      }
+      task.pauseRequested = true;
+      if (task.status === 'queued' || task.status === 'running') {
+        task.status = 'pausing';
+      }
+      emitTaskEvent(task, {
+        stage: 'task',
+        phase: 'task',
+        status: 'running',
+        message: '任务暂停请求已收到，当前处理项完成后暂停。'
+      });
+      persistTasks();
+      return toSnapshot(task);
+    },
+    resumeTask(taskId: string): RuntimeTaskSnapshot | undefined {
+      const task = tasks.get(taskId);
+      if (task === undefined || isTerminalTaskStatus(task.status)) {
+        return task === undefined ? undefined : toSnapshot(task);
+      }
+      task.pauseRequested = false;
+      if (task.status === 'paused' || task.status === 'pausing') {
+        task.status = 'running';
+      }
+      const waiters = task.pauseWaiters.splice(0);
+      for (const resolve of waiters) {
+        resolve();
+      }
+      emitTaskEvent(task, {
+        stage: 'task',
+        phase: 'task',
+        status: 'running',
+        message: '任务已恢复。'
+      });
+      persistTasks();
+      return toSnapshot(task);
+    },
+    stopTask(taskId: string): RuntimeTaskSnapshot | undefined {
+      const task = tasks.get(taskId);
+      if (task === undefined || isTerminalTaskStatus(task.status)) {
+        return task === undefined ? undefined : toSnapshot(task);
+      }
+      task.status = 'cancelling';
+      task.error = '任务已取消（用户强制停止）。';
+      task.abortController.abort();
+      const waiters = task.pauseWaiters.splice(0);
+      for (const resolve of waiters) {
+        resolve();
+      }
+      emitTaskEvent(task, {
+        stage: 'task',
+        phase: 'task',
+        status: 'running',
+        message: '任务强制停止请求已收到，正在取消当前操作。'
+      });
+      persistTasks();
+      return toSnapshot(task);
     },
     getTaskEvents(taskId: string): readonly CliStageEvent[] {
       const task = tasks.get(taskId);
@@ -89,51 +184,88 @@ export function createRuntimeTaskService(options: {
   });
 
   async function runTask(state: RuntimeTaskState): Promise<void> {
-    state.status = 'running';
+    state.status = state.pauseRequested ? 'pausing' : 'running';
     state.startedAt = new Date().toISOString();
     persistTasks();
 
     try {
-      const result = await runLocalPipelineCommand({
+      const control = createTaskControl(state);
+      control.throwIfAborted();
+      const result = await pipelineRunner({
         options: state.options,
-        report: (event) => {
-          const normalized = normalizeCliStageEvent(event);
-          state.latestEvent = normalized;
-          state.events.push(normalized);
-          state.emitter.emit('event', normalized);
-          persistTasks();
-        }
+        report: (event) => emitTaskEvent(state, event),
+        control
       });
+      control.throwIfAborted();
       state.status = 'succeeded';
       state.completedAt = new Date().toISOString();
       state.result = result;
-      const successEvent = normalizeCliStageEvent({
+      emitTaskEvent(state, {
         stage: 'task',
         phase: 'task',
         status: 'succeeded',
         message: `Task ${state.id} completed.`,
         timestamp: state.completedAt
       });
-      state.latestEvent = successEvent;
-      state.events.push(successEvent);
-      state.emitter.emit('event', successEvent);
       persistTasks();
     } catch (error) {
-      state.status = 'failed';
+      const cancelled = state.abortController.signal.aborted || isPipelineCancelledError(error);
+      state.status = cancelled ? 'cancelled' : 'failed';
       state.completedAt = new Date().toISOString();
-      state.error = error instanceof Error ? error.message : String(error);
-      const failureEvent = normalizeCliStageEvent({
+      state.error = cancelled
+        ? (state.error ?? '任务已取消。')
+        : error instanceof Error ? error.message : String(error);
+      emitTaskEvent(state, {
         stage: 'task',
         phase: 'task',
-        status: 'failed',
+        status: cancelled ? 'running' : 'failed',
         message: state.error,
         timestamp: state.completedAt
       });
-      state.latestEvent = failureEvent;
-      state.events.push(failureEvent);
-      state.emitter.emit('event', failureEvent);
       persistTasks();
     }
+  }
+
+  function createTaskControl(state: RuntimeTaskState): PipelineControl {
+    return Object.freeze({
+      signal: state.abortController.signal,
+      createAbortError: () => createPipelineCancelledError('任务已取消。'),
+      throwIfAborted: () => {
+        if (state.abortController.signal.aborted) {
+          throw createPipelineCancelledError('任务已取消。');
+        }
+      },
+      waitIfPaused: async () => {
+        if (!state.pauseRequested) {
+          return;
+        }
+
+        state.status = 'paused';
+        emitTaskEvent(state, {
+          stage: 'task',
+          phase: 'task',
+          status: 'running',
+          message: '任务已暂停。'
+        });
+        persistTasks();
+
+        await new Promise<void>((resolve) => {
+          state.pauseWaiters.push(resolve);
+        });
+
+        if (state.abortController.signal.aborted) {
+          throw createPipelineCancelledError('任务已取消。');
+        }
+      }
+    });
+  }
+
+  function emitTaskEvent(state: RuntimeTaskState, event: CliStageEvent): void {
+    const normalized = normalizeCliStageEvent(event);
+    state.latestEvent = normalized;
+    state.events.push(normalized);
+    state.emitter.emit('event', normalized);
+    persistTasks();
   }
 
   function persistTasks(): void {
@@ -168,7 +300,7 @@ function toSnapshot(state: RuntimeTaskState): RuntimeTaskSnapshot {
   });
 }
 
-function toPersistedTask(state: RuntimeTaskState): Omit<RuntimeTaskState, 'emitter'> {
+function toPersistedTask(state: RuntimeTaskState): PersistedRuntimeTask {
   return {
     id: state.id,
     status: state.status,
@@ -190,7 +322,7 @@ function loadPersistedTasks(stateFilePath: string | undefined): RuntimeTaskState
 
   try {
     const parsed = JSON.parse(readFileSync(stateFilePath, 'utf8')) as {
-      readonly tasks?: readonly Omit<RuntimeTaskState, 'emitter'>[];
+      readonly tasks?: readonly PersistedRuntimeTask[];
     };
 
     return (parsed.tasks ?? []).map((task) => normalizeRestoredTask(task));
@@ -199,15 +331,9 @@ function loadPersistedTasks(stateFilePath: string | undefined): RuntimeTaskState
   }
 }
 
-function normalizeRestoredTask(
-  task: Omit<RuntimeTaskState, 'emitter'>
-): RuntimeTaskState {
-  if (task.status !== 'running' && task.status !== 'queued') {
-    return {
-      ...task,
-      events: [...task.events],
-      emitter: new EventEmitter()
-    };
+function normalizeRestoredTask(task: PersistedRuntimeTask): RuntimeTaskState {
+  if (!isEphemeralTaskStatus(task.status)) {
+    return withRuntimeControls(task);
   }
 
   const completedAt = new Date().toISOString();
@@ -219,13 +345,35 @@ function normalizeRestoredTask(
     timestamp: completedAt
   });
 
-  return {
+  return withRuntimeControls({
     ...task,
     status: 'failed',
     completedAt,
     latestEvent: failureEvent,
     error: failureEvent.message,
-    events: [...task.events, failureEvent],
-    emitter: new EventEmitter()
+    events: [...task.events, failureEvent]
+  });
+}
+
+function withRuntimeControls(task: PersistedRuntimeTask): RuntimeTaskState {
+  return {
+    ...task,
+    events: [...task.events],
+    emitter: new EventEmitter(),
+    abortController: new AbortController(),
+    pauseRequested: false,
+    pauseWaiters: []
   };
+}
+
+function isTerminalTaskStatus(status: RuntimeTaskStatus): boolean {
+  return status === 'succeeded' || status === 'failed' || status === 'cancelled';
+}
+
+function isEphemeralTaskStatus(status: RuntimeTaskStatus): boolean {
+  return status === 'queued' ||
+    status === 'running' ||
+    status === 'pausing' ||
+    status === 'paused' ||
+    status === 'cancelling';
 }
