@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 import {
   type DownloadArtifact,
+  type DownloadExecutionOptions,
+  type DownloadExecutionProgress,
   type DownloadExecutionResult,
   type DownloadRequest,
   getGlobalCredentialEntry,
@@ -64,23 +66,35 @@ export interface ResolvedYtDlpCredential {
 export function createYtDlpDownloaderAdapter(
   options: YtDlpAdapterOptions = {}
 ): {
-  download(request: DownloadRequest): Promise<DownloadExecutionResult>;
+  download(
+    request: DownloadRequest,
+    executionOptions?: DownloadExecutionOptions
+  ): Promise<DownloadExecutionResult>;
 } {
   const binaryPath = resolveYtDlpBinaryPath(options.binaryPath);
 
   return Object.freeze({
-    async download(request: DownloadRequest): Promise<DownloadExecutionResult> {
+    async download(
+      request: DownloadRequest,
+      executionOptions: DownloadExecutionOptions = {}
+    ): Promise<DownloadExecutionResult> {
       const args = buildYtDlpArgs(request, options);
       await mkdir(request.outputDirectory, { recursive: true });
       const beforeFiles = new Set(await safeReadDir(request.outputDirectory));
-      let stdout = '';
+      let output = '';
 
       try {
-        const result = await execFileAsync(binaryPath, args, {
-          cwd: request.outputDirectory
+        output = await runYtDlpProcess({
+          binaryPath,
+          args,
+          cwd: request.outputDirectory,
+          signal: executionOptions.signal,
+          onProgress: executionOptions.onProgress
         });
-        stdout = result.stdout;
       } catch (error) {
+        if (executionOptions.signal?.aborted === true) {
+          throw createDownloadCancelledError();
+        }
         throw createStructuredDownloadError(error);
       }
 
@@ -88,7 +102,7 @@ export function createYtDlpDownloaderAdapter(
         outputDirectory: request.outputDirectory,
         outputFileStem: request.outputFileStem,
         beforeFiles,
-        reportedFilePaths: extractReportedFilePaths(stdout)
+        reportedFilePaths: extractReportedFilePaths(output)
       });
 
       if (artifacts.length === 0) {
@@ -100,7 +114,7 @@ export function createYtDlpDownloaderAdapter(
         artifacts,
         downloadedAt: new Date().toISOString(),
         mediaMetadata: parseYtDlpMediaMetadata({
-          stdout,
+          stdout: output,
           fallbackTitle: request.fallbackTitle
         })
       });
@@ -116,9 +130,10 @@ export function buildYtDlpArgs(
   const cookiesFilePath = resolvedCredential.cookiesFilePath;
   const cookiesFromBrowser = resolvedCredential.cookiesFromBrowser;
   const args = [
-    '--no-progress',
     '--newline',
     '--no-warnings',
+    '--progress-template',
+    'download:LCPROGRESS:%(progress._percent_str)s\t%(progress._speed_str)s\t%(progress._eta_str)s\t%(progress.downloaded_bytes)s\t%(progress.total_bytes)s',
     '--print',
     'before_dl:LCMETA:%(title)s\t%(height)s\t%(duration)s',
     '--print',
@@ -142,6 +157,30 @@ export function buildYtDlpArgs(
   args.push(request.normalizedUrl);
 
   return Object.freeze(args);
+}
+
+export function parseYtDlpProgressLine(
+  line: string
+): DownloadExecutionProgress | undefined {
+  if (!line.startsWith('LCPROGRESS:')) {
+    return undefined;
+  }
+
+  const [percentRaw = '', speedRaw = '', etaRaw = '', downloadedRaw = '', totalRaw = ''] =
+    line.slice('LCPROGRESS:'.length).split('\t');
+  const percent = Number(percentRaw.replace('%', '').trim());
+  const downloadedBytes = Number(downloadedRaw.trim());
+  const totalBytes = Number(totalRaw.trim());
+  const speedText = speedRaw.trim();
+  const etaText = etaRaw.trim();
+
+  return Object.freeze({
+    percent: Number.isFinite(percent) ? percent : undefined,
+    speedText: speedText.length > 0 && speedText !== 'N/A' ? speedText : undefined,
+    etaText: etaText.length > 0 && etaText !== 'N/A' ? etaText : undefined,
+    downloadedBytes: Number.isFinite(downloadedBytes) ? downloadedBytes : undefined,
+    totalBytes: Number.isFinite(totalBytes) ? totalBytes : undefined
+  });
 }
 
 export function resolveYtDlpCredential(
@@ -227,6 +266,112 @@ export function resolveYtDlpBinaryPath(binaryPath?: string): string {
   }
 
   return 'yt-dlp';
+}
+
+async function runYtDlpProcess(input: {
+  readonly binaryPath: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (event: DownloadExecutionProgress) => void;
+}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (input.signal?.aborted === true) {
+      reject(createDownloadCancelledError());
+      return;
+    }
+
+    const child = spawn(input.binaryPath, [...input.args], {
+      cwd: input.cwd,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let output = '';
+    let stderr = '';
+    let settled = false;
+    const flushLine = createLineCollector((line) => {
+      output += `${line}\n`;
+      const progress = parseYtDlpProgressLine(line);
+      if (progress !== undefined) {
+        input.onProgress?.(progress);
+      }
+    });
+    const flushErrorLine = createLineCollector((line) => {
+      stderr += `${line}\n`;
+      output += `${line}\n`;
+      const progress = parseYtDlpProgressLine(line);
+      if (progress !== undefined) {
+        input.onProgress?.(progress);
+      }
+    });
+    const abort = () => {
+      if (settled) {
+        return;
+      }
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        if (!settled) {
+          child.kill('SIGKILL');
+        }
+      }, 1500).unref();
+    };
+
+    input.signal?.addEventListener('abort', abort, { once: true });
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => flushLine(String(chunk)));
+    child.stderr.on('data', (chunk) => flushErrorLine(String(chunk)));
+    child.on('error', (error) => {
+      settled = true;
+      input.signal?.removeEventListener('abort', abort);
+      reject(error);
+    });
+    child.on('close', (code, signal) => {
+      settled = true;
+      input.signal?.removeEventListener('abort', abort);
+      flushLine('');
+      flushErrorLine('');
+
+      if (input.signal?.aborted === true) {
+        reject(createDownloadCancelledError());
+        return;
+      }
+
+      if (code === 0) {
+        resolve(output);
+        return;
+      }
+
+      reject(new Error((stderr || output || `yt-dlp exited with code ${code ?? signal ?? 'unknown'}`).trim()));
+    });
+  });
+}
+
+function createLineCollector(onLine: (line: string) => void): (chunk: string) => void {
+  let pending = '';
+
+  return (chunk: string) => {
+    pending += chunk;
+    const lines = pending.split(/\r?\n/u);
+    pending = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (line.length > 0) {
+        onLine(line);
+      }
+    }
+
+    if (chunk.length === 0 && pending.length > 0) {
+      onLine(pending);
+      pending = '';
+    }
+  };
+}
+
+function createDownloadCancelledError(): Error {
+  const error = new Error('Download cancelled.');
+  error.name = 'PipelineCancelledError';
+  return error;
 }
 
 export function classifyYtDlpErrorMessage(

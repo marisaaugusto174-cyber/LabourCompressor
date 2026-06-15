@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as XLSX from 'xlsx';
 import ZAHL from 'xlsx/dist/xlsx.zahl.mjs';
 
@@ -76,6 +77,39 @@ test('skips non-url placeholder rows in spreadsheet input', () => {
 
     assert.equal(sheet.rows.length, 1);
     assert.equal(sheet.rows[0]?.url, 'https://example.com/a');
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('reads local absolute paths from URL column as local-file tasks', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-local-url-'));
+  const mediaPath = path.join(tempDir, 'sample.mp4');
+  const filePath = path.join(tempDir, 'tasks.xlsx');
+
+  try {
+    writeFileSync(mediaPath, 'fake video');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([
+      ['URL', '采集人'],
+      [mediaPath, '测试用户'],
+      [pathToFileURL(mediaPath).toString(), '测试用户']
+    ]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    xlsx.writeFile(workbook, filePath);
+
+    const sheet = readSpreadsheetTaskSheet({
+      filePath,
+      urlColumnIndex: 0
+    });
+
+    assert.equal(sheet.rows.length, 2);
+    assert.equal(sheet.rows[0]?.sourceKind, 'local-file');
+    assert.equal(sheet.rows[0]?.sourceFileName, mediaPath);
+    assert.equal(sheet.rows[0]?.values.URL, mediaPath);
+    assert.equal(sheet.rows[1]?.sourceKind, 'local-file');
+    assert.equal(sheet.rows[1]?.sourceFileName, mediaPath);
+    assert.equal(sheet.rows[1]?.values.URL, pathToFileURL(mediaPath).toString());
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -161,6 +195,51 @@ test('writes accepted tags back to xlsx spreadsheet', () => {
       updatedSheet[1]?.includes('主体对象 > 人物 > 年龄'),
       true
     );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('appends segment rows to user spreadsheet while preserving existing rows', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-segment-append-'));
+  const filePath = path.join(tempDir, 'tasks.xlsx');
+
+  try {
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([
+      ['URL', '采集人'],
+      ['https://example.com/ad', '测试用户']
+    ]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    xlsx.writeFile(workbook, filePath);
+
+    writeTagResultsToSpreadsheet({
+      filePath,
+      updates: [],
+      appendRows: [
+        {
+          URL: 'https://example.com/ad#clip=01',
+          采集人: '测试用户',
+          归档状态: '待压缩',
+          源文件路径: path.join(tempDir, 'ad.mp4'),
+          当前文件路径: path.join(tempDir, 'ad_01.mp4'),
+          源行号: '2',
+          片段序号: '1'
+        }
+      ]
+    });
+
+    const updatedWorkbook = xlsx.readFile(filePath);
+    const records = xlsx.utils.sheet_to_json<Record<string, string>>(
+      updatedWorkbook.Sheets.Sheet1,
+      { defval: '' }
+    );
+
+    assert.equal(records.length, 2);
+    assert.equal(records[0]?.URL, 'https://example.com/ad');
+    assert.equal(records[1]?.URL, 'https://example.com/ad#clip=01');
+    assert.equal(records[1]?.归档状态, '待压缩');
+    assert.equal(records[1]?.片段序号, '1');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -429,8 +508,9 @@ test('creates a post-edit archive record spreadsheet from file names', () => {
     assert.equal(updatedSheet[1]?.[0], '样本A_720P_260427_000010.mp4');
     assert.equal(updatedSheet[1]?.[1], 'clips/样本A_720P_260427_000010.mp4');
     assert.equal(updatedSheet[1]?.[2], 'export-a.mp4');
+    assert.equal(updatedSheet[1]?.[4], '');
     assert.equal(updatedSheet[2]?.[0], '样本B_1080P_260427_000018.mov');
-    assert.equal(updatedSheet[1]?.length, 12);
+    assert.equal(updatedSheet[1]?.length, 19);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

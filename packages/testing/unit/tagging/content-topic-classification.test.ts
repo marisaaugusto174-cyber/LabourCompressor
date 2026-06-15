@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildStructuredLevelValues,
+  selectUniqueArchivePath,
   selectUniqueContentTopicPath
 } from '../../../features/tagging/domain/index.ts';
 
@@ -16,6 +17,19 @@ test('selects deepest content-topic path as the unique archive path', () => {
     decision.selectedPath,
     '内容题材 > 广告营销 > 产品广告 > 产品功能演示'
   );
+});
+
+test('selects deepest content-domain path as the unique archive path for structured bases', () => {
+  const decision = selectUniqueArchivePath({
+    acceptedPaths: [
+      '内容领域 > 商业营销',
+      '内容领域 > 商业营销 > 产品广告',
+      '表现形式 > 商业传播'
+    ],
+    archiveDimension: '内容领域'
+  });
+
+  assert.equal(decision.selectedPath, '内容领域 > 商业营销 > 产品广告');
 });
 
 test('builds structured level values across multiple root branches while keeping 内容题材 unique', () => {

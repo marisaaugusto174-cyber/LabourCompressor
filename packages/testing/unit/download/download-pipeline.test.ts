@@ -185,3 +185,75 @@ test('preserves an already standardized artifact name on rerun', async () => {
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('reports spreadsheet download item progress with current and total counts', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-download-'));
+  const events: unknown[] = [];
+
+  try {
+    await runSpreadsheetDownloadBatch({
+      workflowSessionId: 'download-batch-progress',
+      sheet: {
+        filePath: '/tmp/tasks.xlsx',
+        fileKind: 'xlsx',
+        sheetName: 'Sheet1',
+        headers: Object.freeze(['url', 'title']),
+        rows: Object.freeze([
+          {
+            taskId: 'sheet::row-2',
+            rowNumber: 2,
+            url: 'https://www.youtube.com/watch?v=abc',
+            values: Object.freeze({
+              url: 'https://www.youtube.com/watch?v=abc',
+              title: 'Sample A'
+            })
+          },
+          {
+            taskId: 'sheet::row-3',
+            rowNumber: 3,
+            url: 'https://www.youtube.com/watch?v=def',
+            values: Object.freeze({
+              url: 'https://www.youtube.com/watch?v=def',
+              title: 'Sample B'
+            })
+          }
+        ])
+      },
+      outputDirectory: tempDir,
+      downloader: createSimulatedDownloaderAdapter({
+        fixtures: {
+          'https://www.youtube.com/watch?v=abc': {
+            mode: 'muxed',
+            extension: 'mp4',
+            content: 'muxed-a',
+            title: 'Sample A'
+          },
+          'https://www.youtube.com/watch?v=def': {
+            mode: 'muxed',
+            extension: 'mp4',
+            content: 'muxed-b',
+            title: 'Sample B'
+          }
+        },
+        downloadedAt: '2026-04-24T18:10:00.000Z'
+      }),
+      mergeOperator: {
+        mergeStreams: mergeDownloadedStreams
+      },
+      startedAt: '2026-04-24T18:09:00.000Z',
+      onProgress: (event) => events.push(event)
+    });
+
+    assert.deepEqual(
+      events.map((event) => (event as { progress?: { current: number; total: number } }).progress),
+      [
+        { current: 1, total: 2 },
+        { current: 1, total: 2 },
+        { current: 2, total: 2 },
+        { current: 2, total: 2 }
+      ]
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});

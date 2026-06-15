@@ -34,12 +34,17 @@ export interface GenerateModelCandidatePathsInput {
   readonly providerConfig: LocalProviderConfig;
   readonly videoCacheDirectory: string;
   readonly selectedModelProfileId?: string;
+  readonly taxonomyBaseMarkdown?: string;
+  readonly taxonomyVersionId?: string;
+  readonly archiveDimension?: string;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
 }
 
 export interface GenerateModelCandidatePathsResult {
   readonly candidatePaths: readonly string[];
   readonly rawText: string;
   readonly promptInstruction: string;
+  readonly parsedJson?: unknown;
   readonly videoTaggingCache?: VideoTaggingCacheResult;
 }
 
@@ -60,7 +65,10 @@ export async function generateContentTopicCandidatePaths(
 ): Promise<GenerateModelCandidatePathsResult> {
   return generateModelCandidatePathsWithAllowedPaths({
     ...input,
-    allowedPaths: listContentTopicLeafTaxonomyPaths(input.taxonomyTree),
+    allowedPaths: listDimensionLeafTaxonomyPaths(
+      input.taxonomyTree,
+      input.archiveDimension ?? '内容题材'
+    ),
     selectionMode: 'content-topic-only'
   });
 }
@@ -71,7 +79,10 @@ async function generateModelCandidatePathsWithAllowedPaths(
     readonly selectionMode: 'multi-branch' | 'content-topic-only';
   }
 ): Promise<GenerateModelCandidatePathsResult> {
-  const promptInstruction = buildPromptLibraryInstruction(input.promptLibrary);
+  const promptInstruction =
+    input.modelResponseShape === 'structured-json'
+      ? input.taxonomyBaseMarkdown ?? buildPromptLibraryInstruction(input.promptLibrary)
+      : buildPromptLibraryInstruction(input.promptLibrary);
   const selectedProfile = getVideoModelProfile(input.selectedModelProfileId);
   const resolvedProviderConfig = Object.freeze({
     ...input.providerConfig,
@@ -82,7 +93,9 @@ async function generateModelCandidatePathsWithAllowedPaths(
     mediaFilePath: input.mediaFilePath,
     promptInstruction,
     allowedPaths: input.allowedPaths,
-    selectionMode: input.selectionMode
+    selectionMode: input.selectionMode,
+    modelResponseShape: input.modelResponseShape,
+    archiveDimension: input.archiveDimension
   });
   const videoTaggingCache = isVideoMediaFile(input.mediaFilePath)
     ? await prepareVideoTaggingCache({
@@ -109,7 +122,9 @@ async function generateModelCandidatePathsWithAllowedPaths(
           allowedPaths: input.allowedPaths,
           content,
           videoTaggingCache,
-          selectionMode: input.selectionMode
+          selectionMode: input.selectionMode,
+          modelResponseShape: input.modelResponseShape,
+          archiveDimension: input.archiveDimension
         })
       : resolvedProviderConfig.provider === 'google'
         ? await completeWithGemini({
@@ -119,15 +134,18 @@ async function generateModelCandidatePathsWithAllowedPaths(
             allowedPaths: input.allowedPaths,
             videoTaggingCache,
             selectedProfileThinkingLevel: selectedProfile.thinkingLevel,
-            selectionMode: input.selectionMode
+            selectionMode: input.selectionMode,
+            modelResponseShape: input.modelResponseShape,
+            archiveDimension: input.archiveDimension
           })
         : throwUnsupportedProvider(resolvedProviderConfig.provider);
-  const candidatePaths = parseCandidatePathsFromModelText(response.text);
+  const parsedResponse = parseModelTaggingResponse(response.text);
 
   return Object.freeze({
-    candidatePaths,
+    candidatePaths: parsedResponse.candidatePaths,
     rawText: response.text,
     promptInstruction,
+    parsedJson: parsedResponse.parsedJson,
     videoTaggingCache
   });
 }
@@ -140,6 +158,8 @@ async function completeWithQwen(input: {
   readonly content: readonly QwenMessageContentPart[];
   readonly videoTaggingCache?: VideoTaggingCacheResult;
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
+  readonly archiveDimension?: string;
 }) {
   const client = createQwenCompatibleClient(input.providerConfig);
   return isVideoMediaFile(input.mediaFilePath)
@@ -147,7 +167,9 @@ async function completeWithQwen(input: {
         prompt: buildModelInstructionText(
           input.promptInstruction,
           input.allowedPaths,
-          input.selectionMode
+          input.selectionMode,
+          input.modelResponseShape,
+          input.archiveDimension
         ),
         videoDataUrl: await encodeFileAsDataUrl(
           requireVideoCache(input.videoTaggingCache).cachePath
@@ -165,6 +187,8 @@ async function completeWithGemini(input: {
   readonly videoTaggingCache?: VideoTaggingCacheResult;
   readonly selectedProfileThinkingLevel?: 'high';
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
+  readonly archiveDimension?: string;
 }) {
   const client = createGeminiCompatibleClient(input.providerConfig);
 
@@ -173,7 +197,9 @@ async function completeWithGemini(input: {
       prompt: buildModelInstructionText(
         input.promptInstruction,
         input.allowedPaths,
-        input.selectionMode
+        input.selectionMode,
+        input.modelResponseShape,
+        input.archiveDimension
       ),
       thinkingLevel: input.selectedProfileThinkingLevel
     });
@@ -188,7 +214,9 @@ async function completeWithGemini(input: {
     prompt: buildModelInstructionText(
       input.promptInstruction,
       input.allowedPaths,
-      input.selectionMode
+      input.selectionMode,
+      input.modelResponseShape,
+      input.archiveDimension
     ),
     videoBase64: inlineData.base64Data,
     mimeType: inlineData.mimeType,
@@ -242,9 +270,16 @@ export function listLeafTaxonomyPaths(
 export function listContentTopicLeafTaxonomyPaths(
   taxonomyTree: ParsedTaxonomyTree
 ): readonly string[] {
+  return listDimensionLeafTaxonomyPaths(taxonomyTree, '内容题材');
+}
+
+export function listDimensionLeafTaxonomyPaths(
+  taxonomyTree: ParsedTaxonomyTree,
+  dimension: string
+): readonly string[] {
   return Object.freeze(
     listLeafTaxonomyPaths(taxonomyTree).filter((pathValue) =>
-      pathValue.startsWith('内容题材 > ')
+      pathValue.startsWith(`${dimension} > `)
     )
   );
 }
@@ -252,15 +287,74 @@ export function listContentTopicLeafTaxonomyPaths(
 export function parseCandidatePathsFromModelText(
   modelText: string
 ): readonly string[] {
+  return parseModelTaggingResponse(modelText).candidatePaths;
+}
+
+export function parseModelTaggingResponse(modelText: string): Readonly<{
+  readonly candidatePaths: readonly string[];
+  readonly parsedJson: unknown;
+}> {
   const parsed = JSON.parse(stripMarkdownCodeFence(modelText)) as unknown;
 
-  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string')) {
-    throw new Error('Model tagging response must be a JSON array of strings.');
+  if (Array.isArray(parsed)) {
+    if (!parsed.every((item) => typeof item === 'string')) {
+      throw new Error('Model tagging response JSON array must contain only strings.');
+    }
+
+    return Object.freeze({
+      candidatePaths: uniquePaths(parsed),
+      parsedJson: parsed
+    });
   }
 
-  const uniquePaths = [...new Set(parsed.map((item) => item.trim()).filter(Boolean))];
+  if (isRecord(parsed)) {
+    return Object.freeze({
+      candidatePaths: extractStructuredCandidatePaths(parsed),
+      parsedJson: parsed
+    });
+  }
 
-  return Object.freeze(uniquePaths);
+  throw new Error('Model tagging response must be a JSON array of strings or a structured JSON object.');
+}
+
+function extractStructuredCandidatePaths(parsed: Readonly<Record<string, unknown>>): readonly string[] {
+  const tagArrays = [
+    parsed.tags,
+    parsed.fact_tags,
+    parsed.metadata_tags,
+    parsed.production_tags
+  ].filter(Array.isArray) as readonly unknown[][];
+  const paths: string[] = [];
+
+  for (const tagArray of tagArrays) {
+    for (const tag of tagArray) {
+      if (!isRecord(tag) || !Array.isArray(tag.label_path)) {
+        continue;
+      }
+
+      const pathSegments = tag.label_path
+        .map((segment) => String(segment).trim())
+        .filter(Boolean);
+
+      if (pathSegments.length > 0) {
+        paths.push(pathSegments.join(' > '));
+      }
+    }
+  }
+
+  if (paths.length === 0) {
+    throw new Error('Structured model tagging response does not contain any label_path values.');
+  }
+
+  return uniquePaths(paths);
+}
+
+function uniquePaths(paths: readonly string[]): readonly string[] {
+  return Object.freeze([...new Set(paths.map((item) => item.trim()).filter(Boolean))]);
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function stripMarkdownCodeFence(value: string): string {
@@ -279,6 +373,8 @@ async function buildModelContentParts(input: {
   readonly promptInstruction: string;
   readonly allowedPaths: readonly string[];
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
+  readonly archiveDimension?: string;
 }): Promise<readonly QwenMessageContentPart[]> {
   const extension = path.extname(input.mediaFilePath).toLowerCase();
   const content: QwenMessageContentPart[] = [
@@ -287,7 +383,9 @@ async function buildModelContentParts(input: {
       text: buildModelInstructionText(
         input.promptInstruction,
         input.allowedPaths,
-        input.selectionMode
+        input.selectionMode,
+        input.modelResponseShape,
+        input.archiveDimension
       )
     }
   ];
@@ -318,8 +416,33 @@ function isVideoMediaFile(filePath: string): boolean {
 function buildModelInstructionText(
   promptInstruction: string,
   allowedPaths: readonly string[],
-  selectionMode: 'multi-branch' | 'content-topic-only'
+  selectionMode: 'multi-branch' | 'content-topic-only',
+  modelResponseShape: 'paths-json-array' | 'structured-json' = 'paths-json-array',
+  archiveDimension = '内容题材'
 ): string {
+  if (modelResponseShape === 'structured-json') {
+    const selectionRules =
+      selectionMode === 'content-topic-only'
+        ? [
+            `The response must include exactly one tag whose dimension is "${archiveDimension}".`,
+            `That "${archiveDimension}" tag must be supported by direct evidence.`
+          ]
+        : [
+            `The response must include exactly one primary "${archiveDimension}" tag when evidence allows.`,
+            'Keep the JSON schema defined by the prompt base.'
+          ];
+
+    return [
+      'You are a strict multimodal tagger.',
+      'Return only one valid JSON object. Do not wrap it in Markdown.',
+      ...selectionRules,
+      '',
+      'Use this complete tagging prompt base as the only taxonomy and output schema:',
+      '',
+      promptInstruction
+    ].join('\n');
+  }
+
   const selectionRules =
     selectionMode === 'content-topic-only'
       ? [

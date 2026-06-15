@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { writeFile } from 'node:fs/promises';
+
 import {
   createDecisionFingerprint
 } from '../../packages/core/contracts/index.ts';
@@ -9,7 +12,7 @@ import {
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
   runAutomaticTagging,
-  selectUniqueContentTopicPath,
+  selectUniqueArchivePath,
   type LocalProviderConfig,
   type PromptLibraryDocument,
   type VideoModelProfile
@@ -30,6 +33,7 @@ import {
 } from './local-pipeline-helpers.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
+import { DEFAULT_VIDEO_CACHE_DIRECTORY } from './project-paths.ts';
 import { type VideoTaggingCacheResult } from '../../packages/adapters/media/media-frame-extractor.ts';
 
 export interface RequiredContentTopicResolution {
@@ -59,6 +63,10 @@ export async function runTaggingBatch(input: {
   readonly candidateFixtures?: Record<string, readonly string[]>;
   readonly taxonomyTree: ParsedTaxonomyTree;
   readonly promptLibrary: PromptLibraryDocument;
+  readonly taxonomyBaseMarkdown?: string;
+  readonly taxonomyVersionId?: string;
+  readonly archiveDimension?: string;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
   readonly emit: (
     stage: string,
     status: CliStageEvent['status'],
@@ -79,8 +87,10 @@ export async function runTaggingBatch(input: {
     let modelRequestMs = 0;
     let tagNormalizeMs = 0;
 
-    try {
-      input.emit('tagging-item', 'running', `Analyzing ${asset.fileName}`, {
+	    try {
+      const taxonomyVersionId = input.taxonomyVersionId ?? 'taxonomy-v1';
+      const archiveDimension = input.archiveDimension ?? '内容题材';
+	      input.emit('tagging-item', 'running', `Analyzing ${asset.fileName}`, {
         currentItem: asset.fileName,
         progress: { current: index + 1, total: totalAssets }
       });
@@ -89,7 +99,7 @@ export async function runTaggingBatch(input: {
         taskId: asset.taskId,
         entityId: asset.mediaAssetId,
         entityType: 'tag-assignment',
-        taxonomyVersionId: 'taxonomy-v1',
+	        taxonomyVersionId,
         modelAdapterVersion:
           input.taggingMode === 'qwen'
             ? `qwen-compatible:${input.selectedVideoModelProfile?.modelName ?? 'unknown'}`
@@ -105,9 +115,13 @@ export async function runTaggingBatch(input: {
                 mediaFilePath: asset.filePath,
                 mediaAssetId: asset.mediaAssetId,
                 taxonomyTree: input.taxonomyTree,
-                promptLibrary: input.promptLibrary,
-                providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
-                videoCacheDirectory: path.join(process.cwd(), '.cache', 'video-tagging'),
+	                promptLibrary: input.promptLibrary,
+                taxonomyBaseMarkdown: input.taxonomyBaseMarkdown,
+                taxonomyVersionId,
+                archiveDimension,
+                modelResponseShape: input.modelResponseShape,
+	                providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
+                videoCacheDirectory: DEFAULT_VIDEO_CACHE_DIRECTORY,
                 selectedModelProfileId: input.selectedModelProfileId
               })
             })
@@ -130,7 +144,7 @@ export async function runTaggingBatch(input: {
       const taggingResult = runAutomaticTagging({
         taskId: asset.taskId,
         mediaAssetId: asset.mediaAssetId,
-        taxonomyVersionId: 'taxonomy-v1',
+	        taxonomyVersionId,
         fingerprintId: fingerprint.id,
         candidateSetId: `candidate:${index + 1}`,
         assignmentId: `assignment:${index + 1}`,
@@ -140,9 +154,10 @@ export async function runTaggingBatch(input: {
         taxonomyTree: input.taxonomyTree,
         promptLibrary: input.promptLibrary
       });
-      const topicResolution = await resolveRequiredContentTopic({
-        acceptedPaths: taggingResult.acceptedPaths,
-        requestFallbackPaths: async () => {
+	      const topicResolution = await resolveRequiredContentTopic({
+	        acceptedPaths: taggingResult.acceptedPaths,
+        archiveDimension,
+	        requestFallbackPaths: async () => {
           if (input.taggingMode !== 'qwen') {
             return Object.freeze([]);
           }
@@ -151,10 +166,14 @@ export async function runTaggingBatch(input: {
             operation: () => generateContentTopicCandidatePaths({
               mediaFilePath: asset.filePath,
               mediaAssetId: asset.mediaAssetId,
-              taxonomyTree: input.taxonomyTree,
-              promptLibrary: input.promptLibrary,
-              providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
-              videoCacheDirectory: path.join(process.cwd(), '.cache', 'video-tagging'),
+	              taxonomyTree: input.taxonomyTree,
+	              promptLibrary: input.promptLibrary,
+              taxonomyBaseMarkdown: input.taxonomyBaseMarkdown,
+              taxonomyVersionId,
+              archiveDimension,
+              modelResponseShape: input.modelResponseShape,
+	              providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
+              videoCacheDirectory: DEFAULT_VIDEO_CACHE_DIRECTORY,
               selectedModelProfileId: input.selectedModelProfileId
             })
           });
@@ -162,7 +181,7 @@ export async function runTaggingBatch(input: {
           return runAutomaticTagging({
             taskId: asset.taskId,
             mediaAssetId: asset.mediaAssetId,
-            taxonomyVersionId: 'taxonomy-v1',
+	            taxonomyVersionId,
             fingerprintId: fingerprint.id,
             candidateSetId: `candidate:${index + 1}:content-topic`,
             assignmentId: `assignment:${index + 1}:content-topic`,
@@ -174,19 +193,33 @@ export async function runTaggingBatch(input: {
           }).acceptedPaths;
         }
       });
-      tagNormalizeMs = Date.now() - normalizeStartedAt;
-      const archivePath = ['视频数据归档库', ...topicResolution.selectedContentTopicPath.split(' > ')].join('/');
-      const timings = buildTimings({ itemStartedAt, modelRequestMs, tagNormalizeMs });
+	      tagNormalizeMs = Date.now() - normalizeStartedAt;
+	      const archivePath = ['视频数据归档库', ...topicResolution.selectedContentTopicPath.split(' > ')].join('/');
+      const taggingJsonPayload = buildTaggingJsonPayload({
+        taxonomyVersionId,
+        modelJson: modelResult?.parsedJson,
+        acceptedPaths: topicResolution.acceptedPaths
+      });
+      const taggingJsonFileName = replaceExtension(asset.fileName, '.json');
+      await writeFile(
+        replaceExtension(asset.filePath, '.json'),
+        `${JSON.stringify(taggingJsonPayload, null, 2)}\n`,
+        'utf8'
+      );
+	      const timings = buildTimings({ itemStartedAt, modelRequestMs, tagNormalizeMs });
 
       input.resultsByRow.set(row.rowNumber, {
         rowNumber: row.rowNumber,
         url: row.url,
         collector: row.values['采集人'] ?? '',
         archiveState: '待归档',
-        levelValues: buildStructuredLevelValues(topicResolution.acceptedPaths),
-        archivePath,
-        archiveFileName: '',
-        acceptedPaths: topicResolution.acceptedPaths,
+	        levelValues: buildStructuredLevelValues(topicResolution.acceptedPaths, archiveDimension),
+	        archivePath,
+	        archiveFileName: '',
+        taggingJsonFileName,
+        taggingJsonArchivePath: archivePath,
+        taggingJsonPayload,
+	        acceptedPaths: topicResolution.acceptedPaths,
         selectedContentTopicPath: topicResolution.selectedContentTopicPath,
         timings
       });
@@ -211,9 +244,14 @@ export async function runTaggingBatch(input: {
 
 export async function resolveRequiredContentTopic(input: {
   readonly acceptedPaths: readonly string[];
+  readonly archiveDimension?: string;
   readonly requestFallbackPaths: () => Promise<readonly string[]>;
 }): Promise<RequiredContentTopicResolution> {
-  const firstDecision = selectUniqueContentTopicPath(input.acceptedPaths);
+  const archiveDimension = input.archiveDimension ?? '内容题材';
+  const firstDecision = selectUniqueArchivePath({
+    acceptedPaths: input.acceptedPaths,
+    archiveDimension
+  });
 
   if (firstDecision.selectedPath !== undefined) {
     return Object.freeze({
@@ -227,10 +265,13 @@ export async function resolveRequiredContentTopic(input: {
   const mergedPaths = Object.freeze(
     [...new Set([...input.acceptedPaths, ...fallbackPaths].map((value) => value.trim()).filter(Boolean))]
   );
-  const fallbackDecision = selectUniqueContentTopicPath(mergedPaths);
+  const fallbackDecision = selectUniqueArchivePath({
+    acceptedPaths: mergedPaths,
+    archiveDimension
+  });
 
   if (fallbackDecision.selectedPath === undefined) {
-    throw new Error('打标失败：缺少内容题材');
+    throw new Error(`打标失败：缺少${archiveDimension}`);
   }
 
   return Object.freeze({
@@ -405,4 +446,23 @@ export function zeroTimings(): PipelineItemTimings {
     totalMs: 0
   });
 }
-import path from 'node:path';
+
+function buildTaggingJsonPayload(input: {
+  readonly taxonomyVersionId: string;
+  readonly modelJson?: unknown;
+  readonly acceptedPaths: readonly string[];
+}): unknown {
+  if (input.modelJson !== undefined) {
+    return input.modelJson;
+  }
+
+  return Object.freeze({
+    taxonomy_version: input.taxonomyVersionId,
+    accepted_paths: input.acceptedPaths
+  });
+}
+
+function replaceExtension(filePath: string, extension: string): string {
+  const parsed = path.parse(filePath);
+  return path.join(parsed.dir, `${parsed.name}${extension}`);
+}

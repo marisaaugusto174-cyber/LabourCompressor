@@ -25,6 +25,7 @@ export {
 export {
   buildContentTopicArchiveRoot,
   buildStructuredLevelValues,
+  selectUniqueArchivePath,
   selectUniqueContentTopicPath
 } from './content-topic-classification.ts';
 export {
@@ -37,9 +38,11 @@ export {
 export {
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
+  listDimensionLeafTaxonomyPaths,
   listContentTopicLeafTaxonomyPaths,
   listLeafTaxonomyPaths,
-  parseCandidatePathsFromModelText
+  parseCandidatePathsFromModelText,
+  parseModelTaggingResponse
 } from './real-model-tagging.ts';
 export {
   getEnabledProviderConfig,
@@ -107,5 +110,6 @@ export type {
   AutomaticTaggingResult
 } from './auto-tagging.ts';
 export type {
+  ArchivePathSelectionInput,
   ContentTopicArchiveDecision
 } from './content-topic-classification.ts';

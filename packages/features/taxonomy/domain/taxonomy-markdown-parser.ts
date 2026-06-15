@@ -12,14 +12,41 @@ export interface ParsedTaxonomyTree {
 }
 
 const TERMINAL_COUNT_PATTERN = /\s*[（(]末端计数[:：]\s*\d+[)）]\s*$/u;
+const PROMPT_BASE_ROOT_LABELS = new Set([
+  '表现形式',
+  '主体对象',
+  '对象属性',
+  '核心动作',
+  '空间环境',
+  '时间环境',
+  '镜头语言',
+  '视觉风格',
+  '声音信息',
+  '文字信息',
+  '内容领域',
+  '制作技术',
+  '传播关系',
+  '作品来源',
+  '平台来源',
+  '素材来源',
+  '来源状态',
+  '生产阶段',
+  '成品衍生状态',
+  '素材用途',
+  '质量状态'
+]);
 
 export function parseTaxonomyMarkdown(
-  markdown: string
+  markdown: string,
+  options?: {
+    readonly rootMode?: 'heading' | 'bullet-root';
+  }
 ): ParsedTaxonomyTree {
   const lines = markdown.split(/\r?\n/u);
   const nodeDrafts = new Map<TaxonomyNodeId, TaxonomyNodeDraft>();
   const rootNodeIds: TaxonomyNodeId[] = [];
   const stack: StackEntry[] = [];
+  const rootMode = options?.rootMode ?? 'heading';
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
@@ -28,7 +55,7 @@ export function parseTaxonomyMarkdown(
       continue;
     }
 
-    if (line.startsWith('## ')) {
+    if (rootMode === 'heading' && line.startsWith('## ')) {
       const headingLabel = normalizeLabel(line.slice(3));
 
       if (headingLabel === undefined) {
@@ -71,9 +98,22 @@ export function parseTaxonomyMarkdown(
       );
     }
 
+    const depth = rootMode === 'heading' ? indentWidth / 2 + 1 : indentWidth / 2;
+
+    if (rootMode === 'bullet-root') {
+      if (depth === 0 && !PROMPT_BASE_ROOT_LABELS.has(bulletLabel)) {
+        stack.length = 0;
+        continue;
+      }
+
+      if (depth > 0 && stack.length === 0) {
+        continue;
+      }
+    }
+
     appendNode({
       label: bulletLabel,
-      depth: indentWidth / 2 + 1,
+      depth,
       nodeDrafts,
       rootNodeIds,
       stack

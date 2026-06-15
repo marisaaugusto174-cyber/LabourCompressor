@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 
 import {
   type MasterSpreadsheetWritebackEntry,
+  type SpreadsheetAppendRow,
   type SpreadsheetCellValue,
   type SpreadsheetTaskRow,
   type SpreadsheetWritebackUpdate
@@ -34,7 +36,14 @@ export const MASTER_SPREADSHEET_HEADERS = Object.freeze([
   '三级标签',
   '四级标签',
   '归档路径',
-  '归档文件名'
+  '归档文件名',
+  '标签JSON文件',
+  '源文件路径',
+  '当前文件路径',
+  '压缩缓存路径',
+  '源行号',
+  '片段序号',
+  '错误信息'
 ]);
 
 export const POST_EDIT_ARCHIVE_RECORD_HEADERS = Object.freeze([
@@ -49,7 +58,14 @@ export const POST_EDIT_ARCHIVE_RECORD_HEADERS = Object.freeze([
   '四级标签',
   '归档路径',
   '归档文件名',
-  '失败信息'
+  '标签JSON文件',
+  '源文件路径',
+  '当前文件路径',
+  '压缩缓存路径',
+  '源行号',
+  '片段序号',
+  '失败信息',
+  '错误信息'
 ]);
 
 export function detectSpreadsheetFileKind(
@@ -148,8 +164,16 @@ export function createSpreadsheetTaskRow(input: {
     ])
   );
   const sourceValue = values[input.headers[input.sourceColumn.index] ?? ''] ?? '';
+  const localFilePath =
+    input.sourceColumn.kind === 'url'
+      ? normalizeLocalFileSourceValue(sourceValue)
+      : undefined;
 
-  if (input.sourceColumn.kind === 'url' && !/^https?:\/\//u.test(sourceValue)) {
+  if (
+    input.sourceColumn.kind === 'url' &&
+    !/^https?:\/\//u.test(sourceValue) &&
+    localFilePath === undefined
+  ) {
     return undefined;
   }
 
@@ -161,15 +185,38 @@ export function createSpreadsheetTaskRow(input: {
     taskId: `${path.basename(input.filePath)}::row-${input.rowNumber}`,
     rowNumber: input.rowNumber,
     url: sourceValue,
-    sourceKind: input.sourceColumn.kind,
+    sourceKind:
+      input.sourceColumn.kind === 'url' && localFilePath !== undefined
+        ? 'local-file'
+        : input.sourceColumn.kind,
     sourceFileName:
-      input.sourceColumn.kind === 'local-file' ? sourceValue : undefined,
+      input.sourceColumn.kind === 'local-file'
+        ? sourceValue
+        : localFilePath,
     sourceFileRelativePath:
       input.sourceColumn.kind === 'local-file'
         ? normalizeOptionalCellValue(values['相对路径'])
         : undefined,
     values: Object.freeze(values)
   });
+}
+
+function normalizeLocalFileSourceValue(value: string): string | undefined {
+  const normalized = value.trim();
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  if (normalized.startsWith('file://')) {
+    try {
+      return fileURLToPath(normalized);
+    } catch {
+      return undefined;
+    }
+  }
+
+  return path.isAbsolute(normalized) ? normalized : undefined;
 }
 
 function normalizeOptionalCellValue(value: string | undefined): string | undefined {
@@ -287,6 +334,59 @@ export function applySpreadsheetWritebackUpdates(input: {
   return { matrix, hyperlinks: Object.freeze(hyperlinks) };
 }
 
+export function appendSpreadsheetRows(input: {
+  readonly matrix: (string | number)[][];
+  readonly rows: readonly SpreadsheetAppendRow[];
+}): {
+  readonly matrix: (string | number)[][];
+  readonly hyperlinks: readonly SpreadsheetHyperlinkUpdate[];
+} {
+  const matrix = input.matrix.map((row) => [...row]);
+  const hyperlinks: SpreadsheetHyperlinkUpdate[] = [];
+
+  if (input.rows.length === 0) {
+    return { matrix, hyperlinks: Object.freeze([]) };
+  }
+
+  const hasHeaderRow = detectHasHeaderRow(matrix);
+
+  if (!hasHeaderRow) {
+    matrix.unshift([...createSyntheticHeaders(matrix[0]?.length ?? 0)]);
+  }
+
+  const headers = matrix[0]!.map((value) => String(value).trim());
+
+  for (const rowValues of input.rows) {
+    for (const columnName of Object.keys(rowValues)) {
+      if (!headers.includes(columnName)) {
+        matrix[0]!.push(columnName);
+        headers.push(columnName);
+      }
+    }
+
+    const rowIndex = matrix.length;
+    const nextRow = Array.from({ length: headers.length }, () => '');
+
+    for (const [columnName, value] of Object.entries(rowValues)) {
+      const columnIndex = headers.indexOf(columnName);
+      nextRow[columnIndex] = displayValue(value);
+
+      if (isHyperlinkValue(value)) {
+        hyperlinks.push({
+          rowIndex,
+          columnIndex,
+          label: value.label,
+          target: value.target
+        });
+      }
+    }
+
+    matrix.push(nextRow);
+  }
+
+  return { matrix, hyperlinks: Object.freeze(hyperlinks) };
+}
+
 export function writeMatrixToWorksheetPreservingLayout(input: {
   readonly worksheet: XLSX.WorkSheet;
   readonly matrix: readonly (readonly (string | number)[])[];
@@ -384,6 +484,7 @@ export function buildHyperlinkUpdatesFromMasterEntries(input: {
   const rowIndexByUrl = new Map<string, number>();
   const urlColumnIndex = input.headers.indexOf('URL');
   const archiveFileColumnIndex = input.headers.indexOf('归档文件名');
+  const taggingJsonColumnIndex = input.headers.indexOf('标签JSON文件');
 
   if (urlColumnIndex === -1 || archiveFileColumnIndex === -1) {
     return Object.freeze([]);
@@ -410,6 +511,19 @@ export function buildHyperlinkUpdatesFromMasterEntries(input: {
       label: entry.archiveFileName.label,
       target: entry.archiveFileName.target
     });
+
+    if (
+      taggingJsonColumnIndex !== -1 &&
+      entry.taggingJsonFileName !== undefined &&
+      isHyperlinkValue(entry.taggingJsonFileName)
+    ) {
+      hyperlinks.push({
+        rowIndex,
+        columnIndex: taggingJsonColumnIndex,
+        label: entry.taggingJsonFileName.label,
+        target: entry.taggingJsonFileName.target
+      });
+    }
   }
 
   return Object.freeze(hyperlinks);

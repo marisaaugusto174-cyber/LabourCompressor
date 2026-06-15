@@ -32,6 +32,59 @@ test('parses candidate path json array from model response', () => {
   );
 });
 
+test('parses core v0.1 structured tagging json response into taxonomy paths', () => {
+  assert.deepEqual(
+    parseCandidatePathsFromModelText(JSON.stringify({
+      taxonomy_version: 'Core_Prompt_V0.1',
+      segment_id: 'seg-1',
+      review_required: false,
+      review_reason: '',
+      tags: [
+        {
+          dimension: '表现形式',
+          label_path: ['表现形式', '商业传播', '产品转化']
+        },
+        {
+          dimension: '内容领域',
+          label_path: ['内容领域', '商业营销', '产品广告']
+        }
+      ]
+    })),
+    ['表现形式 > 商业传播 > 产品转化', '内容领域 > 商业营销 > 产品广告']
+  );
+});
+
+test('parses full v0.2 structured tagging json response across all data domains', () => {
+  assert.deepEqual(
+    parseCandidatePathsFromModelText(JSON.stringify({
+      taxonomy_version: 'Full_Prompt_V0.2',
+      fact_tags: [
+        {
+          dimension: '内容领域',
+          label_path: ['内容领域', '生活方式', '日常记录']
+        }
+      ],
+      metadata_tags: [
+        {
+          dimension: '平台来源',
+          label_path: ['平台来源', '社媒平台', '短视频平台']
+        }
+      ],
+      production_tags: [
+        {
+          dimension: '质量状态',
+          label_path: ['质量状态', '正常可用']
+        }
+      ]
+    })),
+    [
+      '内容领域 > 生活方式 > 日常记录',
+      '平台来源 > 社媒平台 > 短视频平台',
+      '质量状态 > 正常可用'
+    ]
+  );
+});
+
 test('rejects too-short videos before provider request', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-real-model-'));
   const sourceFilePath = path.join(tempDir, 'short.mp4');

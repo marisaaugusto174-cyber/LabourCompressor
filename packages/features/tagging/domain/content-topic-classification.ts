@@ -8,21 +8,30 @@ export interface ContentTopicArchiveDecision {
   }>;
 }
 
+export interface ArchivePathSelectionInput {
+  readonly acceptedPaths: readonly string[];
+  readonly archiveDimension?: string;
+}
+
 export function buildStructuredLevelValues(
-  acceptedPaths: readonly string[]
+  acceptedPaths: readonly string[],
+  archiveDimension = '内容题材'
 ): Readonly<{
   '一级标签': string;
   '二级标签': string;
   '三级标签': string;
   '四级标签': string;
 }> {
-  const contentTopicDecision = selectUniqueContentTopicPath(acceptedPaths);
+  const contentTopicDecision = selectUniqueArchivePath({
+    acceptedPaths,
+    archiveDimension
+  });
   const selectedContentTopicPath = contentTopicDecision.selectedPath;
   const includedPaths = acceptedPaths
     .map((value) => value.trim())
     .filter(Boolean)
     .filter((value) => {
-      if (!value.startsWith('内容题材 > ')) {
+      if (!value.startsWith(`${archiveDimension} > `)) {
         return true;
       }
 
@@ -64,9 +73,19 @@ export function buildStructuredLevelValues(
 export function selectUniqueContentTopicPath(
   acceptedPaths: readonly string[]
 ): ContentTopicArchiveDecision {
-  const contentTopicPaths = acceptedPaths
+  return selectUniqueArchivePath({
+    acceptedPaths,
+    archiveDimension: '内容题材'
+  });
+}
+
+export function selectUniqueArchivePath(
+  input: ArchivePathSelectionInput
+): ContentTopicArchiveDecision {
+  const archiveDimension = input.archiveDimension ?? '内容题材';
+  const contentTopicPaths = input.acceptedPaths
     .map((value) => value.trim())
-    .filter((value) => value.startsWith('内容题材 > '));
+    .filter((value) => value.startsWith(`${archiveDimension} > `));
 
   if (contentTopicPaths.length === 0) {
     return Object.freeze({

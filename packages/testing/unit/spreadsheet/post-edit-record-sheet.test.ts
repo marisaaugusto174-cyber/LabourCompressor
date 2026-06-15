@@ -78,9 +78,9 @@ test('creates post-edit spreadsheet rows with auto segmentation problem status',
     );
 
     assert.equal(matrix[1]?.[4], '');
-    assert.equal(matrix[1]?.[11], '');
+    assert.equal(matrix[1]?.[17], '');
     assert.equal(matrix[2]?.[4], '自动分割待处理');
-    assert.equal(matrix[2]?.[11], '无法满足 3-30s');
+    assert.equal(matrix[2]?.[17], '无法满足 3-30s');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

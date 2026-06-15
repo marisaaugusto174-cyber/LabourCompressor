@@ -4,12 +4,14 @@ import * as XLSX from 'xlsx';
 
 import {
   type MasterSpreadsheetWritebackEntry,
+  type SpreadsheetAppendRow,
   type SpreadsheetCellValue,
   type SpreadsheetSheetData,
   type SpreadsheetTaskRow,
   type SpreadsheetWritebackUpdate
 } from '../../features/spreadsheet-tasks/domain/index.ts';
 import {
+  appendSpreadsheetRows,
   applySpreadsheetWritebackUpdates,
   buildHyperlinkUpdatesFromMasterEntries,
   createSpreadsheetTaskRow,
@@ -105,6 +107,7 @@ export function readSpreadsheetTaskSheet(input: {
 export function writeTagResultsToSpreadsheet(input: {
   readonly filePath: string;
   readonly updates: readonly SpreadsheetWritebackUpdate[];
+  readonly appendRows?: readonly SpreadsheetAppendRow[];
   readonly sheetName?: string;
   readonly acceptedTagsColumnName?: string;
 }): void {
@@ -121,10 +124,18 @@ export function writeTagResultsToSpreadsheet(input: {
     acceptedTagsColumnName: input.acceptedTagsColumnName,
     updates: input.updates
   });
+  const appendedSheet = appendSpreadsheetRows({
+    matrix: resolvedSheet.matrix,
+    rows: input.appendRows ?? []
+  });
+  const hyperlinks = Object.freeze([
+    ...resolvedSheet.hyperlinks,
+    ...appendedSheet.hyperlinks
+  ]);
 
   if (fileKind === 'csv') {
     writableSheet.workbook.Sheets[writableSheet.sheetName] = xlsx.utils.aoa_to_sheet(
-      resolvedSheet.matrix
+      appendedSheet.matrix
     );
     xlsx.writeFile(writableSheet.workbook, input.filePath);
     return;
@@ -132,8 +143,8 @@ export function writeTagResultsToSpreadsheet(input: {
 
   writeMatrixToWorksheetPreservingLayout({
     worksheet: writableSheet.worksheet,
-    matrix: resolvedSheet.matrix,
-    hyperlinks: resolvedSheet.hyperlinks
+    matrix: appendedSheet.matrix,
+    hyperlinks
   });
   xlsx.writeFile(writableSheet.workbook, input.filePath);
 }
@@ -196,12 +207,19 @@ export function appendRowsToMasterSpreadsheet(input: {
       URL: entry.url,
       采集人: entry.collector,
       归档状态: entry.archiveState,
+      源文件路径: entry.sourceFilePath ?? '',
+      当前文件路径: entry.currentFilePath ?? '',
+      压缩缓存路径: entry.compressedCachePath ?? '',
+      源行号: entry.sourceRowNumber === undefined ? '' : String(entry.sourceRowNumber),
+      片段序号: entry.segmentIndex === undefined ? '' : String(entry.segmentIndex),
+      错误信息: entry.errorMessage ?? '',
       一级标签: entry.levelValues['一级标签'] ?? '',
       二级标签: entry.levelValues['二级标签'] ?? '',
       三级标签: entry.levelValues['三级标签'] ?? '',
       四级标签: entry.levelValues['四级标签'] ?? '',
       归档路径: entry.archivePath,
-      归档文件名: entry.archiveFileName
+      归档文件名: entry.archiveFileName,
+      标签JSON文件: entry.taggingJsonFileName ?? ''
     };
 
     for (const [header, value] of Object.entries(hyperlinkColumnValues)) {
@@ -229,7 +247,14 @@ export interface PostEditArchiveRecordFileEntry {
   readonly originalFileName?: string;
   readonly sourceUrl?: string;
   readonly archiveState?: string;
+  readonly taggingJsonFileName?: string;
+  readonly sourceFilePath?: string;
+  readonly currentFilePath?: string;
+  readonly compressedCachePath?: string;
+  readonly sourceRowNumber?: number | string;
+  readonly segmentIndex?: number | string;
   readonly failureMessage?: string;
+  readonly errorMessage?: string;
 }
 
 export function createPostEditArchiveRecordSpreadsheet(input: {
@@ -259,7 +284,14 @@ export function createPostEditArchiveRecordSpreadsheet(input: {
       '',
       '',
       '',
-      entry.failureMessage ?? ''
+      entry.taggingJsonFileName ?? '',
+      entry.sourceFilePath ?? '',
+      entry.currentFilePath ?? '',
+      entry.compressedCachePath ?? '',
+      entry.sourceRowNumber === undefined ? '' : String(entry.sourceRowNumber),
+      entry.segmentIndex === undefined ? '' : String(entry.segmentIndex),
+      entry.failureMessage ?? '',
+      entry.errorMessage ?? ''
     ])
   ]);
   xlsx.utils.book_append_sheet(workbook, worksheet, input.sheetName ?? 'Sheet1');

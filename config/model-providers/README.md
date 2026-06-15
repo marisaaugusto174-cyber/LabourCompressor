@@ -36,7 +36,7 @@ Current supported providers:
 Validation examples:
 
 ```bash
-node /Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts validate-model-config \
+node apps/cli/main.ts validate-model-config \
   --provider qwen \
   --auth-mode api-key \
   --model-name qwen3.6-flash \
@@ -44,7 +44,7 @@ node /Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts validate-model-config 
 ```
 
 ```bash
-node /Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts build-oauth-link \
+node apps/cli/main.ts build-oauth-link \
   --provider google \
   --authorize-url 'https://accounts.google.com/o/oauth2/v2/auth' \
   --client-id 'paste-client-id' \

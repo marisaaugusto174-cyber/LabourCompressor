@@ -10,6 +10,7 @@ import {
   classifyYtDlpErrorMessage,
   createYtDlpDownloaderAdapter,
   extractStructuredDownloadError,
+  parseYtDlpProgressLine,
   resolveYtDlpBinaryPath,
   resolveYtDlpCredential,
   validateYtDlpBinary
@@ -207,4 +208,51 @@ test('extracts structured short download error without leaking yt-dlp long logs'
   assert.equal(structured.errorCode, 'missing-credentials');
   assert.equal(structured.errorMessage, '下载失败：当前平台需要可用的登录态或 Cookies。');
   assert.equal(structured.errorDetail, 'ERROR: Sign in to confirm your age');
+});
+
+test('parses yt-dlp progress template lines with speed and eta', () => {
+  const progress = parseYtDlpProgressLine('LCPROGRESS: 53.2%\t1.24MiB/s\t00:18\t5578421\t10485760');
+
+  assert.deepEqual(progress, {
+    percent: 53.2,
+    speedText: '1.24MiB/s',
+    etaText: '00:18',
+    downloadedBytes: 5578421,
+    totalBytes: 10485760
+  });
+});
+
+test('aborts a running yt-dlp child process', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'labour-compressor-ytdlp-'));
+  const fakeBinaryPath = path.join(tempDir, 'slow-yt-dlp.sh');
+  const abortController = new AbortController();
+
+  try {
+    writeFileSync(
+      fakeBinaryPath,
+      `#!/bin/sh
+sleep 5
+`,
+      'utf8'
+    );
+    chmodSync(fakeBinaryPath, 0o755);
+
+    const adapter = createYtDlpDownloaderAdapter({ binaryPath: fakeBinaryPath });
+    const promise = adapter.download(
+      createDownloadRequest({
+        taskId: 'task-1',
+        workflowSessionId: 'workflow-1',
+        rowNumber: 2,
+        sourceUrl: 'https://www.youtube.com/watch?v=abc',
+        outputDirectory: path.join(tempDir, 'downloads'),
+        outputFileStem: '2-sample'
+      }),
+      { signal: abortController.signal }
+    );
+
+    setTimeout(() => abortController.abort(), 20);
+    await assert.rejects(promise, /cancelled|aborted|取消/iu);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });

@@ -33,7 +33,34 @@ const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
   /^[\p{Script=Han}A-Za-z0-9_]+_[A-Z0-9]+P_\d{6}_\d{6}(?:_\d{2,4})?\.[A-Za-z0-9]+$/u;
 
 export interface DownloaderAdapter {
-  download(request: DownloadRequest): Promise<DownloadExecutionResult>;
+  download(
+    request: DownloadRequest,
+    options?: DownloadExecutionOptions
+  ): Promise<DownloadExecutionResult>;
+}
+
+export interface DownloadExecutionOptions {
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (event: DownloadExecutionProgress) => void;
+}
+
+export interface DownloadExecutionProgress {
+  readonly percent?: number;
+  readonly speedText?: string;
+  readonly etaText?: string;
+  readonly downloadedBytes?: number;
+  readonly totalBytes?: number;
+}
+
+export interface DownloadBatchProgressEvent {
+  readonly phase: 'start' | 'progress' | 'complete' | 'failed';
+  readonly request: DownloadRequest;
+  readonly currentItem: string;
+  readonly progress: {
+    readonly current: number;
+    readonly total: number;
+  };
+  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
 export interface MergeStreamsInput {
@@ -97,6 +124,9 @@ export async function runSpreadsheetDownloadBatch(input: {
   readonly downloader: DownloaderAdapter;
   readonly mergeOperator: MergeOperator;
   readonly startedAt: string;
+  readonly signal?: AbortSignal;
+  readonly waitIfPaused?: () => Promise<void>;
+  readonly onProgress?: (event: DownloadBatchProgressEvent) => void;
 }): Promise<DownloadBatchResult> {
   const jobs = createSpreadsheetDownloadJobs({
     sheet: input.sheet,
@@ -105,26 +135,50 @@ export async function runSpreadsheetDownloadBatch(input: {
   const tasks: TaskRecord[] = [];
   const downloadedAssets: DownloadedMediaAsset[] = [];
 
-  for (const job of jobs) {
+  for (const [jobIndex, job] of jobs.entries()) {
     let task = createDownloadTaskRecord({
       taskId: job.taskId,
       workflowSessionId: input.workflowSessionId,
       createdAt: input.startedAt
     });
+    const request = createDownloadRequest({
+      taskId: job.taskId,
+      workflowSessionId: input.workflowSessionId,
+      rowNumber: job.rowNumber,
+      sourceUrl: job.sourceUrl,
+      outputDirectory: job.outputDirectory,
+      outputFileStem: job.outputFileStem,
+      fallbackTitle: job.fallbackTitle
+    });
+    const progress = Object.freeze({
+      current: jobIndex + 1,
+      total: jobs.length
+    });
 
     try {
+      throwIfAborted(input.signal);
+      await input.waitIfPaused?.();
+      throwIfAborted(input.signal);
       task = markDownloadTaskStarted(task, input.startedAt);
-
-      const request = createDownloadRequest({
-        taskId: job.taskId,
-        workflowSessionId: input.workflowSessionId,
-        rowNumber: job.rowNumber,
-        sourceUrl: job.sourceUrl,
-        outputDirectory: job.outputDirectory,
-        outputFileStem: job.outputFileStem,
-        fallbackTitle: job.fallbackTitle
+      input.onProgress?.({
+        phase: 'start',
+        request,
+        currentItem: job.sourceUrl,
+        progress
       });
-      const executionResult = await input.downloader.download(request);
+      const executionResult = await input.downloader.download(request, {
+        signal: input.signal,
+        onProgress: (event) => {
+          input.onProgress?.({
+            phase: 'progress',
+            request,
+            currentItem: job.sourceUrl,
+            progress,
+            details: buildDownloadProgressDetails(event)
+          });
+        }
+      });
+      throwIfAborted(input.signal);
       const muxedArtifact = getMuxedArtifact(executionResult);
 
       if (muxedArtifact !== undefined) {
@@ -147,6 +201,12 @@ export async function runSpreadsheetDownloadBatch(input: {
           finishedAt: executionResult.downloadedAt
         });
         tasks.push(task);
+        input.onProgress?.({
+          phase: 'complete',
+          request,
+          currentItem: standardizedFile.fileName,
+          progress
+        });
         continue;
       }
 
@@ -186,7 +246,16 @@ export async function runSpreadsheetDownloadBatch(input: {
         finishedAt: executionResult.downloadedAt
       });
       tasks.push(task);
+      input.onProgress?.({
+        phase: 'complete',
+        request,
+        currentItem: standardizedFile.fileName,
+        progress
+      });
     } catch (error) {
+      if (input.signal?.aborted === true || isCancellationError(error)) {
+        throw error;
+      }
       const message =
         error instanceof Error ? error.message : 'Unknown download failure';
       const errorCode =
@@ -213,6 +282,16 @@ export async function runSpreadsheetDownloadBatch(input: {
           errorMessage: message
         })
       );
+      input.onProgress?.({
+        phase: 'failed',
+        request,
+        currentItem: job.sourceUrl,
+        progress,
+        details: {
+          errorCode,
+          errorMessage: message
+        }
+      });
     }
   }
 
@@ -226,6 +305,35 @@ export async function runSpreadsheetDownloadBatch(input: {
       assetIds: downloadedAssets.map((asset) => asset.mediaAssetId)
     })
   });
+}
+
+function buildDownloadProgressDetails(
+  event: DownloadExecutionProgress
+): Readonly<Record<string, string | number | boolean | null>> {
+  return Object.freeze({
+    downloadPercent: event.percent ?? null,
+    downloadSpeed: event.speedText ?? null,
+    downloadEta: event.etaText ?? null,
+    downloadedBytes: event.downloadedBytes ?? null,
+    totalBytes: event.totalBytes ?? null
+  });
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw createCancellationError();
+  }
+}
+
+function createCancellationError(): Error {
+  const error = new Error('Task cancelled.');
+  error.name = 'PipelineCancelledError';
+  return error;
+}
+
+function isCancellationError(error: unknown): boolean {
+  return error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'PipelineCancelledError');
 }
 
 function sanitizeOutputStem(value: string | number): string {

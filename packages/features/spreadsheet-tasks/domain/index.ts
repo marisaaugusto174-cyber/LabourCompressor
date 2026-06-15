@@ -30,13 +30,22 @@ export interface SpreadsheetWritebackUpdate {
   readonly columnValues?: Readonly<Record<string, SpreadsheetCellValue>>;
 }
 
+export type SpreadsheetAppendRow = Readonly<Record<string, SpreadsheetCellValue>>;
+
 export interface MasterSpreadsheetWritebackEntry {
   readonly url: string;
   readonly collector: string;
   readonly archiveState: string;
+  readonly sourceFilePath?: string;
+  readonly currentFilePath?: string;
+  readonly compressedCachePath?: string;
+  readonly sourceRowNumber?: number;
+  readonly segmentIndex?: number;
+  readonly errorMessage?: string;
   readonly levelValues: Readonly<Record<string, string>>;
   readonly archivePath: string;
   readonly archiveFileName: SpreadsheetCellValue;
+  readonly taggingJsonFileName?: SpreadsheetCellValue;
   readonly sourceSpreadsheet: string;
   readonly processedAt: string;
 }

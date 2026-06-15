@@ -21,7 +21,14 @@ const standardMasterHeaders = Object.freeze([
   '三级标签',
   '四级标签',
   '归档路径',
-  '归档文件名'
+  '归档文件名',
+  '标签JSON文件',
+  '源文件路径',
+  '当前文件路径',
+  '压缩缓存路径',
+  '源行号',
+  '片段序号',
+  '错误信息'
 ]);
 
 test('creates the internal master spreadsheet with the fixed standard template', () => {

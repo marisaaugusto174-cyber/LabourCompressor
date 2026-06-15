@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rename, stat } from 'node:fs/promises';
+import { copyFile, mkdir, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -17,6 +17,7 @@ export async function archiveFileByPlans(input: {
   readonly taxonomyVersionId: string;
   readonly fingerprintId: string;
   readonly recordedAt: string;
+  readonly jsonSidecarContent?: string;
 }): Promise<readonly ArchiveRecord[]> {
   if (input.placementPlans.length === 0) {
     throw new Error('Archive operation requires at least one placement plan.');
@@ -46,6 +47,14 @@ export async function archiveFileByPlans(input: {
       }
 
       await rename(input.sourceFilePath, targetFilePath);
+    }
+
+    if (input.jsonSidecarContent !== undefined) {
+      await writeFile(
+        replaceExtension(targetFilePath, '.json'),
+        input.jsonSidecarContent,
+        'utf8'
+      );
     }
 
     records.push(
@@ -91,6 +100,11 @@ async function ensureUniqueTargetPath(targetFilePath: string): Promise<string> {
   }
 
   return candidatePath;
+}
+
+function replaceExtension(filePath: string, extension: string): string {
+  const parsed = path.parse(filePath);
+  return path.join(parsed.dir, `${parsed.name}${extension}`);
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
