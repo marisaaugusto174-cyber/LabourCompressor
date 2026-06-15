@@ -7,8 +7,8 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 const xlsx = XLSX.default ?? XLSX;
-const cliPath = '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts';
-const cwd = '/Users/tianyi/Desktop/codex/jobtask';
+const cwd = path.resolve(import.meta.dirname, '../../../..');
+const cliPath = path.join(cwd, 'apps/cli/main.ts');
 
 test('reuses existing standardized download artifact on yt-dlp rerun instead of failing', () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase4-ytdlp-'));

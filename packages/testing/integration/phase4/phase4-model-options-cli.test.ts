@@ -1,20 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+
+const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+const CLI_PATH = path.join(PROJECT_ROOT, 'apps/cli/main.ts');
 
 test('lists model options and builds oauth link through cli', () => {
   const listResult = spawnSync(
     'node',
-    ['/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts', 'list-model-options'],
+    [CLI_PATH, 'list-model-options'],
     {
-      cwd: '/Users/tianyi/Desktop/codex/jobtask',
+      cwd: PROJECT_ROOT,
       encoding: 'utf8'
     }
   );
   const oauthResult = spawnSync(
     'node',
     [
-      '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+      CLI_PATH,
       'build-oauth-link',
       '--provider',
       'google',
@@ -30,7 +34,7 @@ test('lists model options and builds oauth link through cli', () => {
       'openid,profile'
     ],
     {
-      cwd: '/Users/tianyi/Desktop/codex/jobtask',
+      cwd: PROJECT_ROOT,
       encoding: 'utf8'
     }
   );

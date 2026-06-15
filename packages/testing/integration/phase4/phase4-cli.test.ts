@@ -8,6 +8,8 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 const xlsx = XLSX.default ?? XLSX;
+const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+const CLI_PATH = path.join(PROJECT_ROOT, 'apps/cli/main.ts');
 
 test('runs cli local pipeline and prints stage status', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase4-'));
@@ -58,7 +60,7 @@ test('runs cli local pipeline and prints stage status', async () => {
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -78,7 +80,7 @@ test('runs cli local pipeline and prints stage status', async () => {
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -156,7 +158,7 @@ test('skips rows already marked archived or download-satisfied', async () => {
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -176,7 +178,7 @@ test('skips rows already marked archived or download-satisfied', async () => {
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -250,7 +252,7 @@ test('stops after download when manual edit gate is enabled and prepares AfterEd
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -272,7 +274,7 @@ test('stops after download when manual edit gate is enabled and prepares AfterEd
         'true'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -348,7 +350,7 @@ test('reports download failures before stopping at manual edit gate', async () =
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -370,7 +372,7 @@ test('reports download failures before stopping at manual edit gate', async () =
         'true'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -433,7 +435,7 @@ test('continues from AfterEdit spreadsheet without running download again', asyn
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -453,7 +455,7 @@ test('continues from AfterEdit spreadsheet without running download again', asyn
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -523,7 +525,7 @@ test('continues from nested AfterEdit relative paths without source url mapping'
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -543,7 +545,7 @@ test('continues from nested AfterEdit relative paths without source url mapping'
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -607,7 +609,7 @@ test('records tagging failures for AfterEdit rows without crashing the task', as
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -627,7 +629,7 @@ test('records tagging failures for AfterEdit rows without crashing the task', as
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
@@ -685,7 +687,7 @@ test('blocks AfterEdit second stage when edited file name does not match naming 
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -705,7 +707,7 @@ test('blocks AfterEdit second stage when edited file name does not match naming 
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );

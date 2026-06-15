@@ -7,6 +7,8 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 const xlsx = XLSX.default ?? XLSX;
+const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+const CLI_PATH = path.join(PROJECT_ROOT, 'apps/cli/main.ts');
 
 test('blocks AfterEdit second stage when spreadsheet rows cannot map current AfterEdit batch', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase4-afteredit-unmapped-'));
@@ -28,7 +30,7 @@ test('blocks AfterEdit second stage when spreadsheet rows cannot map current Aft
     const result = spawnSync(
       'node',
       [
-        '/Users/tianyi/Desktop/codex/jobtask/apps/cli/main.ts',
+        CLI_PATH,
         'run-local-pipeline',
         '--spreadsheet',
         spreadsheetPath,
@@ -48,7 +50,7 @@ test('blocks AfterEdit second stage when spreadsheet rows cannot map current Aft
         '2026-04-24T19:20:00.000Z'
       ],
       {
-        cwd: '/Users/tianyi/Desktop/codex/jobtask',
+        cwd: PROJECT_ROOT,
         encoding: 'utf8'
       }
     );
