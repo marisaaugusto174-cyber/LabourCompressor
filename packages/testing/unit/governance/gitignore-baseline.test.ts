@@ -13,15 +13,23 @@ test('.gitignore covers local runtime artifacts and sensitive local configs', as
     '.cache',
     '.runtime-state',
     '.runtime-uploads',
+    '.runtime-probe',
     '.web-ui.log',
     '.web-ui.pid',
     '.DS_Store',
     '*.local.json',
+    '*.cookies.txt',
+    'cookies.txt',
+    '*.cookie',
+    '*.har',
+    '*.log',
     'node_modules',
     'dist',
     '.tools',
     '视频数据下载缓存',
-    '视频数据采集总表.xlsx'
+    '视频数据归档库',
+    '视频数据采集总表.xlsx',
+    'PROJECT_STATUS_REPORT_*.md'
   ]) {
     assert.match(
       gitignore,
