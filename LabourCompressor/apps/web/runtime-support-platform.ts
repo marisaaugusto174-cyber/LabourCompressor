@@ -1,37 +1,24 @@
-import { execFile } from 'node:child_process';
-import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
-
 import {
-  extractStructuredDownloadError,
-  resolveYtDlpBinaryPath,
-  resolveYtDlpCredential
-} from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
+  inspectCookiesFileForPlatform,
+  probePlatformCredentialConnectivity,
+  probePlatformDownload
+} from '../../packages/adapters/downloaders/platform-connectivity-probe.ts';
 import {
-  createPlatformAwareDownloaderAdapter
-} from '../../packages/adapters/downloaders/platform-aware-downloader.ts';
-import { readNetscapeCookieHeader } from '../../packages/adapters/downloaders/netscape-cookies.ts';
-import {
-  extractDouyinSsrVideo,
-  extractDouyinVideoId,
-  type DouyinFetch
-} from '../../packages/adapters/downloaders/douyin-ssr-downloader.ts';
-import {
-  createDownloadRequest,
   parsePlatformCredentialConfig,
-  sanitizePlatformUrlForOutput,
   type PlatformCredentialConfig,
   type SupportedPlatform
 } from '../../packages/features/download/domain/index.ts';
+import { createPlatformCredentialFileRepository } from '../../packages/adapters/storage/filesystem/platform-credential-repository.ts';
 import {
   type PlatformCredentialSummaryEntry,
   type RuntimeCheckResult
 } from './runtime-support-types.ts';
 import { projectPath } from '../cli/project-paths.ts';
 
-const execFileAsync = promisify(execFile);
+export { probePlatformCredentialConnectivity, probePlatformDownload };
 
 const PLATFORM_PROBE_URLS: Readonly<Partial<Record<SupportedPlatform, string>>> = Object.freeze({
   bilibili: 'https://www.bilibili.com/video/BV1xx411c7mD',
@@ -47,26 +34,10 @@ const PLATFORM_HOMEPAGE_URLS: Readonly<Record<SupportedPlatform, string>> = Obje
   xiaohongshu: 'https://www.xiaohongshu.com/'
 });
 
-const PLATFORM_COOKIE_DOMAINS: Readonly<Record<SupportedPlatform, readonly string[]>> = Object.freeze({
-  bilibili: ['bilibili.com'],
-  youtube: ['youtube.com', 'google.com'],
-  douyin: ['douyin.com', 'iesdouyin.com'],
-  tiktok: ['tiktok.com'],
-  xiaohongshu: ['xiaohongshu.com']
-});
-
 const DEFAULT_DOUYIN_COOKIE_CANDIDATES = Object.freeze([
   path.join(homedir(), 'Downloads', 'douyin.txt')
 ]);
 const PLATFORM_CREDENTIAL_REPOSITORY_ROOT = projectPath('.runtime-credentials/download');
-const SUPPORTED_PLATFORMS: readonly SupportedPlatform[] = Object.freeze([
-  'bilibili',
-  'youtube',
-  'douyin',
-  'tiktok',
-  'xiaohongshu'
-]);
-
 type HomepageFetch = (
   url: string,
   init?: RequestInit
@@ -76,348 +47,14 @@ type PlatformCredentialProbe = (
   input: Parameters<typeof probePlatformCredentialConnectivity>[0]
 ) => Promise<RuntimeCheckResult>;
 
-export async function probePlatformDownload(input: {
-  readonly url: string;
-  readonly outputDirectory: string;
-  readonly ytDlpBinary?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly platformCredentialConfigPath?: string;
-}): Promise<RuntimeCheckResult> {
-  const platformCredentialConfig = await loadPlatformCredentialConfig(input.platformCredentialConfigPath);
-
-  try {
-    const request = createDownloadRequest({
-      taskId: 'probe-task',
-      workflowSessionId: 'probe-workflow',
-      rowNumber: 1,
-      sourceUrl: input.url,
-      outputDirectory: input.outputDirectory,
-      outputFileStem: 'probe'
-    });
-    const resolvedCredential = resolveYtDlpCredential(request, {
-      cookiesFilePath: input.cookiesFilePath,
-      cookiesFromBrowser: input.cookiesFromBrowser,
-      platformCredentialConfig
-    });
-    const adapter = createPlatformAwareDownloaderAdapter({
-      binaryPath: input.ytDlpBinary,
-      cookiesFilePath: input.cookiesFilePath,
-      cookiesFromBrowser: input.cookiesFromBrowser,
-      platformCredentialConfig
-    });
-
-    try {
-      await adapter.download(request);
-
-      return Object.freeze({
-        key: 'download-probe',
-        ok: true,
-        message: 'Download probe succeeded.',
-        details: {
-          normalizedUrl: sanitizePlatformUrlForOutput(request.normalizedUrl),
-          platform: request.platform,
-          credentialSource: resolvedCredential.source,
-          usesCookiesFile: resolvedCredential.cookiesFilePath !== undefined,
-          usesBrowserCookies: resolvedCredential.cookiesFromBrowser !== undefined,
-          enteredRealDownloadLayer: true
-        }
-      });
-    } catch (error) {
-      const structuredError = extractStructuredDownloadError(error);
-
-      return Object.freeze({
-        key: 'download-probe',
-        ok: false,
-        message: structuredError.errorMessage,
-        details: {
-          normalizedUrl: sanitizePlatformUrlForOutput(request.normalizedUrl),
-          platform: request.platform,
-          credentialSource: resolvedCredential.source,
-          usesCookiesFile: resolvedCredential.cookiesFilePath !== undefined,
-          usesBrowserCookies: resolvedCredential.cookiesFromBrowser !== undefined,
-          enteredRealDownloadLayer: true,
-          errorCode: structuredError.errorCode,
-          errorDetail: structuredError.errorDetail ?? null
-        }
-      });
-    }
-  } catch (error) {
-    return Object.freeze({
-      key: 'download-probe',
-      ok: false,
-      message: error instanceof Error ? error.message : String(error),
-      details: {
-        platform: null,
-        credentialSource: 'none',
-        usesCookiesFile: false,
-        usesBrowserCookies: false,
-        enteredRealDownloadLayer: false
-      }
-    });
-  }
-}
-
-export async function probePlatformCredentialConnectivity(input: {
-  readonly platform: SupportedPlatform;
-  readonly ytDlpBinary?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly sampleUrl?: string;
-  readonly fetch?: DouyinFetch;
-  readonly now?: Date;
-}): Promise<RuntimeCheckResult> {
-  const credential = {
-    cookiesFilePath: input.cookiesFilePath?.trim() || undefined,
-    cookiesFromBrowser: input.cookiesFromBrowser?.trim() || undefined
-  };
-
-  if (credential.cookiesFilePath === undefined && credential.cookiesFromBrowser === undefined) {
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: input.platform,
-      message: '请先填写 cookies.txt 或 cookies-from-browser。',
-      errorCode: 'missing-credentials',
-      enteredMetadataProbeLayer: false
-    });
-  }
-
-  if (credential.cookiesFilePath !== undefined) {
-    const staticCheck = await inspectCookiesFileForPlatform({
-      filePath: credential.cookiesFilePath,
-      platform: input.platform,
-      now: input.now ?? new Date()
-    });
-
-    if (!staticCheck.ok) {
-      return buildCredentialProbeResult({
-        ok: false,
-        platform: input.platform,
-        message: staticCheck.message,
-        errorCode: staticCheck.errorCode,
-        enteredMetadataProbeLayer: false
-      });
-    }
-  }
-
-  if (input.platform === 'xiaohongshu') {
-    return probeXiaohongshuCredentialConnectivity({
-      cookiesFilePath: credential.cookiesFilePath,
-      fetch: input.fetch
-    });
-  }
-
-  const sampleUrl = input.sampleUrl?.trim() || PLATFORM_PROBE_URLS[input.platform];
-
-  if (sampleUrl === undefined || sampleUrl.length === 0) {
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: input.platform,
-      message: '请填写一个当前可访问的测试视频 URL 后再运行连通性测试。',
-      errorCode: 'sample-url-required',
-      enteredMetadataProbeLayer: false
-    });
-  }
-
-  if (input.platform === 'douyin') {
-    return probeDouyinSsrCredentialConnectivity({
-      sampleUrl,
-      cookiesFilePath: credential.cookiesFilePath,
-      fetch: input.fetch
-    });
-  }
-
-  try {
-    const args = [
-      '--skip-download',
-      '--dump-single-json',
-      '--no-warnings'
-    ];
-
-    if (credential.cookiesFilePath !== undefined) {
-      args.push('--cookies', credential.cookiesFilePath);
-    }
-
-    if (credential.cookiesFromBrowser !== undefined) {
-      args.push('--cookies-from-browser', credential.cookiesFromBrowser);
-    }
-
-    args.push(sampleUrl);
-
-    const { stdout } = await execFileAsync(
-      resolveYtDlpBinaryPath(input.ytDlpBinary),
-      args,
-      {
-        timeout: 30_000,
-        maxBuffer: 4 * 1024 * 1024
-      }
-    );
-    const parsed = JSON.parse(stdout) as Record<string, unknown>;
-
-    if (typeof parsed.id !== 'string') {
-      throw new Error('Metadata probe returned JSON without a video id.');
-    }
-
-    return buildCredentialProbeResult({
-      ok: true,
-      platform: input.platform,
-      message: 'cookies 连通性测试通过。',
-      enteredMetadataProbeLayer: true,
-      extraDetails: {
-        sampleUrl,
-        title: typeof parsed.title === 'string' ? parsed.title : null
-      }
-    });
-  } catch (error) {
-    const structuredError = extractStructuredDownloadError(error);
-    const reason = describeCredentialProbeFailure(structuredError.errorCode);
-
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: input.platform,
-      message: reason.message,
-      errorCode: structuredError.errorCode,
-      enteredMetadataProbeLayer: true,
-      errorDetail: structuredError.errorDetail,
-      extraDetails: {
-        sampleUrl,
-        reason: reason.reason
-      }
-    });
-  }
-}
-
-async function probeXiaohongshuCredentialConnectivity(input: {
-  readonly cookiesFilePath?: string;
-  readonly fetch?: DouyinFetch;
-}): Promise<RuntimeCheckResult> {
-  const fetchImpl = input.fetch ?? fetch;
-  const headers: Record<string, string> = {
-    referer: 'https://www.xiaohongshu.com/',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125 Safari/537.36'
-  };
-  if (input.cookiesFilePath !== undefined) {
-    const cookieHeader = await readNetscapeCookieHeader(
-      input.cookiesFilePath,
-      ['xiaohongshu.com']
-    );
-    if (cookieHeader.length > 0) {
-      headers.cookie = cookieHeader;
-    }
-  }
-
-  try {
-    const response = await fetchImpl('https://www.xiaohongshu.com/', { headers });
-    if (!response.ok) {
-      throw createStructuredProbeError(
-        'xiaohongshu-page-unavailable',
-        `小红书首页请求失败，HTTP ${response.status}。`
-      );
-    }
-    await response.text();
-    return buildCredentialProbeResult({
-      ok: true,
-      platform: 'xiaohongshu',
-      message: 'cookies 静态检查与平台连通性测试通过。',
-      enteredMetadataProbeLayer: true,
-      extraDetails: { reason: 'xiaohongshu-homepage' }
-    });
-  } catch (error) {
-    const structuredError = extractStructuredDownloadError(error);
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: 'xiaohongshu',
-      message: '小红书平台连通性测试失败，请稍后重试或更新 cookies。',
-      enteredMetadataProbeLayer: true,
-      errorCode: structuredError.errorCode,
-      errorDetail: structuredError.errorDetail,
-      extraDetails: { reason: 'xiaohongshu-homepage' }
-    });
-  }
-}
-
-async function probeDouyinSsrCredentialConnectivity(input: {
-  readonly sampleUrl: string;
-  readonly cookiesFilePath?: string;
-  readonly fetch?: DouyinFetch;
-}): Promise<RuntimeCheckResult> {
-  const videoId = extractDouyinVideoId(input.sampleUrl);
-
-  if (videoId === undefined) {
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: 'douyin',
-      message: '测试 URL 不可用，请换一个当前可访问的视频 URL。',
-      errorCode: 'unsupported-url',
-      enteredMetadataProbeLayer: false,
-      extraDetails: {
-        sampleUrl: input.sampleUrl,
-        reason: 'sample-url'
-      }
-    });
-  }
-
-  const fetchImpl = input.fetch ?? fetch;
-  const ssrUrl = new URL('https://www.douyin.com/jingxuan');
-  ssrUrl.searchParams.set('modal_id', videoId);
-
-  try {
-    const headers = await buildDouyinProbeHeaders(input.cookiesFilePath);
-    const response = await fetchImpl(ssrUrl.toString(), {
-      headers
-    });
-
-    if (!response.ok) {
-      throw createStructuredProbeError(
-        'douyin-ssr-unavailable',
-        `抖音页面 SSR 请求失败，HTTP ${response.status}。`
-      );
-    }
-
-    const video = extractDouyinSsrVideo(await response.text());
-
-    return buildCredentialProbeResult({
-      ok: true,
-      platform: 'douyin',
-      message: 'cookies 连通性测试通过。',
-      enteredMetadataProbeLayer: true,
-      extraDetails: {
-        sampleUrl: input.sampleUrl,
-        ssrUrl: ssrUrl.toString(),
-        reason: 'douyin-ssr',
-        title: video.title
-      }
-    });
-  } catch (error) {
-    const structuredError = extractStructuredDownloadError(error);
-    const reason = describeCredentialProbeFailure(structuredError.errorCode);
-
-    return buildCredentialProbeResult({
-      ok: false,
-      platform: 'douyin',
-      message: reason.message,
-      errorCode: structuredError.errorCode,
-      enteredMetadataProbeLayer: true,
-      errorDetail: structuredError.errorDetail,
-      extraDetails: {
-        sampleUrl: input.sampleUrl,
-        ssrUrl: ssrUrl.toString(),
-        reason: reason.reason
-      }
-    });
-  }
-}
-
 export async function loadPlatformCredentialSummary(
   filePath: string,
   credentialRepositoryRoot = PLATFORM_CREDENTIAL_REPOSITORY_ROOT
 ): Promise<readonly PlatformCredentialSummaryEntry[]> {
-  const metadataByPlatform = await loadPlatformCredentialMetadataByPlatform(credentialRepositoryRoot);
-
-  return summarizePlatformCredentialConfig(
-    await loadPlatformCredentialConfig(filePath),
-    metadataByPlatform
-  );
+  return createPlatformCredentialFileRepository({
+    configFilePath: filePath,
+    repositoryRoot: credentialRepositoryRoot
+  }).list();
 }
 
 export async function importPlatformCredentialFile(input: {
@@ -427,35 +64,10 @@ export async function importPlatformCredentialFile(input: {
   readonly credentialRepositoryRoot?: string;
   readonly now?: Date;
 }): Promise<readonly PlatformCredentialSummaryEntry[]> {
-  const credentialRepositoryRoot = input.credentialRepositoryRoot ?? PLATFORM_CREDENTIAL_REPOSITORY_ROOT;
-  const platformDirectoryPath = path.join(credentialRepositoryRoot, input.platform);
-  const uploadedAt = (input.now ?? new Date()).toISOString();
-  const targetPath = path.join(platformDirectoryPath, 'cookies.txt');
-  const metadataPath = path.join(platformDirectoryPath, 'metadata.json');
-
-  await access(input.sourceCookiesFilePath);
-  await rm(platformDirectoryPath, { recursive: true, force: true });
-  await mkdir(platformDirectoryPath, { recursive: true });
-  await writeFile(targetPath, await normalizeImportedCookiesFileContent(input.sourceCookiesFilePath), 'utf8');
-  await writeFile(
-    metadataPath,
-    `${JSON.stringify({
-      platform: input.platform,
-      cookiesFilePath: targetPath,
-      sourceFileName: path.basename(input.sourceCookiesFilePath),
-      uploadedAt
-    }, null, 2)}\n`,
-    'utf8'
-  );
-
-  await savePlatformCredentialConfig({
-    filePath: input.filePath,
-    platform: input.platform,
-    cookiesFilePath: targetPath,
-    cookiesFromBrowser: ''
-  });
-
-  return loadPlatformCredentialSummary(input.filePath, credentialRepositoryRoot);
+  return createPlatformCredentialFileRepository({
+    configFilePath: input.filePath,
+    repositoryRoot: input.credentialRepositoryRoot ?? PLATFORM_CREDENTIAL_REPOSITORY_ROOT
+  }).importFile(input);
 }
 
 export async function importAndProbePlatformCredentialFile(input: {
@@ -587,25 +199,10 @@ export async function savePlatformCredentialConfig(input: {
   readonly cookiesFilePath?: string;
   readonly cookiesFromBrowser?: string;
 }): Promise<readonly PlatformCredentialSummaryEntry[]> {
-  const raw = await readJsonObjectFile(input.filePath);
-  const current =
-    typeof raw[input.platform] === 'object' &&
-    raw[input.platform] !== null &&
-    !Array.isArray(raw[input.platform])
-      ? (raw[input.platform] as Record<string, unknown>)
-      : {};
-  raw[input.platform] = {
-    ...current,
-    cookiesFilePath: input.cookiesFilePath ?? readExistingCredentialString(current.cookiesFilePath),
-    cookiesFromBrowser: input.cookiesFromBrowser ?? readExistingCredentialString(current.cookiesFromBrowser)
-  };
-  await mkdir(path.dirname(input.filePath), { recursive: true });
-  await writeFile(input.filePath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
-  return loadPlatformCredentialSummary(input.filePath);
-}
-
-function readExistingCredentialString(input: unknown): string {
-  return typeof input === 'string' ? input : '';
+  return createPlatformCredentialFileRepository({
+    configFilePath: input.filePath,
+    repositoryRoot: PLATFORM_CREDENTIAL_REPOSITORY_ROOT
+  }).save(input);
 }
 
 export async function loadPlatformCredentialConfig(
@@ -742,100 +339,6 @@ function normalizeHomepageVideoUrl(rawUrl: string | undefined, homepageUrl: stri
   }
 }
 
-async function inspectCookiesFileForPlatform(input: {
-  readonly filePath: string;
-  readonly platform: SupportedPlatform;
-  readonly now: Date;
-}): Promise<Readonly<{
-  readonly ok: boolean;
-  readonly message: string;
-  readonly errorCode?: string;
-}>> {
-  let content = '';
-
-  try {
-    content = await readFile(input.filePath, 'utf8');
-  } catch {
-    return Object.freeze({
-      ok: false,
-      message: 'cookies.txt 文件不可读，请检查路径和权限。',
-      errorCode: 'credential-file-unreadable'
-    });
-  }
-
-  const records = content
-    .split(/\r?\n/u)
-    .map((line) => line.trim().replace(/^#HttpOnly_/u, ''))
-    .filter((line) => line.length > 0 && !line.startsWith('#'))
-    .map(parseNetscapeCookieLine)
-    .filter((record): record is NetscapeCookieRecord => record !== undefined);
-
-  if (records.length === 0) {
-    return Object.freeze({
-      ok: false,
-      message: 'cookies.txt 中没有可识别的 Netscape cookie 记录。',
-      errorCode: 'credential-file-empty'
-    });
-  }
-
-  const domains = PLATFORM_COOKIE_DOMAINS[input.platform];
-  const platformRecords = records.filter((record) =>
-    domains.some((domain) => cookieDomainMatches(normalizeCookieDomain(record.domain), domain))
-  );
-
-  if (platformRecords.length === 0) {
-    return Object.freeze({
-      ok: false,
-      message: 'cookies.txt 不包含当前平台的 cookie 域名。',
-      errorCode: 'credential-domain-mismatch'
-    });
-  }
-
-  const nowSeconds = Math.floor(input.now.getTime() / 1000);
-  const hasUsableCookie = platformRecords.some((record) =>
-    record.expiresAtSeconds === 0 || record.expiresAtSeconds > nowSeconds
-  );
-
-  if (!hasUsableCookie) {
-    return Object.freeze({
-      ok: false,
-      message: '当前平台 cookies 已过期，请重新导出 cookies.txt。',
-      errorCode: 'cookies-expired'
-    });
-  }
-
-  return Object.freeze({
-    ok: true,
-    message: 'cookies.txt 静态检查通过。'
-  });
-}
-
-interface NetscapeCookieRecord {
-  readonly domain: string;
-  readonly expiresAtSeconds: number;
-}
-
-function parseNetscapeCookieLine(line: string): NetscapeCookieRecord | undefined {
-  const columns = line.split('\t');
-  if (columns.length < 7) {
-    return undefined;
-  }
-
-  const expiresAtSeconds = Number(columns[4]);
-  return Object.freeze({
-    domain: columns[0] ?? '',
-    expiresAtSeconds: Number.isFinite(expiresAtSeconds) ? expiresAtSeconds : 0
-  });
-}
-
-function normalizeCookieDomain(domain: string): string {
-  return domain.trim().replace(/^\./u, '').toLowerCase();
-}
-
-function cookieDomainMatches(cookieDomain: string, targetDomain: string): boolean {
-  return cookieDomain === targetDomain || cookieDomain.endsWith(`.${targetDomain}`);
-}
-
 function buildCredentialProbeResult(input: {
   readonly ok: boolean;
   readonly platform: SupportedPlatform;
@@ -859,194 +362,3 @@ function buildCredentialProbeResult(input: {
   });
 }
 
-function describeCredentialProbeFailure(errorCode: string): Readonly<{
-  readonly reason: string;
-  readonly message: string;
-}> {
-  switch (errorCode) {
-    case 'missing-credentials':
-    case 'needs-fresh-cookies':
-    case 'cookies-expired':
-      return Object.freeze({
-        reason: 'cookies',
-        message: 'cookies 不可用或不够新，请重新登录平台后导出。'
-      });
-    case 'douyin-extractor-challenge':
-    case 'douyin-detail-api-blocked':
-    case 'douyin-ssr-unavailable':
-    case 'douyin-play-url-expired':
-      return Object.freeze({
-        reason: 'douyin-protection',
-        message: '抖音页面解析或播放地址探测失败：请刷新测试 URL，必要时重新导出 cookies。'
-      });
-    case 'platform-rate-limited':
-      return Object.freeze({
-        reason: 'rate-limit',
-        message: '平台限制了当前请求频率，请稍后重试或更换网络环境。'
-      });
-    case 'runtime-error':
-      return Object.freeze({
-        reason: 'runtime',
-        message: 'yt-dlp 或本地运行时异常，请检查下载器路径和版本。'
-      });
-    case 'unsupported-url':
-    case 'sample-url-required':
-      return Object.freeze({
-        reason: 'sample-url',
-        message: '测试 URL 不可用，请换一个当前可访问的视频 URL。'
-      });
-    default:
-      return Object.freeze({
-        reason: 'unknown',
-        message: '连通性测试失败，请查看技术详情后重试。'
-      });
-  }
-}
-
-async function loadPlatformCredentialMetadataByPlatform(
-  credentialRepositoryRoot: string
-): Promise<ReadonlyMap<SupportedPlatform, { readonly credentialStorePath?: string; readonly credentialUploadedAt?: string }>> {
-  const metadataByPlatform = new Map<SupportedPlatform, { readonly credentialStorePath?: string; readonly credentialUploadedAt?: string }>();
-
-  for (const platform of SUPPORTED_PLATFORMS) {
-    const platformDirectoryPath = path.join(credentialRepositoryRoot, platform);
-
-    try {
-      const metadata = JSON.parse(await readFile(path.join(platformDirectoryPath, 'metadata.json'), 'utf8')) as unknown;
-
-      if (isRecord(metadata)) {
-        metadataByPlatform.set(platform, Object.freeze({
-          credentialStorePath: readOptionalMetadataString(metadata.cookiesFilePath) ?? platformDirectoryPath,
-          credentialUploadedAt: readOptionalMetadataString(metadata.uploadedAt)
-        }));
-      }
-    } catch {
-      try {
-        const entries = await readdir(platformDirectoryPath);
-        if (entries.length > 0) {
-          metadataByPlatform.set(platform, Object.freeze({
-            credentialStorePath: platformDirectoryPath
-          }));
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  return metadataByPlatform;
-}
-
-function summarizePlatformCredentialConfig(
-  config: PlatformCredentialConfig | undefined,
-  metadataByPlatform: ReadonlyMap<SupportedPlatform, {
-    readonly credentialStorePath?: string;
-    readonly credentialUploadedAt?: string;
-  }>
-): readonly PlatformCredentialSummaryEntry[] {
-  return Object.freeze(
-    SUPPORTED_PLATFORMS.map((platform) =>
-      summarizePlatformCredentialEntry(config, platform, metadataByPlatform.get(platform))
-    )
-  );
-}
-
-function summarizePlatformCredentialEntry(
-  config: PlatformCredentialConfig | undefined,
-  platform: SupportedPlatform,
-  metadata: { readonly credentialStorePath?: string; readonly credentialUploadedAt?: string } | undefined
-): PlatformCredentialSummaryEntry {
-  const entry = config?.[platform];
-  const activeMetadata =
-    entry?.cookiesFilePath !== undefined &&
-    metadata?.credentialStorePath !== undefined &&
-    path.resolve(entry.cookiesFilePath) === path.resolve(metadata.credentialStorePath)
-      ? metadata
-      : undefined;
-
-  return Object.freeze({
-    platform,
-    cookiesFilePath: entry?.cookiesFilePath,
-    cookiesFromBrowser: entry?.cookiesFromBrowser,
-    ...(activeMetadata?.credentialStorePath === undefined ? {} : { credentialStorePath: activeMetadata.credentialStorePath }),
-    ...(activeMetadata?.credentialUploadedAt === undefined ? {} : { credentialUploadedAt: activeMetadata.credentialUploadedAt })
-  });
-}
-
-async function readJsonObjectFile(
-  filePath: string
-): Promise<Record<string, unknown>> {
-  try {
-    const parsed = JSON.parse(await readFile(filePath, 'utf8'));
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    return {};
-  } catch {
-    return {};
-  }
-}
-
-async function normalizeImportedCookiesFileContent(filePath: string): Promise<string> {
-  const content = await readFile(filePath, 'utf8');
-
-  if (/^\s*#\s*Netscape HTTP Cookie File/iu.test(content)) {
-    return content;
-  }
-
-  const hasNetscapeCookieRecord = content
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .some((line) => {
-      const normalizedLine = line.replace(/^#HttpOnly_/u, '');
-      return normalizedLine.length > 0 &&
-        !normalizedLine.startsWith('#') &&
-        parseNetscapeCookieLine(normalizedLine) !== undefined;
-    });
-
-  if (!hasNetscapeCookieRecord) {
-    return content;
-  }
-
-  return `# Netscape HTTP Cookie File\n${content}`;
-}
-
-function readOptionalMetadataString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-async function buildDouyinProbeHeaders(
-  cookiesFilePath: string | undefined
-): Promise<Readonly<Record<string, string>>> {
-  const headers: Record<string, string> = {
-    referer: 'https://www.douyin.com/',
-    'user-agent':
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-  };
-
-  if (cookiesFilePath !== undefined) {
-    const cookieHeader = await readNetscapeCookieHeader(cookiesFilePath, ['douyin.com']);
-    if (cookieHeader.length > 0) {
-      headers.cookie = cookieHeader;
-    }
-  }
-
-  return Object.freeze(headers);
-}
-
-function createStructuredProbeError(code: string, message: string): Error {
-  const error = new Error(message);
-  Object.defineProperty(error, 'downloadErrorCode', {
-    value: code,
-    enumerable: false
-  });
-  Object.defineProperty(error, 'downloadErrorDetail', {
-    value: code,
-    enumerable: false
-  });
-  return error;
-}
