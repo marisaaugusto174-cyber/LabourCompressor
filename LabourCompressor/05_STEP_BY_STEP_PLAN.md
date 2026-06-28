@@ -131,6 +131,15 @@ Completed on 2026-06-28:
 - `apps/**/*.ts` 与生产 `packages/**/*.ts` 纳入 strict typecheck。
 - `npm run typecheck` 与 `npm run verify` 返回 0，完整回归 402/402 通过。
 
+### GOV-005: Dedicated Orchestration Boundary
+
+Completed on 2026-06-28:
+
+- 新增独立 `packages/orchestrator` 阶段契约与运行任务生命周期服务。
+- CLI 的 `all`、`resume-cache` 和单阶段路径统一通过 execution plan，segment transition 保持 AfterEdit 输入切换。
+- Web task service 缩减为 CLI composition facade；orchestrator 不导入 apps 或 adapter。
+- 针对性测试 17/17、完整回归 403/403 通过。
+
 ---
 
 ## GOV-001: Oversized Production Modules [completed]
@@ -229,11 +238,11 @@ node --test packages/testing/unit/governance/*.test.ts
 
 ---
 
-## GOV-005: Dedicated Orchestration Boundary
+## GOV-005: Dedicated Orchestration Boundary [completed]
 
 ### Current Facts
 
-当前编排位于 apps，尚无 `packages/orchestrator`。
+阶段顺序、checkpoint、transition hook 与运行任务生命周期位于 `packages/orchestrator`；apps 只组装 CLI stage port 和事件 DTO。
 
 ### Entry Condition
 
@@ -305,8 +314,8 @@ npm run test:taxonomy-domain
 3. [completed] GOV-003 应用与 adapter 边界。
 4. [completed] GOV-001 全量收敛超大文件。
 5. [completed] GOV-002 建立 typecheck 门禁。
-6. [current] GOV-005 迁移 orchestrator。
-7. GOV-006 评估并接入 storage/SQLite。
+6. [completed] GOV-005 迁移 orchestrator。
+7. [current] GOV-006 接入 storage port 与可选 SQLite。
 
 如果前置条件不满足，不得跳级实施后续目标。
 

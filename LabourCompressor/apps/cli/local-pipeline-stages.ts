@@ -4,6 +4,11 @@ import { access } from 'node:fs/promises';
 import { readSpreadsheetTaskSheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { buildContentTopicArchiveRoot } from '../../packages/features/tagging/domain/index.ts';
 import { type SpreadsheetAppendRow } from '../../packages/features/spreadsheet-tasks/domain/index.ts';
+import {
+  executePipelinePlan,
+  type PipelineExecutionPlan,
+  type PipelineStagePort
+} from '../../packages/orchestrator/index.ts';
 import { type RunLocalPipelineOptions, type LocalPipelineStage } from './pipeline/options.ts';
 import { type PipelineControl, waitForPipelineCheckpoint } from './pipeline-control.ts';
 import {
@@ -32,52 +37,60 @@ export async function runLocalPipelineStageCommand(input: {
   readonly control?: PipelineControl | undefined;
 }): Promise<RunLocalPipelineResult> {
   const pipelineStage = input.options.pipelineStage ?? 'all';
-
-  if (pipelineStage === 'all') {
-    let result: RunLocalPipelineResult | undefined;
-    let stageOptions: RunLocalPipelineOptions = input.options;
-
-    for (const stage of ORDERED_STAGES) {
-      result = await runSingleStage({
-        ...input,
-        options: { ...stageOptions, pipelineStage: stage }
-      });
-
-      if (stage === 'segment') {
-        const postEditSpreadsheet = path.join(
-          stageOptions.downloadDir,
-          stageOptions.afterEditDirectoryName ?? 'AfterEdit',
-          'AfterEdit_归档记录表.xlsx'
-        );
-
-        try {
-          await access(postEditSpreadsheet);
-          stageOptions = { ...stageOptions, spreadsheet: postEditSpreadsheet };
-        } catch {
-          // Continue with the original spreadsheet when segmentation produced no AfterEdit sheet.
-        }
-      }
-    }
-    return requireValue(result, 'V0.5 staged pipeline did not run any stage.');
-  }
-
-  if (pipelineStage === 'resume-cache') {
-    let result: RunLocalPipelineResult | undefined;
-    for (const stage of ['compress', 'tag', 'archive'] as const) {
-      result = await runSingleStage({
-        ...input,
-        options: { ...input.options, pipelineStage: stage }
-      });
-    }
-    return requireValue(result, 'Cache resume pipeline did not run any stage.');
-  }
-
-  return runSingleStage(input as {
-    readonly options: RunLocalPipelineOptions & { readonly pipelineStage: LocalPipelineStage };
-    readonly report: (event: CliStageEvent) => void;
-    readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
-    readonly control?: PipelineControl | undefined;
+  const execution = await executePipelinePlan({
+    plan: toExecutionPlan(pipelineStage),
+    stages: createStagePorts(input),
+    context: { options: input.options },
+    checkpoint: () => waitForPipelineCheckpoint(input.control),
+    transition: updateStageContext
   });
+  return requireValue(
+    execution.stageResults.at(-1)?.result,
+    'Pipeline execution plan did not run any stage.'
+  );
+}
+
+interface CliStageContext {
+  readonly options: RunLocalPipelineOptions;
+}
+
+function createStagePorts(input: {
+  readonly options: RunLocalPipelineOptions;
+  readonly report: (event: CliStageEvent) => void;
+  readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
+  readonly control?: PipelineControl | undefined;
+}): readonly PipelineStagePort<CliStageContext, RunLocalPipelineResult>[] {
+  return ORDERED_STAGES.map((stage) => ({
+    id: stage,
+    execute: (context) => runSingleStage({
+      ...input,
+      options: { ...context.options, pipelineStage: stage }
+    })
+  }));
+}
+
+function toExecutionPlan(stage: RunLocalPipelineOptions['pipelineStage']): PipelineExecutionPlan {
+  if (stage === undefined || stage === 'all') return { mode: 'all' };
+  if (stage === 'resume-cache') return { mode: 'resume-cache' };
+  return { mode: 'single', stageId: stage };
+}
+
+async function updateStageContext(
+  context: CliStageContext,
+  completed: { readonly stageId: LocalPipelineStage }
+): Promise<CliStageContext> {
+  if (completed.stageId !== 'segment') return context;
+  const postEditSpreadsheet = path.join(
+    context.options.downloadDir,
+    context.options.afterEditDirectoryName ?? 'AfterEdit',
+    'AfterEdit_归档记录表.xlsx'
+  );
+  try {
+    await access(postEditSpreadsheet);
+    return { options: { ...context.options, spreadsheet: postEditSpreadsheet } };
+  } catch {
+    return context;
+  }
 }
 
 async function runSingleStage(input: {
@@ -94,7 +107,6 @@ async function runSingleStage(input: {
   const failures: RunLocalPipelineFailure[] = [];
   const appendRows: SpreadsheetAppendRow[] = [];
 
-  await waitForPipelineCheckpoint(input.control);
   emit('spreadsheet', 'running', `Reading spreadsheet ${input.options.spreadsheet}`);
   const sheet = readSpreadsheetTaskSheet({
     filePath: input.options.spreadsheet,

@@ -6,6 +6,7 @@ import path from 'node:path';
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 const WEB_SERVER_PATH = path.join(PROJECT_ROOT, 'apps/web/server.ts');
 const PIPELINE_ROOT = path.join(PROJECT_ROOT, 'apps/cli/pipeline');
+const ORCHESTRATOR_ROOT = path.join(PROJECT_ROOT, 'packages/orchestrator');
 const WEB_ROUTE_ROOT = path.join(PROJECT_ROOT, 'apps/web/api/routes');
 const MAX_WEB_SERVER_LINES = 120;
 const MAX_LOCAL_PIPELINE_STAGE_ENTRY_LINES = 180;
@@ -51,6 +52,18 @@ test('pipeline modules do not import web modules', async () => {
     }
   }
 
+  assert.deepEqual(offenders, []);
+});
+
+test('orchestrator does not import apps or concrete adapters', async () => {
+  const offenders: string[] = [];
+  for (const filePath of await collectFiles(ORCHESTRATOR_ROOT)) {
+    if (path.extname(filePath) !== '.ts') continue;
+    const source = await readFile(filePath, 'utf8');
+    if (/from ['"][^'"]*(?:apps\/|adapters\/)/u.test(source)) {
+      offenders.push(path.relative(PROJECT_ROOT, filePath));
+    }
+  }
   assert.deepEqual(offenders, []);
 });
 
