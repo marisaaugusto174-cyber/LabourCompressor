@@ -1,761 +1,323 @@
 # 02_AGENTS_WORKFLOW.md
 
-## Workflow Identity
+## Status
 
-- Project Name: `LabourCompressor`
-- Collaboration Model: `Agentic Workflow`
-- Agent Partition Strategy: `Feature-based`
-- Review Mechanism: `Automatic Hand-off by Default`
-- Test Requirement: `Test Cases / Test Plan must be produced before code`
+- Project: `LabourCompressor`
+- Collaboration Model: single-agent or multi-agent, capability-dependent
+- Partition Strategy: feature and contract boundaries
+- Required Discipline: minimum context, tests before implementation, evidence before handoff
 
 ---
 
 ## Mission
 
-本文件定义 `LabourCompressor` 中各类 Coding Agents 的职责、知识边界、交接契约和自动协作流程。
+本文件定义 Coding Agent 的工作边界和交接方式。它不假设运行环境一定支持子 Agent，也不把自动 hand-off 当作完成条件。
 
-该流程的首要原则不是“让每个 Agent 知道越多越好”，而是：
+无论单 Agent 还是多 Agent，都必须做到：
 
-- 只给当前任务所需最小上下文
-- 只授予当前任务所需最小文件访问范围
-- 所有跨模块协作通过显式契约进行
-
-目标是降低上下文噪声、减少幻觉式实现，并避免多个 Agent 在工作流中互相覆盖边界。
+- 只读取完成当前任务所需的文档和代码。
+- 先明确契约、风险和验证，再修改实现。
+- 跨模块修改由显式计划驱动。
+- 不以修改业务规则的方式让测试通过。
+- 交付结论必须附带可复现证据。
 
 ---
 
-## Operating Principles
+## Document Context
 
-### 1. Minimum Knowledge Principle
+所有任务可以读取：
 
-每个 Agent 只能接触完成当前任务所必需的：
+- `01_PROJECT_CHARTER.md`
+- `03_STRICT_RULES.md`
+- `04_STATE_AND_DATA.md`
+- `05_STEP_BY_STEP_PLAN.md`
+- 与当前任务直接相关的 README、spec 或 plan
 
-- 相关 `.md` 设计文档
-- 相关功能目录
-- 相关 contracts / ports / DTO
-- 必要的测试夹具
+路径一律相对仓库根目录书写，禁止把本机绝对路径写入文档、测试或运行时代码。
 
-默认禁止：
+---
 
-- 浏览整个仓库
-- 直接读取无关 feature
-- 擅自查看其他 Agent 的实现细节
+## Operating Rules
 
-### 2. Contract Before Code
+### Minimum Context
 
-任何 Agent 在开始实现前，必须先产出：
+开始任务时先定位：
 
-- 测试用例
-  或
-- 测试计划
+1. 当前功能的 domain 或 contract。
+2. 对应 adapter 或 composition root。
+3. 现有相似实现。
+4. 对应 unit、integration 和 governance tests。
 
-未先给出测试用例/计划，不允许直接进入编码。
+默认不做全仓库重构，不读取与任务无关的凭证、运行态文件或用户数据。
 
-### 3. Automatic Hand-off
+### Contract Before Code
 
-默认采用自动交接：
+实现前必须给出以下任一项：
 
-- 上游 Agent 完成输出后，自动进入下游 Agent
-- 只有在契约不完整、测试失败、边界冲突、输入不充分时才中断
+- 一个会因缺少目标行为而失败的测试；或
+- 对纯文档、配置和机械改动给出明确验证计划。
 
-### 4. No Cross-Feature Direct Control
+新增公开类型、port、状态或错误码时，必须先声明输入、输出和失败语义。
 
-任何功能 Agent 不允许直接控制其他功能 Agent 的内部实现。
+### Evidence Before Completion
+
+完成声明必须基于本轮新鲜证据：
+
+- 目标测试通过。
+- 相关回归通过。
+- `git diff --check` 通过。
+- 敏感信息和改动范围检查通过。
+
+不能用“应该可以”“看起来正确”代替验证。
+
+### No Unapproved Scope Expansion
 
 允许：
 
-- 通过契约交接
-- 通过 orchestrator 工作流定义触发
+- 当前功能需要的局部重构。
+- 为测试注入依赖或拆出纯函数。
+- 修复由当前改动暴露出的同边界问题。
 
-禁止：
+不允许：
 
-- 一个功能 Agent 直接要求另一个功能 Agent 改实现细节
-- 一个功能 Agent 直接编辑另一个功能模块源码
-
-### 5. Evidence-Bearing Handoff
-
-任何交接都不允许只交“结果”。
-
-必须同时交：
-
-- 决策指纹
-- 候选与接受结果的边界
-- 恢复/重试预期
-
-### 6. Candidate / Accepted Separation
-
-任何会被归档、索引、生成报告的数据，必须区分：
-
-- `candidate output`
-- `accepted record`
-
-禁止：
-
-- 把模型候选直接当正式标签结果交接
-- 把迁移候选直接当正式归档路径交接
+- 顺手重写无关模块。
+- 擅自改变产品范围、状态语义或数据保留规则。
+- 为满足目录形式破坏稳定行为。
 
 ---
 
-## Agent Personas
+## Current Work Areas
 
-本项目采用按功能模块划分 Agent。
+### Download Work
 
-### @Acquisition-Agent
+主要路径：
 
-职责：
+- `packages/features/download/**`
+- `packages/adapters/downloaders/**`
+- `packages/testing/unit/download/**`
 
-- 处理 URL 规范化
-- 平台识别
-- 抓取任务建模
-- 下载策略判定
-- 平台差异兼容规则
+职责：平台识别、下载请求、凭证解析、下载候选、适配器和失败分类。
 
-负责模块：
+当前平台边界为 Bilibili、YouTube、抖音、TikTok，以及小红书单笔记单视频；小红书图文、主页、短链接和自动登录不在范围内。
 
-- `packages/features/acquisition`
+禁止：修改标签合法性、归档目录或模型输出规则。
 
-可触达的适配器契约：
+### Segmentation and Media Work
 
-- `packages/adapters/downloaders/*` 的契约层
+主要路径：
 
-禁止：
+- `packages/features/segmentation/**`
+- `packages/adapters/media/**`
+- `apps/cli/local-pipeline-segmentation*.ts`
+- `packages/testing/unit/segmentation/**`
+- `packages/testing/unit/media/**`
 
-- 禁止实现 ffmpeg 合并逻辑
-- 禁止实现标签判定
-- 禁止实现归档规则
-- 禁止修改检索与报告逻辑
+职责：媒体探测、场景边界、时长治理、导出、合并和缓存预处理。
 
-### @Media-Processing-Agent
+禁止：决定平台凭证优先级或标签归档规则。
 
-职责：
+### Spreadsheet Work
 
-- 处理音视频配对
-- 合并规则
-- 转封装策略
-- 中间文件清理策略
+主要路径：
 
-负责模块：
+- `packages/features/spreadsheet-tasks/**`
+- `packages/adapters/spreadsheets/**`
+- `packages/testing/unit/spreadsheet/**`
 
-- `packages/features/media-processing`
+职责：表格读取、列映射、行级状态和写回格式。
 
-可触达的适配器契约：
+禁止：实现下载协议、模型请求或归档决策。
 
-- `packages/adapters/media/*` 的契约层
+### Taxonomy and Tagging Work
 
-禁止：
-
-- 禁止处理下载平台识别
-- 禁止处理标签归档
-- 禁止处理表格任务解释
-
-### @Spreadsheet-Agent
-
-职责：
-
-- 读取 CSV/XLSX 任务表
-- 列映射与任务解析
-- 状态回写规则
-- 行级任务结果持久化格式
-
-负责模块：
-
-- `packages/features/spreadsheet-tasks`
-
-可触达的适配器契约：
-
-- `packages/adapters/spreadsheets/*` 的契约层
-
-禁止：
-
-- 禁止实现下载逻辑
-- 禁止实现打标逻辑
-- 禁止决定归档目录结构
-
-### @Taxonomy-Agent
-
-职责：
-
-- 解析标签库 Markdown
-- 构建标签树
-- 比较版本差异
-- 生成迁移计划
-- 约束标签合法性边界
-
-负责模块：
-
-- `packages/features/taxonomy`
-
-禁止：
-
-- 禁止直接调用模型打标
-- 禁止直接搬移文件
-- 禁止改写下载与媒体处理逻辑
-
-### @Tagging-Agent
-
-职责：
-
-- 基于标签树约束多模态输出
-- 做标签结果结构化
-- 执行标签合法化与去幻觉裁剪
-- 定义标签写回格式
-
-负责模块：
-
-- `packages/features/tagging`
-
-可触达的适配器契约：
-
-- `packages/adapters/multimodal-models/*` 的契约层
-
-禁止：
-
-- 禁止自己定义标签树
-- 禁止跳过 taxonomy 直接生成新标签
-- 禁止直接决定归档路径
-
-### @Archive-Agent
-
-职责：
-
-- 生成标签路径
-- 创建目录结构
-- 归档文件
-- 维护文件重映射规则
-
-负责模块：
-
-- `packages/features/archive`
-
-可触达的适配器契约：
-
-- `packages/adapters/storage/filesystem`
-- `packages/adapters/transport/local-copy`
-
-禁止：
-
-- 禁止直接修改标签规则
-- 禁止直接查询模型输出
-- 禁止直接生成调用报告
-
-### @Retrieval-Agent
-
-职责：
-
-- 根据标签检索素材
-- 生成调用清单
-- 生成报告结构
-- 定义识别码校验流程
-
-负责模块：
-
-- `packages/features/retrieval`
-
-可触达的适配器契约：
-
-- `packages/adapters/storage/sqlite`
-- `packages/adapters/transport/*`
-
-禁止：
-
-- 禁止直接归档文件
-- 禁止直接调用模型打标
-- 禁止处理下载阶段逻辑
-
-### @Orchestrator-Agent
-
-职责：
-
-- 设计和维护跨模块工作流
-- 定义任务状态机
-- 管理重试、补偿、阶段推进
-- 决定哪个功能 Agent 在什么时机接棒
-
-负责模块：
-
-- `packages/orchestrator`
-
-禁止：
-
-- 禁止实现任何单一 feature 的业务细节
-- 禁止直接写 adapter 细节
-- 禁止替代功能 Agent 做领域规则判断
-
-### @Adapter-Agent
-
-职责：
-
-- 实现 outbound ports
-- 封装第三方工具与 SDK
-- 实现与下载器、ffmpeg、模型、表格库、数据库、文件系统的连接
-
-负责模块：
-
-- `packages/adapters/*`
-- `packages/shared/sdk/*`
-
-禁止：
-
-- 禁止定义 feature 业务规则
-- 禁止定义跨模块工作流
-- 禁止把业务判断塞进 SDK wrapper
-
-### @QA-Agent
-
-职责：
-
-- 校验上游 Agent 的测试计划是否覆盖契约
-- 校验实现是否满足测试前置声明
-- 做 contract tests / workflow tests / integration tests 的核查
-- 对 `training-grade` 数据与对外交付链路执行显式放行
-
-负责模块：
-
-- `packages/testing`
-
-禁止：
-
-- 禁止直接实现正式业务逻辑
-- 禁止修改 feature 规则来“修复测试”
-
----
-
-## Context Sandbox
-
-每个 Agent 仅允许读取以下文档与路径。
-
-### Global Documents
-
-所有 Agent 可读取：
-
-- `/Users/tianyi/Desktop/codex/jobtask/01_PROJECT_CHARTER.md`
-- `/Users/tianyi/Desktop/codex/jobtask/02_AGENTS_WORKFLOW.md`
-
-除这两份外，默认不可读取其他架构文档，除非工作流明确授予。
-
-### @Acquisition-Agent Sandbox
-
-允许读取：
-
-- `packages/features/acquisition/**`
-- `packages/core/application/ports/**`
-- `packages/core/contracts/**`
-- `packages/testing/fixtures/acquisition/**`
-
-禁止读取：
-
-- `packages/features/tagging/**`
-- `packages/features/archive/**`
-- `packages/features/retrieval/**`
-
-### @Media-Processing-Agent Sandbox
-
-允许读取：
-
-- `packages/features/media-processing/**`
-- `packages/core/application/ports/**`
-- `packages/testing/fixtures/media-processing/**`
-
-禁止读取：
+主要路径：
 
 - `packages/features/taxonomy/**`
 - `packages/features/tagging/**`
+- `packages/adapters/models/**`
+- `packages/testing/unit/taxonomy/**`
+- `packages/testing/unit/tagging/**`
 
-### @Spreadsheet-Agent Sandbox
+职责：标签树、候选生成、schema 校验、合法化、DecisionFingerprint 和正式标签记录。
 
-允许读取：
+禁止：模型候选直接进入归档或训练级数据。
 
-- `packages/features/spreadsheet-tasks/**`
-- `packages/core/application/ports/**`
-- `packages/testing/fixtures/spreadsheet-tasks/**`
+### Archive and Retrieval Work
 
-禁止读取：
-
-- `packages/features/archive/**`
-- `packages/features/retrieval/**`
-
-### @Taxonomy-Agent Sandbox
-
-允许读取：
-
-- `packages/features/taxonomy/**`
-- `docs/taxonomy/**`
-- `packages/testing/fixtures/taxonomy/**`
-
-禁止读取：
-
-- `packages/features/acquisition/**`
-- `packages/features/media-processing/**`
-
-### @Tagging-Agent Sandbox
-
-允许读取：
-
-- `packages/features/tagging/**`
-- `packages/features/tagging/contracts/**`
-- `packages/features/taxonomy/contracts/**`
-- `packages/core/application/ports/**`
-- `packages/testing/fixtures/tagging/**`
-
-禁止读取：
+主要路径：
 
 - `packages/features/archive/**`
 - `packages/features/retrieval/**`
+- `packages/adapters/storage/**`
+- `packages/testing/unit/archive/**`
+- `packages/testing/unit/retrieval/**`
 
-### @Archive-Agent Sandbox
+职责：归档计划、文件执行、索引记录和本地检索。
 
-允许读取：
+禁止：自行生成标签或读取原始模型长输出。
 
-- `packages/features/archive/**`
-- `packages/features/taxonomy/contracts/**`
-- `packages/features/tagging/contracts/**`
-- `packages/testing/fixtures/archive/**`
+### Application and Runtime Work
 
-禁止读取：
+主要路径：
 
-- `packages/features/acquisition/**`
-- `packages/features/spreadsheet-tasks/**`
+- `apps/cli/pipeline/**`
+- `apps/cli/local-pipeline-*.ts`
+- `apps/web/api/**`
+- `apps/web/task-service.ts`
+- `apps/web/runtime-support-*.ts`
+- `packages/testing/unit/cli/**`
+- `packages/testing/unit/web/**`
 
-### @Retrieval-Agent Sandbox
+职责：composition root、依赖组装、任务推进、HTTP 边界和用户可见状态。
 
-允许读取：
+apps 可以组装 adapter，但业务规则和第三方协议实现应留在 feature 或 adapter。当前尚无 `packages/orchestrator`；只有经批准的迁移计划可以创建并迁移职责。
 
-- `packages/features/retrieval/**`
-- `packages/features/archive/contracts/**`
-- `packages/features/tagging/contracts/**`
-- `packages/testing/fixtures/retrieval/**`
+### QA and Governance Work
 
-禁止读取：
-
-- `packages/features/acquisition/**`
-- `packages/features/media-processing/**`
-
-### @Orchestrator-Agent Sandbox
-
-允许读取：
-
-- `packages/orchestrator/**`
-- `packages/features/*/contracts/**`
-- `packages/core/application/ports/**`
-- `docs/workflows/**`
-- `packages/testing/workflow-tests/**`
-
-禁止读取：
-
-- `packages/adapters/**` 的具体实现
-- 任意 feature 的内部 `domain` 实现
-
-### @Adapter-Agent Sandbox
-
-允许读取：
-
-- `packages/adapters/**`
-- `packages/shared/sdk/**`
-- `packages/core/application/ports/outbound/**`
-- `packages/features/*/contracts/**`
-- `packages/testing/contract-tests/**`
-
-禁止读取：
-
-- 任意 feature 的内部业务实现
-- `packages/orchestrator/workflows/**`
-
-### @QA-Agent Sandbox
-
-允许读取：
+主要路径：
 
 - `packages/testing/**`
-- 对应任务所涉及模块的 contracts
-- 对应任务所涉及模块的测试计划
+- 五份核心治理文档
+- 与当前任务直接相关的 spec、plan 和 release 文档
 
-禁止读取：
+职责：验证契约、失败路径、架构边界、安全规则和交付证据。
 
-- 非当前测试目标的无关 feature 实现
-
----
-
-## Handoff Protocol
-
-所有 Agent 交接必须使用统一格式。
-
-### Handoff Package
-
-每次交接必须包含：
-
-1. `Task Scope`
-2. `Input Contract`
-3. `Output Contract`
-4. `Test Cases / Test Plan`
-5. `Decision Fingerprint`
-6. `Candidate vs Accepted Boundary`
-7. `Data Grade`
-8. `Recovery / Retry Expectation`
-9. `Open Risks`
-10. `Files Allowed For Next Agent`
-
-缺少任意一项，不允许自动 hand-off。
-
-### Required Handoff Template
-
-```text
-Task Scope:
-- 本阶段只解决什么
-
-Input Contract:
-- 输入对象
-- 输入字段
-- 前置假设
-
-Output Contract:
-- 输出对象
-- 输出字段
-- 错误语义
-
-Test Cases / Test Plan:
-- Case 1
-- Case 2
-- Case 3
-
-Decision Fingerprint:
-- taskId
-- entityId
-- entityType
-- taxonomyVersionId or integrationVersion
-- modelAdapterVersion (if any)
-- decisionClass
-- timestamp
-
-Candidate vs Accepted Boundary:
-- 哪些是候选
-- 哪些已被系统接受
-
-Data Grade:
-- operational / research / training
-- 是否允许进入对外链路
-
-Recovery / Retry Expectation:
-- 哪一步可重试
-- 哪一步必须回滚
-
-Open Risks:
-- 风险 1
-- 风险 2
-
-Files Allowed For Next Agent:
-- path/a
-- path/b
-```
+QA 可以指出业务规则矛盾，但不得修改业务规则来迎合测试；规则变更必须回到章程或设计评审。
 
 ---
 
-## Feature-to-Feature Handoff Rules
+## Single-Agent Workflow
 
-### Acquisition -> Media Processing
+单 Agent 依次执行：
 
-交付内容必须包含：
+1. 读取当前任务所需规则和实现。
+2. 写测试或验证计划。
+3. 观察预期失败。
+4. 实现最小改动。
+5. 运行目标测试和相关回归。
+6. 审查 diff、安全和范围。
+7. 记录未解决风险。
 
-- 下载结果清单
-- 每个媒体产物的文件名
-- 原始平台元数据
-- 可能存在的音视频分离标记
+单 Agent 不等于可以跨越模块边界；跨模块工作仍须在计划中列明文件和契约。
 
-禁止直接交付：
+---
 
-- 平台下载器内部状态
-- 浏览器 cookies
+## Multi-Agent Workflow
 
-### Spreadsheet -> Acquisition
+只有运行环境支持且用户允许时才使用子 Agent。适用条件：
 
-交付内容必须包含：
+- 存在两个以上相互独立的任务。
+- 任务不写同一文件或共享可变状态。
+- 主 Agent 能独立验证每个结果。
 
-- 已解析 URL 列
-- 行号映射
-- 每行任务 ID
-- 回写目标位置
+主 Agent 必须：
 
-禁止直接交付：
+- 明确每个 Agent 的文件范围。
+- 防止并行修改冲突。
+- 不把规则解释和最终验收完全委托出去。
+- 合并后重新运行测试，不直接相信 Agent 报告。
 
-- 表格引擎实现细节
+---
+
+## Handoff Contract
+
+交接只要求五组信息：
+
+### Scope
+
+- 本阶段解决的问题。
+- 明确不处理的范围。
+- 允许修改的文件。
+
+### Input and Output
+
+- 输入对象及前置条件。
+- 输出对象、状态和错误语义。
+- Candidate 与 Accepted Record 的边界。
+
+### Verification
+
+- 已执行的命令。
+- 通过、失败和未运行项。
+- 产物或状态的验证方式。
+
+### Risks and Recovery
+
+- 已知风险。
+- 可重试与不可重试步骤。
+- 中断后从哪个 checkpoint 恢复。
+
+### Traceability
+
+- task/issue/spec/plan 标识。
+- 适用时的 DecisionFingerprint 或 integration version。
+- 数据等级：operational、research 或 training。
+
+缺少会改变实现决策的字段时，停止交接并报告 `Contract Incomplete`。测试无法构造时报告 `Test Plan Blocked`，不得自行猜测。
+
+---
+
+## Feature Handoffs
+
+### Spreadsheet -> Download
+
+交付任务 ID、行号、原始 URL、脱敏展示 URL、输出目录和回写目标。禁止交付表格引擎内部状态。
+
+### Download -> Segmentation
+
+交付已验证媒体产物、容器、媒体元数据和失败分类。禁止交付 cookies、认证头、签名媒体 URL 或下载器内部日志全文。
+
+### Segmentation -> Tagging
+
+交付合法 `AfterEdit` 片段、`ProblemClips` 记录、源资产关系和时长验证结果。
 
 ### Taxonomy -> Tagging
 
-交付内容必须包含：
-
-- 当前生效标签树
-- 标签合法路径
-- 禁止输出的新标签规则
-- 标签版本号
-
-禁止直接交付：
-
-- 任意模型提示词内部实现
+交付当前标签树、合法路径、版本和禁止输出规则。
 
 ### Tagging -> Archive
 
-交付内容必须包含：
-
-- 候选标签集合规模
-- 文件名到标签路径的映射
-- 标签版本号
-- 决策指纹
-- 冲突标签说明
-- 无法确定标签的异常列表
-- 被拒绝标签摘要
-
-禁止直接交付：
-
-- 原始模型长输出
-- 模型思维链或中间推理文本
+交付正式标签记录、唯一 `内容题材`、DecisionFingerprint 和被拒绝候选摘要；禁止交付模型思维链。
 
 ### Archive -> Retrieval
 
-交付内容必须包含：
-
-- 最终归档路径
-- 文件唯一标识
-- 标签索引记录
-- 版本迁移后的新旧映射
-- 决策指纹
-
-禁止直接交付：
-
-- 文件系统底层操作日志全文
+交付最终路径、文件标识、标签索引记录和迁移映射；禁止交付底层文件系统日志全文。
 
 ---
 
-## Orchestrated Workflow Stages
+## Test Expectations
 
-### Workflow A: Spreadsheet-Driven Download
+- download：平台识别、凭证优先级、格式选择、失败回退、取消与清理。
+- segmentation/media：边界检测、时长治理、导出失败和问题片段。
+- spreadsheet：列识别、空行、错误回写和格式兼容。
+- taxonomy/tagging：schema、非法标签、冲突、fingerprint。
+- archive/retrieval：路径冲突、幂等、迁移和识别码。
+- application/runtime：状态推进、API 输入、恢复、取消和 UI 映射。
+- adapter：第三方失败隔离、敏感信息脱敏和 contract 行为。
 
-顺序：
-
-1. `@Spreadsheet-Agent`
-2. `@Acquisition-Agent`
-3. `@Media-Processing-Agent`
-4. `@QA-Agent`
-
-自动 hand-off 条件：
-
-- 表格任务解析成功
-- 下载任务 contract 完整
-- 合并结果存在最终产物
-- 测试计划全部声明
-
-### Workflow B: Tagging and Archiving
-
-顺序：
-
-1. `@Taxonomy-Agent`
-2. `@Tagging-Agent`
-3. `@Archive-Agent`
-4. `@QA-Agent`
-
-自动 hand-off 条件：
-
-- 标签树版本确定
-- 打标结果仅使用合法标签
-- 归档路径无冲突或冲突已解决
-
-### Workflow C: Retrieval and Delivery
-
-顺序：
-
-1. `@Retrieval-Agent`
-2. `@Archive-Agent` 或 `@Adapter-Agent`
-3. `@QA-Agent`
-
-自动 hand-off 条件：
-
-- 调用报告已生成
-- 识别码可校验
-- 复制或导出目标路径合法
-- 若结果为 `training-grade` 或对外交付，则已被 `@QA-Agent` 明确放行
-
-### Workflow D: Taxonomy Migration
-
-顺序：
-
-1. `@Taxonomy-Agent`
-2. `@Archive-Agent`
-3. `@Retrieval-Agent`
-4. `@QA-Agent`
-
-自动 hand-off 条件：
-
-- 新旧版本 diff 完整
-- 迁移计划可执行
-- 检索索引已同步
+新增 adapter 必须覆盖成功、外部失败、取消/清理及敏感信息边界。新增 workflow 必须至少有一条端到端或阶段集成测试。
 
 ---
 
-## Test-First Rule
+## Training and External Delivery Gate
 
-所有 Agent 必须先输出测试计划，再输出实现。
+进入训练候选、外部报告或交付包的数据必须满足：
 
-最低测试要求：
+- Candidate 与 Accepted Record 已分离。
+- 具备适用的 DecisionFingerprint。
+- 来源、版本和验证证据完整。
+- QA 显式放行。
 
-- `@Acquisition-Agent`: 平台识别、URL 正规化、失败回退
-- `@Media-Processing-Agent`: 文件匹配、缺失音轨、错误清理
-- `@Spreadsheet-Agent`: 列识别、空行、错误回写
-- `@Taxonomy-Agent`: 版本 diff、层级保持、增量变更
-- `@Tagging-Agent`: 非法标签过滤、空标签、冲突标签
-- `@Archive-Agent`: 路径冲突、重复归档、迁移重定位
-- `@Retrieval-Agent`: 标签筛选、报告生成、识别码一致性
-- `@Orchestrator-Agent`: 状态推进、失败重试、补偿路径
-- `@Adapter-Agent`: port 契约一致性、第三方失败隔离
+普通本地 operational 产物不自动升级为 training-grade。
 
 ---
 
-## Training-Grade Gate
+## Completion Checklist
 
-凡是要进入以下链路的数据：
-
-- 训练候选集
-- 对外报告
-- 外部交付包
-
-都不得仅依赖自动 hand-off。
-
-必须满足：
-
-- 已有 `Decision Fingerprint`
-- 已完成 `Candidate vs Accepted Boundary` 说明
-- 经 `@QA-Agent` 显式放行
-
-禁止：
-
-- 仅凭模型标签结果直接进入训练或对外交付
-
----
-
-## Deadlock Prevention
-
-为防止协作流卡死，必须遵守以下规则：
-
-- 任意 Agent 不得等待另一个 Agent 提供未在契约中声明的字段
-- 任意 Agent 不得要求读取其沙盒外源码来“理解上下文”
-- 如果契约缺失，必须返回 `Contract Incomplete`，而不是自行猜测
-- 如果测试计划无法构造，必须返回 `Test Plan Blocked`
-- 如果上游输出不合法，必须返回 `Handoff Rejected`
-
-自动 hand-off 停止条件仅有：
-
-- 契约缺失
-- 测试计划缺失
-- 边界冲突
-- 文件访问越权
-- 输出不满足 schema
-
----
-
-## Enforcement Summary
-
-该协作流强制要求：
-
-- Agent 按功能模块而非技术层划分
-- 任何实现前必须先有测试计划
-- 默认自动交接，不做人肉串行审批
-- 每个 Agent 只能看最少量上下文
-- 所有交接都必须通过显式 contract
-
-如果某个任务需要让单个 Agent 同时理解下载、打标、归档、检索全链路，默认判定为协作流设计失败。
+- 修改范围与计划一致。
+- 测试或验证计划先于实现。
+- 目标测试和相关回归有新鲜证据。
+- 未输出真实凭证、token、认证头或签名 URL。
+- 未把目标架构写成当前事实。
+- 未新增永久治理例外。
+- 交接包含范围、契约、验证、风险和追溯信息。

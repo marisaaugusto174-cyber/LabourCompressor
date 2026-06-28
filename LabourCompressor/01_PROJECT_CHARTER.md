@@ -1,258 +1,210 @@
 # 01_PROJECT_CHARTER.md
 
-## Project Identity
+## Status
 
-- Project Name: `LabourCompressor`
-- Current Product Version: `v0.5`
-- Tech Stack: `Node.js`
-- Architecture Pattern: `Hexagonal Architecture`
-- Repository Shape: `Monorepo`
-- Dependency Gravity: `Strict Inward Dependency Only`
-- Coordination Center: `Dedicated Orchestrator Module`
-
----
-
-## Charter Goal
-
-本宪章固定 `LabourCompressor` 的物理结构、依赖方向、职责边界和 V0.5 自动分割产品化目标，避免下载、打标、归档、检索、标签迁移等能力互相直连。
-
-项目不是按页面拆分，而是按可替换能力和工作流边界拆分。
+- Project: `LabourCompressor`
+- Product Version: `v0.5`
+- Runtime: `Node.js 22+`
+- Product Shape: local-first, single-user media workflow
+- Architecture Direction: hexagonal boundaries with explicit composition roots
+- Primary Goal: stability and safety before feature breadth
 
 ---
 
-## System Identity
+## Charter Authority
 
-`LabourCompressor` 是本地优先、状态敏感、规则约束型的媒体资产工作流系统。
+本章程固定产品范围、当前架构事实、目标架构和不可突破的系统边界。
 
-它不是单一下载器，也不是单一模型打标器。系统核心价值是把高人工密度流程压缩为可重复、可追踪、可中断、可继续的本地工作流。
+治理文档按以下顺序解释：
+
+1. `01_PROJECT_CHARTER.md`：产品与架构边界。
+2. `03_STRICT_RULES.md`：当前可执行的合并门禁。
+3. `04_STATE_AND_DATA.md`：状态、SSOT 与敏感数据规则。
+4. `02_AGENTS_WORKFLOW.md`：实施和交接方式。
+5. `05_STEP_BY_STEP_PLAN.md`：技术债与迁移顺序。
+
+发生冲突时，必须先以仓库当前可验证事实为准，再按 `05_STEP_BY_STEP_PLAN.md` 推进目标架构；禁止把目标状态描述成已经完成。
+
+---
+
+## Product Identity
+
+`LabourCompressor` 是本地优先、状态敏感、规则约束型的媒体资产工作流系统。核心价值是把下载、分割、视频打标、回表和归档压缩为可重复、可追踪、可中断、可继续的本地流程。
 
 核心资产：
 
-- `V0 标签库`
-- 提示词库
-- 结构化表格记录
-- 视频归档库
-- 任务状态与失败原因
-- 平台凭证与模型配置
+- 标签库与提示词库
+- 用户表格与程序内结果表
+- 下载缓存、`AfterEdit`、`ProblemClips` 和归档媒体
+- 任务状态、失败分类和 checkpoint
+- 平台凭证引用与模型配置引用
 
-可替换边缘能力：
+外部可替换能力：
 
 - 平台下载器
+- ffmpeg / ffprobe / PySceneDetect
 - 模型 provider
-- 表格读取器
+- 表格读写器
 - 文件系统执行器
 
 ---
 
 ## V0.5 Product Goal
 
-V0.5 的目标是把自动分割作为默认主线，让用户通过 Web UI 自助完成：
+V0.5 默认主线由 Web UI 驱动：
 
-1. 平台下载凭证配置
-2. 模型 API 配置
-3. 导入表格和 Preflight
-4. 一键全流程启动
-5. 下载与自动分割
-6. 片段级视频打标、回表和归档
-7. 结果查看、失败原因和失败 CSV 导出
+1. 配置模型与平台凭证。
+2. 导入表格并执行 Preflight。
+3. 下载源视频。
+4. 自动分割为 `3-30s` 片段。
+5. 合法片段进入 `AfterEdit`，异常片段进入 `ProblemClips`。
+6. 对合法片段执行视频级打标。
+7. 多分支回表，按唯一 `内容题材` 归档。
+8. 展示结果并导出失败 CSV。
 
-V0.5 不追求功能扩散，不承诺全平台下载稳定性，不做云端账号系统、多人协作、远程素材传输、自动浏览器登录抓取 cookies、自动去水印、复杂 BI、标签检索或训练数据交付平台。
+V0.2 人工 `AfterEdit` 只作为高级兼容路径：关闭自动分割并启用人工剪辑闸门后，系统才在下载后暂停。
 
----
+V0.5 不包含：
 
-## V0.5 Automatic Workflow
-
-V0.5 主工作流必须默认连续执行。
-
-主链路：
-
-- Web UI 导入用户表。
-- Preflight 校验用户表、目录、平台凭证、模型配置和本地依赖。
-- 系统按 URL 平台选择下载凭证。
-- 下载并合并视频，标准化文件名。
-- 创建 `下载缓存目录/AfterEdit` 和 `下载缓存目录/ProblemClips`。
-- 自动分割为 `3-30s` 片段。
-- 合法片段进入视频级打标。
-- 多分支回表，按唯一 `内容题材` 归档，同步 `xlsx` 总表。
-- 失败项可读并支持失败 CSV 导出。
-
-V0.2 手动 `AfterEdit` 保留为高级兼容路径：
-
-- 用户关闭自动分割并启用人工剪辑闸门。
-- 用户在本地剪辑下载后视频。
-- 导出文件放入 `AfterEdit`。
-- 文件名遵守 `原视频标题_视频下载分辨率_下载年月日_视频时长秒数.mp4`。
-- 手动片段启动前仍校验文件名、重复项和文件存在性。
+- 云端账号、多租户或多人权限
+- 远程素材传输
+- 自动浏览器登录或自动抓取 cookies
+- 自动绕过平台风控
+- 自动去水印承诺
+- 全平台稳定下载承诺
+- 复杂 BI、训练数据交付平台或云端检索服务
 
 ---
 
-## Architecture Position
+## Supported Download Boundary
 
-系统稳定核心：
-
-- `Domain`: 业务规则与领域对象
-- `Application`: 用例与端口定义
-- `Adapters`: 外部能力接入实现
-- `Orchestrator`: 唯一跨能力编排中心
-
-高波动能力必须通过端口接入：
-
-- 内容抓取与下载
-- 音视频合并与转封装
-- 表格任务读取与回写
-- 多模态视频打标
-- 文件归档、索引与检索
-
----
-
-## Execution Semantics
-
-所有自动化动作分三层：
-
-- `Candidate`: 模型候选标签、迁移候选映射、下载候选格式
-- `Record`: 合法标签结果、归档记录、索引记录等被规则接受的结构化记录
-- `Execution`: 真正对文件系统、数据库、导出包产生副作用的动作
-
-强制规则：
-
-- `Candidate` 不得直接驱动文件系统副作用。
-- `Record` 必须可追溯到版本与来源。
-- `Execution` 只能消费 `Record`。
-- 正式标签记录允许多分支并存。
-- 归档执行只能消费唯一 `内容题材` 路径。
-- 表格回填必须保留其他正式分支，不能被归档唯一化裁剪。
-
----
-
-## Video Tagging Boundary
-
-正式视频打标必须使用模型原生视频理解能力。
-
-禁止把抽帧图片理解作为正式默认链路。抽帧只允许用于调试、实验或显式降级，并必须写入任务记录。
-
-送模前必须创建标准压缩缓存：
-
-- `360p`
-- 保持原始帧率
-- 视频 `H.264 650 kbps`
-- 音频 `AAC 64 kbps`
-- 容器 `mp4`
-- 按源文件哈希复用
-
-若压缩后仍超过模型上传安全阈值，必须明确失败，不静默改为抽帧。
-
----
-
-## Download Credential Boundary
-
-V0.5 下载凭证按平台维护，覆盖：
+当前支持的平台范围：
 
 - `Bilibili`
 - `YouTube`
 - `抖音`
 - `TikTok`
+- `小红书`
 
-每个平台支持：
+小红书 V0.5 只支持：
 
-- `cookies.txt`
-- `cookies-from-browser`
+- `/explore/<note-id>`
+- `/discovery/item/<note-id>`
+- 单笔记、单视频下载
+- `yt-dlp` 优先，明确无格式时使用本地页面解析回退
 
-凭证优先级：
+不支持小红书图文下载、主页批量采集、短链接、自动登录或批量账号采集。
 
-1. 平台级 `cookiesFilePath`
-2. 平台级 `cookiesFromBrowser`
-3. 全局 cookies 兼容回退
-
-系统不得输出、记录或测试打印真实 API key、cookies 内容、token 或其他敏感凭证。
-
-V0.5 继续以 `yt-dlp + ffmpeg` 为主，不承诺自动登录、自动绕过风控、自动去水印或全平台稳定下载；失败必须分类并提示用户下一步，并保留下载失败统计口径。
+所有平台下载均受账号状态、cookies 新鲜度、平台策略、下载器版本和网络环境影响。失败必须分类，不得宣称绕过风控。
 
 ---
 
-## Monorepo Boundary
+## Current Architecture Facts
+
+当前仓库的实际边界：
 
 ```text
 apps/
-  web/                 Web UI 与本地 HTTP 入口
-  cli/                 兼容命令入口
+  cli/                 CLI composition root 与当前流水线编排
+  cli/pipeline/        当前阶段编排实现
+  web/                 本地 HTTP、Web composition root 与任务服务
 packages/
-  core/                领域规则、端口、共享契约
-  orchestrator/        工作流编排与状态推进
-  features/            acquisition / media-processing / spreadsheet-tasks / taxonomy / tagging / archive
-  adapters/            yt-dlp / ffmpeg / xlsx / provider router / filesystem / storage
-  shared/              无业务规则的 SDK、类型、工具
-  testing/             fixtures、fakes、contract、integration、workflow tests
+  core/contracts/      核心任务与决策契约
+  features/*/domain/   领域规则
+  adapters/            外部工具、模型、表格、存储实现
+  testing/             unit / integration / governance tests
 ```
+
+当前不存在独立的 `packages/orchestrator`，任务状态当前持久化到 `.runtime-state/tasks.json`，不是 SQLite。两者均属于目标架构迁移项，不得在当前文档中描述为已完成。
+
+`apps/cli` 和 `apps/web` 可以作为 composition root 导入 adapter 并完成依赖组装；但 HTTP 路由、UI 展示逻辑和领域规则不得自行实现第三方协议、下载解析、模型调用或媒体处理细节。
 
 ---
 
-## Dependency Gravity
+## Target Architecture
 
-依赖方向只能向内：
+目标依赖方向：
 
 ```text
-apps -> orchestrator -> core/application ports -> features/contracts -> domain
-adapters -> ports/contracts
+apps -> application/orchestrator -> contracts/ports -> domain
+adapters -> contracts/ports
 shared -> no business rules
 ```
 
-禁止：
-
-- `apps/*` 直接访问数据库、模型 SDK、`yt-dlp` 或 `ffmpeg`。
-- `orchestrator` 依赖 adapter 具体实现。
-- feature 直接 import 其他 feature 的内部实现。
-- core 依赖 shared、adapters、orchestrator 或 apps。
-- shared 承载下载、打标、归档、迁移等业务规则。
+目标 `packages/orchestrator` 只负责状态推进、重试、补偿和跨能力编排，不承载下载、分割、打标或归档细节。迁移必须保持现有行为和测试，不允许为追求目录形式一次性重写系统。
 
 ---
 
-## Decision Fingerprint Standard
+## Candidate, Record, Execution
 
-关键自动结果必须携带 `DecisionFingerprint`：
+自动化数据分三层：
 
-- 标签接受结果
-- 归档结果
-- 下载合并结果
+- `Candidate`：下载格式、媒体直链、模型标签、迁移映射等尚未接受的数据。
+- `Accepted Record`：通过规则和 schema 校验的正式记录。
+- `Execution Output`：文件、表格、归档目录等副作用结果。
+
+规则：
+
+- Candidate 不得直接驱动归档、索引或正式回表。
+- Execution 必须消费已接受记录或经过明确验证的执行计划。
+- 媒体直链、认证头和带 token URL 始终是临时 Candidate，不得持久化为业务事实。
+- 回表保留多分支标签，归档只消费唯一 `内容题材`。
+
+---
+
+## Decision Fingerprint Scope
+
+当前强制范围：
+
+- 正式标签接受结果
+- 训练级或对外交付结果
+- 已接入 fingerprint 契约的归档和本地记录
+
+目标覆盖范围：
+
+- 下载与合并结果
+- 分割接受结果
 - 表格回填结果
-- 报告或导出结果
+- 报告与导出结果
 
-最小字段：
-
-- `taskId`
-- `sourceId`
-- `assetId`
-- `taxonomyVersion`
-- `provider`
-- `model`
-- `videoCacheProfile`
-- `promptVersion`
-- `createdAt`
-- `decisionType`
+未覆盖项必须登记在 `05_STEP_BY_STEP_PLAN.md`，不得伪造 fingerprint 或阻断与本任务无关的修复。
 
 ---
 
-## File Size Rule
+## Credential Boundary
 
-单文件不得超过 500 行。超过时按顺序处理：
+平台凭证按平台维护，优先级为：
 
-1. 删除重复说明、过期内容和无效注释。
-2. 在当前文件内优化结构与职责。
-3. 优化后仍超过 500 行，且存在清晰职责边界时才拆分。
+1. 平台级 `cookiesFilePath`
+2. 平台级 `cookiesFromBrowser`
+3. 请求级 cookies
+4. 全局 cookies 兼容回退
 
-禁止为了压低行数机械拆分，禁止把强相关内容拆散制造跳转成本。
+允许保存凭证引用、来源类型、校验时间和状态。禁止在日志、API 响应、报告、测试输出、快照或文档中保存真实 API key、cookies、token、认证头或签名媒体 URL。
+
+---
+
+## Incremental Governance
+
+治理规则必须可验证，并采用增量收敛：
+
+- 新文件不得超过 500 行，新函数不得超过 60 行。
+- 历史超限文件不得无理由继续增长。
+- 修改历史超限文件时，必须同步缩减职责，或在 `05_STEP_BY_STEP_PLAN.md` 登记有退出条件的拆分任务。
+- 目标能力尚未落地时，必须标记为迁移项，不得写成当前硬门禁。
+- 任何例外都必须有范围、原因、验证方式和退出条件；不得创建永久例外。
 
 ---
 
 ## Acceptance Standard
 
-V0.5 架构验收不以功能堆叠为准，而以以下事实成立为准：
+V0.5 验收要求：
 
-- Web UI 能驱动一键全流程。
-- Preflight 失败时不创建任务。
-- 主链路能完成下载、自动分割、片段级打标、回表归档和失败导出。
-- V0.2 手动 `AfterEdit` 仅作为高级兼容路径保留。
-- 视频打标默认是视频级，不默认抽帧。
-- 多分支标签可回表，归档只消费唯一 `内容题材`。
-- 平台凭证和模型凭证不泄露到日志、报告或测试输出。
-- 常见失败可分类、可恢复或可解释。
-- 目标文档和后续代码文件遵守 500 行规则。
+- Web UI 能驱动完整主线，Preflight 失败不创建任务。
+- 自动分割默认生效，人工剪辑只在兼容模式暂停。
+- 正式打标使用视频输入，不静默降级为抽帧。
+- 下载、分割、打标、回表和归档失败均可分类。
+- 平台和模型凭证不进入日志、报告、API 响应或测试输出。
+- 小红书支持范围和失败边界对用户明确。
+- 当前事实、目标架构和迁移计划保持一致。
+- 新增代码和文档遵守增量行数门禁及对应测试要求。
