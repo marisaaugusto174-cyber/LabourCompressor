@@ -88,25 +88,35 @@ test('parses initial state with undefined values and prioritizes H.264 before re
   );
 
   assert.equal(video.title, '测试标题');
-  assert.equal(video.candidates[0]?.url, 'https://media.example/1080-h264.mp4');
+  assert.deepEqual(video.candidates[0]?.urls, ['https://media.example/1080-h264.mp4']);
   assert.equal(video.candidates[0]?.codec, 'h264');
   assert.equal(video.durationSeconds, 55.52);
 });
 
-test('uses backup urls and rejects image notes with a structured error', () => {
+test('groups and deduplicates master and backup urls for one video format', () => {
   const video = extractXiaohongshuVideoFromWebpage(renderNotePage({
     streams: {
       h264: [{
-        masterUrl: 'javascript:invalid',
-        backupUrls: ['https://media.example/backup.mp4'],
+        masterUrl: 'https://media.example/master.mp4',
+        backupUrls: [
+          'https://media.example/master.mp4',
+          'javascript:invalid',
+          'https://media.example/backup.mp4'
+        ],
         videoCodec: 'h264',
         width: 720,
         height: 960
       }]
     }
   }), NOTE_ID);
-  assert.equal(video.candidates[0]?.url, 'https://media.example/backup.mp4');
 
+  assert.deepEqual(video.candidates[0]?.urls, [
+    'https://media.example/master.mp4',
+    'https://media.example/backup.mp4'
+  ]);
+});
+
+test('rejects image notes with a structured error', () => {
   assert.throws(
     () => extractXiaohongshuVideoFromWebpage(renderNotePage({ type: 'normal' }), NOTE_ID),
     (error) => extractStructuredDownloadError(error).errorCode === 'xiaohongshu-note-not-video'

@@ -7,22 +7,19 @@ import {
   type DownloadRequest
 } from '../../features/download/domain/index.ts';
 import { readNetscapeCookieHeader } from './netscape-cookies.ts';
+import {
+  extractXiaohongshuNoteId,
+  extractXiaohongshuVideoFromWebpage,
+  type XiaohongshuVideo,
+  type XiaohongshuVideoCandidate
+} from './xiaohongshu-page-parser.ts';
 
-export interface XiaohongshuVideoCandidate {
-  readonly url: string;
-  readonly codec: string;
-  readonly width: number;
-  readonly height: number;
-  readonly bitrate: number;
-  readonly fileSize: number;
-}
-
-export interface XiaohongshuVideo {
-  readonly noteId: string;
-  readonly title: string;
-  readonly durationSeconds?: number;
-  readonly candidates: readonly XiaohongshuVideoCandidate[];
-}
+export {
+  extractXiaohongshuNoteId,
+  extractXiaohongshuVideoFromWebpage,
+  type XiaohongshuVideo,
+  type XiaohongshuVideoCandidate
+} from './xiaohongshu-page-parser.ts';
 
 export interface XiaohongshuDownloaderOptions {
   readonly cookiesFilePath?: string;
@@ -30,69 +27,6 @@ export interface XiaohongshuDownloaderOptions {
   readonly downloadedAt?: () => string;
   readonly maxPageAttempts?: number;
   readonly retryDelayMs?: (attempt: number) => number;
-}
-
-type JsonObject = Record<string, unknown>;
-
-export function extractXiaohongshuNoteId(inputUrl: string): string | undefined {
-  let parsedUrl: URL;
-
-  try {
-    parsedUrl = new URL(inputUrl.trim());
-  } catch {
-    return undefined;
-  }
-
-  if (
-    parsedUrl.hostname !== 'xiaohongshu.com' &&
-    !parsedUrl.hostname.endsWith('.xiaohongshu.com')
-  ) {
-    return undefined;
-  }
-
-  const match = /^\/(?:explore|discovery\/item)\/([\da-f]+)\/?$/u.exec(parsedUrl.pathname);
-  return match?.[1];
-}
-
-export function extractXiaohongshuVideoFromWebpage(
-  html: string,
-  noteId: string
-): XiaohongshuVideo {
-  const initialState = parseInitialState(html);
-  const note = readObjectPath(initialState, ['note', 'noteDetailMap', noteId, 'note']);
-
-  if (readString(note.type).toLowerCase() !== 'video') {
-    throw createDownloadError(
-      'xiaohongshu-note-not-video',
-      '下载失败：该小红书笔记不包含视频。'
-    );
-  }
-
-  const stream = readObjectPath(note, ['video', 'media', 'stream']);
-  const candidates = Object.values(stream)
-    .flatMap((entries) => Array.isArray(entries) ? entries : [])
-    .flatMap((entry) => buildCandidates(entry))
-    .sort(compareCandidates);
-
-  if (candidates.length === 0) {
-    throw createDownloadError(
-      'xiaohongshu-video-data-unavailable',
-      '下载失败：小红书笔记页面中没有可用的视频播放信息。'
-    );
-  }
-
-  const durationMs = candidates
-    .map((candidate) => (candidate as XiaohongshuVideoCandidate & { durationMs?: number }).durationMs)
-    .find((value) => value !== undefined && value > 0);
-
-  return Object.freeze({
-    noteId,
-    title: readString(note.title) || readString(note.desc) || noteId,
-    durationSeconds: durationMs === undefined ? undefined : durationMs / 1000,
-    candidates: Object.freeze(candidates.map(({ durationMs: _durationMs, ...candidate }) =>
-      Object.freeze(candidate)
-    ))
-  });
 }
 
 export function createXiaohongshuDownloaderAdapter(
@@ -149,7 +83,7 @@ export function createXiaohongshuDownloaderAdapter(
             );
           }
 
-          const mediaResponse = await fetchImpl(selected.url, {
+          const mediaResponse = await fetchImpl(selected.urls[0] ?? '', {
             headers: MEDIA_HEADERS,
             signal: executionOptions.signal
           });
@@ -196,78 +130,6 @@ export function createXiaohongshuDownloaderAdapter(
           );
     }
   });
-}
-
-function parseInitialState(html: string): JsonObject {
-  const marker = /window\.__INITIAL_STATE__\s*=\s*/u.exec(html);
-  if (marker === null || marker.index === undefined) {
-    throw createDownloadError(
-      'xiaohongshu-page-unavailable',
-      '下载失败：小红书笔记页面缺少初始状态。'
-    );
-  }
-
-  const start = marker.index + marker[0].length;
-  const scriptEnd = html.indexOf('</script>', start);
-  const source = html
-    .slice(start, scriptEnd < 0 ? html.length : scriptEnd)
-    .trim()
-    .replace(/;\s*$/u, '')
-    .replace(/([:\[,]\s*)undefined(?=\s*[,}\]])/gu, '$1null');
-
-  try {
-    const parsed = JSON.parse(source);
-    if (isObject(parsed)) {
-      return parsed;
-    }
-  } catch {
-    throw createDownloadError(
-      'xiaohongshu-page-unavailable',
-      '下载失败：小红书笔记页面初始状态无法解析。'
-    );
-  }
-
-  throw createDownloadError(
-    'xiaohongshu-page-unavailable',
-    '下载失败：小红书笔记页面初始状态结构异常。'
-  );
-}
-
-function buildCandidates(input: unknown): readonly (XiaohongshuVideoCandidate & {
-  readonly durationMs?: number;
-})[] {
-  if (!isObject(input)) {
-    return [];
-  }
-
-  const urls = [input.masterUrl, ...(Array.isArray(input.backupUrls) ? input.backupUrls : [])]
-    .map(readString)
-    .filter(isHttpUrl);
-  const codec = readString(input.videoCodec).toLowerCase();
-  const durationMs = readPositiveNumber(input.duration);
-
-  return urls.map((url) => Object.freeze({
-    url,
-    codec,
-    width: readPositiveNumber(input.width) ?? 0,
-    height: readPositiveNumber(input.height) ?? 0,
-    bitrate: readPositiveNumber(input.videoBitrate) ?? readPositiveNumber(input.avgBitrate) ?? 0,
-    fileSize: readPositiveNumber(input.size) ?? 0,
-    durationMs
-  }));
-}
-
-function compareCandidates(
-  left: XiaohongshuVideoCandidate,
-  right: XiaohongshuVideoCandidate
-): number {
-  return (
-    Number(isH264(right.codec)) - Number(isH264(left.codec)) ||
-    right.height - left.height ||
-    right.width - left.width ||
-    right.bitrate - left.bitrate ||
-    right.fileSize - left.fileSize
-  );
 }
 
 async function writeMediaResponse(input: {
@@ -349,20 +211,6 @@ async function buildPageHeaders(
   return Object.freeze(headers);
 }
 
-function readObjectPath(input: unknown, keys: readonly string[]): JsonObject {
-  let current = input;
-  for (const key of keys) {
-    if (!isObject(current) || !isObject(current[key])) {
-      throw createDownloadError(
-        'xiaohongshu-page-unavailable',
-        '下载失败：小红书笔记页面缺少必要数据。'
-      );
-    }
-    current = current[key];
-  }
-  return current as JsonObject;
-}
-
 function isRetryable(error: unknown): boolean {
   if (isObject(error) && typeof error.retryable === 'boolean') {
     return error.retryable;
@@ -410,30 +258,13 @@ async function delay(milliseconds: number, signal: AbortSignal | undefined): Pro
   });
 }
 
-function isObject(input: unknown): input is JsonObject {
+function isObject(input: unknown): input is Record<string, unknown> {
   return typeof input === 'object' && input !== null && !Array.isArray(input);
-}
-
-function readString(input: unknown): string {
-  return typeof input === 'string' ? input.trim() : '';
 }
 
 function readPositiveNumber(input: unknown): number | undefined {
   const value = Number(input);
   return Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function isHttpUrl(input: string): boolean {
-  try {
-    const url = new URL(input);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function isH264(codec: string): boolean {
-  return codec.includes('h264') || codec.includes('avc');
 }
 
 const DEFAULT_USER_AGENT =
