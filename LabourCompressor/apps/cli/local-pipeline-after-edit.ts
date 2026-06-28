@@ -1,7 +1,11 @@
 import path from 'node:path';
 import { access, readFile } from 'node:fs/promises';
 
-import { type DownloadedMediaAsset, type PlatformCredentialConfig } from '../../packages/features/download/domain/index.ts';
+import {
+  sanitizePlatformUrlForOutput,
+  type DownloadedMediaAsset,
+  type PlatformCredentialConfig
+} from '../../packages/features/download/domain/index.ts';
 import { type SpreadsheetTaskRow } from '../../packages/features/spreadsheet-tasks/domain/index.ts';
 import {
   STANDARDIZED_VIDEO_FILE_NAME_PATTERN,
@@ -362,7 +366,7 @@ export function isDownloadAlreadySatisfied(row: SpreadsheetTaskRow): boolean {
 export function toResultItem(state: PipelineRowState): RunLocalPipelineItemResult {
   return Object.freeze({
     rowNumber: state.rowNumber,
-    url: state.url,
+    url: sanitizePlatformUrlForOutput(state.url),
     collector: state.collector,
     archiveState: state.archiveState,
     levelValues: state.levelValues,

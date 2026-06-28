@@ -4,15 +4,15 @@
 
 - Project: `LabourCompressor`
 - Product Version: `v0.5`
-- Current Persistence: JSON runtime state + filesystem + xlsx
-- Target Persistence: storage port with optional SQLite implementation
+- Current Persistence: JSON-default storage port + optional SQLite + filesystem + xlsx
+- Storage Selection: `LABOUR_COMPRESSOR_TASK_STORE=json|sqlite`
 - Primary Goal: state discipline and sensitive-data containment
 
 ---
 
 ## Mission
 
-本文件定义当前真相来源、状态语义、数据分区和一致性规则。当前实现与目标实现必须分开描述，禁止把 SQLite、独立 orchestrator 或尚未接入的记录类型写成现状。
+本文件定义当前真相来源、状态语义、数据分区和一致性规则。可选 SQLite 只覆盖运行任务快照；尚未接入的媒体、标签和归档索引不得描述为已持久化。
 
 ---
 
@@ -38,13 +38,13 @@
 
 ### Runtime Task State
 
-当前 Web 任务状态保存在：
+默认 Web 任务状态保存在：
 
 ```text
 .runtime-state/tasks.json
 ```
 
-它是当前 Web 任务恢复、控制和状态展示的 SSOT。UI 内存状态不是事实，服务重启后必须从该文件恢复并与文件系统产物核对。
+显式设置 `LABOUR_COMPRESSOR_TASK_STORE=sqlite` 时，任务状态保存在 `.runtime-state/tasks.sqlite` 或 `LABOUR_COMPRESSOR_TASK_DB_PATH` 指定路径。当前选中的 store 是 Web 任务恢复、控制和状态展示的 SSOT；UI 内存状态不是事实。系统不自动迁移 JSON。
 
 ### Filesystem
 
@@ -74,24 +74,18 @@
 
 ---
 
-## Target Storage Direction
+## Storage Port and Remaining Direction
 
-SQLite 当前未接入，不是现有 SSOT。
+运行任务 store port、JSON adapter、可选 SQLite adapter 和显式迁移工具已经接入。JSON 使用原子 rename；SQLite 使用 WAL、busy timeout 和 `BEGIN IMMEDIATE` 快照事务。
 
-目标是通过 storage port 持久化：
+尚未完成的扩展目标是通过独立 storage contracts 持久化：
 
 - 任务和 checkpoint
 - 媒体、分割和归档索引
 - 标签版本与 DecisionFingerprint
 - 正式标签赋值和调用报告标识
 
-迁移必须满足：
-
-1. 先定义 storage contract。
-2. 为 JSON 当前实现建立兼容 adapter。
-3. 增加 SQLite adapter 和迁移测试。
-4. 验证恢复、幂等和冲突处理。
-5. 完成切换后才修改本文件的当前 SSOT 声明。
+这些索引不得复用运行任务 payload 表冒充正式领域存储；进入施工前必须另行定义 schema、冲突策略和迁移门禁。
 
 ---
 
@@ -175,7 +169,7 @@ queued
 - 持久化 `MediaAsset` / `SegmentRecord` / `ProblemClipRecord`
 - storage-backed `ArchiveRecord` 和查询索引
 
-目标记录尚未形成统一持久层时，应描述为迁移目标，不得假设可从 SQLite 查询。
+目标记录尚未形成统一持久层时，应描述为迁移目标；当前 SQLite 只能查询运行任务快照。
 
 ---
 
@@ -290,7 +284,7 @@ URL 分为：
 
 恢复顺序：
 
-1. 读取 `.runtime-state/tasks.json`。
+1. 根据 `LABOUR_COMPRESSOR_TASK_STORE` 读取 JSON 或 SQLite 运行任务 store。
 2. 验证 checkpoint 声称的文件产物。
 3. 读取相关表格行状态。
 4. 比对任务、文件和表格。

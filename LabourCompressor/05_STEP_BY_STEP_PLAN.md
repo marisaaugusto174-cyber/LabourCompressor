@@ -4,15 +4,15 @@
 
 - Project: `LabourCompressor`
 - Product Version: `v0.5`
-- Current Priority: GOV-003 application integration boundaries
-- Completed Gates: Phase 0, GOV-004
+- Current Priority: governance program completed; maintain gates
+- Completed Gates: Phase 0, GOV-001, GOV-002, GOV-003, GOV-004, GOV-005, GOV-006
 - Planning Rule: current facts first, incremental gates, no hidden debt
 
 ---
 
 ## Purpose
 
-本文件只记录尚未完成的治理和迁移工作。已经稳定运行的 V0.5 功能不在此重复描述。
+本文件记录治理债务的施工边界与完成证据。已完成项目保留简要证据，新的债务必须另行登记后才能施工。
 
 每项治理债务必须包含：
 
@@ -51,15 +51,15 @@ Web UI
 
 当前持久化：
 
-- `.runtime-state/tasks.json`
+- 默认 `.runtime-state/tasks.json`
+- 显式启用的可选 `.runtime-state/tasks.sqlite`
 - 文件系统媒体和归档产物
 - 用户表和程序内 xlsx
 
 当前编排：
 
-- `apps/cli/pipeline/**`
-- `apps/cli/local-pipeline-*.ts`
-- `apps/web/task-service.ts`
+- `packages/orchestrator/**`
+- apps composition roots 注入 stage ports、task store 和 CLI/Web DTO
 
 ---
 
@@ -77,7 +77,7 @@ Web UI
 
 - 五份文档均少于 500 行。
 - 不再存在失效绝对路径或虚构现有目录。
-- SQLite 和独立 orchestrator 明确为目标，不描述为现状。
+- SQLite 和独立 orchestrator 的描述与当时仓库事实一致。
 - 默认自动分割与人工兼容闸门不再冲突。
 - 五份文档统一包含小红书有限支持范围。
 - 当前门禁与迁移债务明确分区。
@@ -139,6 +139,15 @@ Completed on 2026-06-28:
 - CLI 的 `all`、`resume-cache` 和单阶段路径统一通过 execution plan，segment transition 保持 AfterEdit 输入切换。
 - Web task service 缩减为 CLI composition facade；orchestrator 不导入 apps 或 adapter。
 - 针对性测试 17/17、完整回归 403/403 通过。
+
+### GOV-006: Storage Port and Optional SQLite
+
+Completed on 2026-06-28:
+
+- 新增 runtime task store port、JSON 原子 adapter 和 opt-in SQLite adapter。
+- SQLite 使用 WAL、busy timeout、状态/时间索引和 `BEGIN IMMEDIATE` 快照事务。
+- 新增默认 dry-run 的 JSON→SQLite 迁移工具，覆盖备份、覆盖拒绝、SHA-256 校验与失败恢复。
+- storage/orchestrator/任务服务针对性测试 20/20、完整回归 421/421 通过。
 
 ---
 
@@ -272,11 +281,11 @@ node --test packages/testing/integration/phase5/*.test.ts
 
 ---
 
-## GOV-006: Storage Port and Optional SQLite
+## GOV-006: Storage Port and Optional SQLite [completed]
 
 ### Current Facts
 
-`.runtime-state/tasks.json` 是当前任务状态 SSOT；SQLite 未接入。
+JSON 是默认任务状态 SSOT；SQLite 可通过环境变量显式启用，不自动迁移。
 
 ### Entry Condition
 
@@ -315,7 +324,7 @@ npm run test:taxonomy-domain
 4. [completed] GOV-001 全量收敛超大文件。
 5. [completed] GOV-002 建立 typecheck 门禁。
 6. [completed] GOV-005 迁移 orchestrator。
-7. [current] GOV-006 接入 storage port 与可选 SQLite。
+7. [completed] GOV-006 接入 storage port 与可选 SQLite。
 
 如果前置条件不满足，不得跳级实施后续目标。
 

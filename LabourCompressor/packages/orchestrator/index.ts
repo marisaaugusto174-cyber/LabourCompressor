@@ -21,3 +21,6 @@ export type {
   RuntimeTaskSnapshot,
   RuntimeTaskStatus
 } from './runtime-task-service.ts';
+
+export { RuntimeTaskStoreError } from './runtime-task-store.ts';
+export type { RuntimeTaskStore } from './runtime-task-store.ts';

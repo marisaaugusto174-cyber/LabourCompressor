@@ -111,11 +111,12 @@ apps/
 packages/
   core/contracts/      核心任务与决策契约
   features/*/domain/   领域规则
+  orchestrator/        阶段计划、checkpoint 与运行任务生命周期
   adapters/            外部工具、模型、表格、存储实现
   testing/             unit / integration / governance tests
 ```
 
-当前不存在独立的 `packages/orchestrator`，任务状态当前持久化到 `.runtime-state/tasks.json`，不是 SQLite。两者均属于目标架构迁移项，不得在当前文档中描述为已完成。
+`packages/orchestrator` 已负责 `download -> segment -> compress -> tag -> archive` 执行计划和 Web 运行任务生命周期。任务状态默认持久化到 `.runtime-state/tasks.json`；显式设置 `LABOUR_COMPRESSOR_TASK_STORE=sqlite` 时使用可选 SQLite adapter。JSON 仍是默认 SSOT，不自动迁移用户数据。
 
 `apps/cli` 和 `apps/web` 可以作为 composition root 导入 adapter 并完成依赖组装；但 HTTP 路由、UI 展示逻辑和领域规则不得自行实现第三方协议、下载解析、模型调用或媒体处理细节。
 
@@ -131,7 +132,7 @@ adapters -> contracts/ports
 shared -> no business rules
 ```
 
-目标 `packages/orchestrator` 只负责状态推进、重试、补偿和跨能力编排，不承载下载、分割、打标或归档细节。迁移必须保持现有行为和测试，不允许为追求目录形式一次性重写系统。
+`packages/orchestrator` 只负责状态推进、checkpoint、transition hook 和跨能力编排，不承载下载、分割、打标、归档或存储协议细节。后续扩展必须保持该依赖方向。
 
 ---
 

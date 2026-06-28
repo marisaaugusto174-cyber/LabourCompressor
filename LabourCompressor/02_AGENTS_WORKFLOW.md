@@ -165,12 +165,13 @@
 - `apps/web/api/**`
 - `apps/web/task-service.ts`
 - `apps/web/runtime-support-*.ts`
+- `packages/orchestrator/**`
 - `packages/testing/unit/cli/**`
 - `packages/testing/unit/web/**`
 
 职责：composition root、依赖组装、任务推进、HTTP 边界和用户可见状态。
 
-apps 可以组装 adapter，但业务规则和第三方协议实现应留在 feature 或 adapter。当前尚无 `packages/orchestrator`；只有经批准的迁移计划可以创建并迁移职责。
+apps 可以组装 adapter；阶段顺序、checkpoint 和运行任务生命周期位于 `packages/orchestrator`，业务规则和第三方协议实现留在 feature 或 adapter。修改编排必须同时提供 characterization tests 和 adapter-free 边界证据。
 
 ### QA and Governance Work
 

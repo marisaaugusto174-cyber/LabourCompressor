@@ -9,7 +9,7 @@ import {
 } from '../cli/pipeline/options.ts';
 import { projectPath } from '../cli/project-paths.ts';
 import { dispatchWebRoute } from './api/routes/index.ts';
-import { createRuntimeTaskService } from './task-service.ts';
+import { createConfiguredRuntimeTaskService } from './task-service.ts';
 import {
   ensureDouyinCredentialFallback,
   ensureDefaultMasterSpreadsheet,
@@ -26,8 +26,8 @@ const DEFAULT_CACHE_ROOT = projectPath('.cache/video-tagging');
 const UPLOADS_DIR = projectPath('.runtime-uploads');
 const RUNTIME_TASK_STATE_FILE = projectPath('.runtime-state/tasks.json');
 
-const taskService = createRuntimeTaskService({
-  stateFilePath: RUNTIME_TASK_STATE_FILE
+const taskService = await createConfiguredRuntimeTaskService({
+  defaultJsonPath: RUNTIME_TASK_STATE_FILE
 });
 
 await ensureFirstRunLocalState({

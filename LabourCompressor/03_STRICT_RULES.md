@@ -250,6 +250,16 @@ DecisionFingerprint 的当前和目标覆盖范围以 `01_PROJECT_CHARTER.md` �
 
 ---
 
+## Runtime Task Storage Gate
+
+- 默认任务存储必须保持 JSON，不得静默切换 SQLite 或自动迁移用户状态。
+- JSON 快照必须通过同目录临时文件和原子 rename 写入；解析失败不得覆盖原文件。
+- SQLite 只能显式启用，快照写入必须位于 `BEGIN IMMEDIATE` 事务内并在失败时回滚。
+- JSON 到 SQLite 迁移默认 dry-run；写入前备份 JSON，并校验数量、ID 集合和 payload SHA-256。
+- store 和迁移错误必须分类，不得把 payload、cookies、token 或签名 URL写入日志。
+
+---
+
 ## Size Ratchet
 
 新文件不得超过 500 行，新函数不得超过 60 行。

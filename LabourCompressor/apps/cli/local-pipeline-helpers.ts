@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { appendRowsToMasterSpreadsheet, writeTagResultsToSpreadsheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { type SimulatedDownloadFixture } from '../../packages/adapters/downloaders/simulated-downloader.ts';
 import { type SpreadsheetTaskRow } from '../../packages/features/spreadsheet-tasks/domain/index.ts';
+import { sanitizePlatformUrlForOutput } from '../../packages/features/download/domain/index.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
@@ -222,7 +223,7 @@ export function createFailureRowState(input: {
 }): PipelineRowState {
   return {
     rowNumber: input.row.rowNumber,
-    url: input.row.url,
+    url: sanitizePlatformUrlForOutput(input.row.url),
     collector: input.row.values['采集人'] ?? '',
     archiveState: input.archiveState,
     levelValues: emptyLevelValues(),
@@ -242,7 +243,7 @@ export function buildFailure(input: {
 }): RunLocalPipelineFailure {
   return Object.freeze({
     rowNumber: input.row.rowNumber,
-    url: input.row.url,
+    url: sanitizePlatformUrlForOutput(input.row.url),
     phase: input.phase,
     errorCode: input.errorCode,
     errorMessage: input.errorMessage,
