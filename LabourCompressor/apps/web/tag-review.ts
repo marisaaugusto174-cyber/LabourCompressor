@@ -1,106 +1,22 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  type LabelStudioImportPackage, type ParsedRange, type TagReviewFileEntry,
+  type TagReviewInvalidJsonFile, type TagReviewItem, type TagReviewScanResult,
+  type TagReviewStateFile, type TagReviewStateItem, type TagReviewTaggingSummary,
+  type WriteTagReviewStateInput
+} from './tag-review-types.ts';
+import { parseRangeHeader, resolveTagReviewMediaPath } from './tag-review-media.ts';
+
+export * from './tag-review-types.ts';
+export { parseRangeHeader, resolveTagReviewMediaPath } from './tag-review-media.ts';
 
 export const TAG_REVIEW_STATE_FILE_NAME = '_tag-review-state.json';
 
 const VIDEO_FILE_NAME_PATTERN = /\.(mp4|mov|m4v|mkv|avi|webm)$/iu;
 const JSON_FILE_NAME_PATTERN = /\.json$/iu;
 const REVIEW_STATUSES = new Set(['通过', '需修改', '跳过']);
-
-export interface TagReviewScanResult {
-  readonly directoryPath: string;
-  readonly pairedItems: readonly TagReviewItem[];
-  readonly unpairedVideos: readonly TagReviewFileEntry[];
-  readonly orphanJsonFiles: readonly TagReviewFileEntry[];
-  readonly invalidJsonFiles: readonly TagReviewInvalidJsonFile[];
-  readonly state: TagReviewStateFile | null;
-}
-
-export interface TagReviewItem {
-  readonly reviewItemId: string;
-  readonly stem: string;
-  readonly relativeDirectory: string;
-  readonly videoFileName: string;
-  readonly jsonFileName: string;
-  readonly videoRelativePath: string;
-  readonly jsonRelativePath: string;
-  readonly tagging: TagReviewTaggingSummary;
-  readonly reviewStatus?: string;
-  readonly reviewNote?: string;
-  readonly labelStudioTaskId?: string | number;
-}
-
-export interface TagReviewFileEntry {
-  readonly fileName: string;
-  readonly relativePath: string;
-  readonly relativeDirectory: string;
-}
-
-export interface TagReviewInvalidJsonFile extends TagReviewFileEntry {
-  readonly errorMessage: string;
-}
-
-export interface TagReviewTaggingSummary {
-  readonly taxonomyVersion: string;
-  readonly segmentId: string;
-  readonly reviewRequired: boolean;
-  readonly reviewReason: string;
-  readonly tags: readonly TagReviewTagSummary[];
-}
-
-export interface TagReviewTagSummary {
-  readonly dimension: string;
-  readonly labelPath: readonly string[];
-  readonly selectedLevel: string;
-  readonly tagRole: string;
-  readonly entityId: string;
-  readonly targetEntityId: string;
-  readonly evidenceType: string;
-  readonly confidenceScore?: number;
-  readonly evidenceNote: string;
-}
-
-export interface LabelStudioImportPackage {
-  readonly labelConfig: string;
-  readonly tasks: readonly LabelStudioImportTask[];
-  readonly taskCount: number;
-}
-
-export interface LabelStudioImportTask {
-  readonly data: Readonly<Record<string, unknown>>;
-}
-
-export interface TagReviewStateFile {
-  readonly version: 1;
-  readonly source: 'label-studio';
-  readonly syncedAt: string;
-  readonly items: Readonly<Record<string, TagReviewStateItem>>;
-}
-
-export interface TagReviewStateItem {
-  readonly reviewItemId: string;
-  readonly videoRelativePath: string;
-  readonly jsonRelativePath: string;
-  readonly labelStudioTaskId?: string | number;
-  readonly status: string;
-  readonly note: string;
-  readonly syncedAt: string;
-}
-
-export interface WriteTagReviewStateInput {
-  readonly directoryPath: string;
-  readonly syncedAt: string;
-  readonly items: readonly TagReviewStateItem[];
-}
-
-export interface ParsedRange {
-  readonly start: number;
-  readonly end: number;
-  readonly statusCode: 200 | 206;
-  readonly contentLength: number;
-  readonly contentRange?: string;
-}
 
 interface ScannedVideoFile extends TagReviewFileEntry {
   readonly filePath: string;
@@ -331,108 +247,6 @@ export async function writeTagReviewState(input: WriteTagReviewStateInput): Prom
   return state;
 }
 
-export function parseRangeHeader(rangeHeader: string | undefined, fileSize: number): ParsedRange {
-  if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
-    throw new Error(`Invalid file size: ${fileSize}`);
-  }
-
-  if (rangeHeader === undefined || rangeHeader.trim().length === 0) {
-    return Object.freeze({
-      start: 0,
-      end: Math.max(0, fileSize - 1),
-      statusCode: 200,
-      contentLength: fileSize,
-      contentRange: undefined
-    });
-  }
-
-  const match = /^bytes=(\d*)-(\d*)$/u.exec(rangeHeader.trim());
-
-  if (match === null) {
-    throw new Error(`Invalid range header: ${rangeHeader}`);
-  }
-
-  const startText = match[1] ?? '';
-  const endText = match[2] ?? '';
-
-  if (startText.length === 0 && endText.length === 0) {
-    throw new Error(`Invalid range header: ${rangeHeader}`);
-  }
-
-  let start: number;
-  let end: number;
-
-  if (startText.length === 0) {
-    const suffixLength = Number(endText);
-
-    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
-      throw new Error(`Invalid range header: ${rangeHeader}`);
-    }
-
-    start = Math.max(fileSize - suffixLength, 0);
-    end = Math.max(fileSize - 1, 0);
-  } else {
-    start = Number(startText);
-    end = endText.length > 0 ? Number(endText) : fileSize - 1;
-  }
-
-  if (
-    !Number.isSafeInteger(start) ||
-    !Number.isSafeInteger(end) ||
-    start < 0 ||
-    end < start ||
-    start >= fileSize
-  ) {
-    throw new Error(`Invalid range header: ${rangeHeader}`);
-  }
-
-  end = Math.min(end, fileSize - 1);
-
-  return Object.freeze({
-    start,
-    end,
-    statusCode: 206,
-    contentLength: end - start + 1,
-    contentRange: `bytes ${start}-${end}/${fileSize}`
-  });
-}
-
-export async function resolveTagReviewMediaPath(input: {
-  readonly directoryPath: string;
-  readonly relativePath: string;
-}): Promise<{
-  readonly filePath: string;
-  readonly fileSize: number;
-  readonly contentType: string;
-}> {
-  if (path.isAbsolute(input.relativePath)) {
-    throw new Error('Media relativePath must not be absolute.');
-  }
-
-  if (!VIDEO_FILE_NAME_PATTERN.test(input.relativePath)) {
-    throw new Error('Media relativePath must point to a supported video file.');
-  }
-
-  const directoryPath = path.resolve(input.directoryPath);
-  const filePath = path.resolve(directoryPath, input.relativePath);
-
-  if (!isInsideDirectory(directoryPath, filePath)) {
-    throw new Error('Media relativePath escapes the selected directory.');
-  }
-
-  const fileStat = await stat(filePath);
-
-  if (!fileStat.isFile()) {
-    throw new Error('Media path is not a file.');
-  }
-
-  return Object.freeze({
-    filePath,
-    fileSize: fileStat.size,
-    contentType: contentTypeForVideo(filePath)
-  });
-}
-
 function normalizeTaggingJson(value: unknown): TagReviewTaggingSummary {
   const record = isRecord(value) ? value : {};
   const tags = Array.isArray(record.tags)
@@ -628,26 +442,6 @@ function sortByRelativePath<T extends { readonly relativePath: string }>(items: 
 function toPortableRelativePath(rootDirectory: string, filePath: string): string {
   const relativePath = path.relative(rootDirectory, filePath);
   return relativePath.length === 0 ? '' : relativePath.split(path.sep).join('/');
-}
-
-function isInsideDirectory(rootDirectory: string, filePath: string): boolean {
-  const relativePath = path.relative(rootDirectory, filePath);
-  return relativePath.length === 0 ||
-    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
-}
-
-function contentTypeForVideo(filePath: string): string {
-  const extension = path.extname(filePath).toLowerCase();
-  const mapping: Readonly<Record<string, string>> = {
-    '.mp4': 'video/mp4',
-    '.m4v': 'video/mp4',
-    '.mov': 'video/quicktime',
-    '.webm': 'video/webm',
-    '.mkv': 'video/x-matroska',
-    '.avi': 'video/x-msvideo'
-  };
-
-  return mapping[extension] ?? 'application/octet-stream';
 }
 
 function formatConfidence(value: number | undefined): string {

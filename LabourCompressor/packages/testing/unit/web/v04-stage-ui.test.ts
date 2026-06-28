@@ -10,6 +10,12 @@ const html = readFileSync(
 const appJs = readFileSync(
   path.join(process.cwd(), 'apps/web/public/app.js'),
   'utf8'
+) + readFileSync(
+  path.join(process.cwd(), 'apps/web/public/app-configuration.js'),
+  'utf8'
+) + readFileSync(
+  path.join(process.cwd(), 'apps/web/public/app-layout.js'),
+  'utf8'
 );
 const css = readFileSync(
   path.join(process.cwd(), 'apps/web/public/styles.css'),

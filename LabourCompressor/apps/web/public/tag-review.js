@@ -1,9 +1,7 @@
 import { apiGet, apiPost, buildDebugJson } from './api-client.js';
 import { escapeHtml } from './form-state.js';
-
-const INITIAL_RENDER_COUNT = 36;
-const RENDER_BATCH_SIZE = 24;
-
+import { getItemRelativePath, getItemTitle, renderCardTags, renderDecisionLabel, renderDetailTags, renderReviewStatus } from './tag-review-renderers.js';
+const INITIAL_RENDER_COUNT = 36, RENDER_BATCH_SIZE = 24;
 const refs = {
   fileProtocolWarning: document.querySelector('#file-protocol-warning'),
   modeTagReview: document.querySelector('#mode-tag-review'),
@@ -43,24 +41,20 @@ const refs = {
   diagnosticsList: document.querySelector('#diagnostics-list'),
   reviewOutput: document.querySelector('#review-output')
 };
-
 let currentMode = 'tag-review';
 let currentScan = null;
 let currentItems = [];
 let renderedCount = 0;
 let selectedIndex = -1;
 let videoObserver = null;
-
 boot().catch((error) => {
   showDiagnostics([{ severity: 'error', message: error.message }]);
 });
-
 async function boot() {
   if (location.protocol === 'file:') {
     refs.fileProtocolWarning.classList.remove('hidden');
     return;
   }
-
   const defaultsPayload = await apiGet('/api/defaults');
   refs.reviewDirectory.value = [
     defaultsPayload.defaults?.downloadDir,
@@ -70,7 +64,6 @@ async function boot() {
   refs.labelStudioProjectTitle.value = 'Tag Review AfterEdit';
   bindActions();
 }
-
 function bindActions() {
   refs.modeTagReview.addEventListener('click', () => setReviewMode('tag-review'));
   refs.modeProblemReview.addEventListener('click', () => setReviewMode('problem-review'));
@@ -104,12 +97,10 @@ function bindActions() {
   window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
   updateModeState();
 }
-
 function setReviewMode(mode) {
   if (currentMode === mode) {
     return;
   }
-
   currentMode = mode;
   currentScan = null;
   currentItems = [];
@@ -122,7 +113,6 @@ function setReviewMode(mode) {
   refs.reviewOutput.textContent = '';
   updateModeState();
 }
-
 function updateModeState() {
   const isProblemMode = currentMode === 'problem-review';
   refs.modeTagReview.classList.toggle('secondary-button', isProblemMode);
@@ -131,21 +121,17 @@ function updateModeState() {
   refs.modeProblemReview.setAttribute('aria-pressed', String(isProblemMode));
   updateActionState();
 }
-
 async function chooseReviewDirectory() {
   const payload = await apiPost('/api/dialog/open-folder', {
     prompt: '选择待质检文件夹',
     defaultPath: refs.reviewDirectory.value.trim() || undefined
   });
-
   if (!payload.cancelled && typeof payload.path === 'string' && payload.path.length > 0) {
     refs.reviewDirectory.value = payload.path;
   }
 }
-
 async function scanDirectory() {
   const directoryPath = requireDirectoryPath();
-
   refs.reviewOutput.textContent = '正在扫描...';
   const payload = await apiPost(
     currentMode === 'problem-review' ? '/api/review-queue/scan' : '/api/tag-review/scan',
@@ -157,7 +143,6 @@ async function scanDirectory() {
     : payload.pairedItems ?? [];
   renderedCount = 0;
   selectedIndex = -1;
-
   renderSummary(payload);
   renderDiagnostics(payload);
   resetGrid();
@@ -165,7 +150,6 @@ async function scanDirectory() {
   updateActionState();
   refs.reviewOutput.textContent = buildDebugJson(buildScanDebugPayload(payload));
 }
-
 function renderSummary(payload) {
   if (currentMode === 'problem-review') {
     const items = payload.items ?? [];
@@ -175,13 +159,11 @@ function renderSummary(payload) {
     refs.summaryInvalidJson.textContent = String(items.filter((item) => item.decision === 'manual-retry' || item.decision === 'keep-problem').length);
     return;
   }
-
   refs.summaryPaired.textContent = String(payload.pairedItems?.length ?? 0);
   refs.summaryUnpairedVideos.textContent = String(payload.unpairedVideos?.length ?? 0);
   refs.summaryOrphanJson.textContent = String(payload.orphanJsonFiles?.length ?? 0);
   refs.summaryInvalidJson.textContent = String(payload.invalidJsonFiles?.length ?? 0);
 }
-
 function renderDiagnostics(payload) {
   if (currentMode === 'problem-review') {
     const rows = (payload.items ?? []).map((item) => ({
@@ -189,11 +171,9 @@ function renderDiagnostics(payload) {
       path: item.relativePath ?? item.fileName ?? '—',
       detail: item.decision ?? item.reason ?? '—'
     }));
-
     renderDiagnosticsRows(rows);
     return;
   }
-
   const rows = [
     ...(payload.unpairedVideos ?? []).map((item) => ({
       kind: '无 JSON 视频',
@@ -211,17 +191,14 @@ function renderDiagnostics(payload) {
       detail: item.errorMessage ?? 'JSON 解析失败'
     }))
   ];
-
   renderDiagnosticsRows(rows);
 }
-
 function renderDiagnosticsRows(rows) {
   if (rows.length === 0) {
     refs.diagnosticsList.classList.add('empty-state');
     refs.diagnosticsList.innerHTML = '<p>—</p>';
     return;
   }
-
   refs.diagnosticsList.classList.remove('empty-state');
   refs.diagnosticsList.innerHTML = `
     <div class="task-list-header review-diagnostics-header">
@@ -238,7 +215,6 @@ function renderDiagnosticsRows(rows) {
     `).join('')}
   `;
 }
-
 function buildScanDebugPayload(payload) {
   if (currentMode === 'problem-review') {
     return {
@@ -247,7 +223,6 @@ function buildScanDebugPayload(payload) {
       stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
     };
   }
-
   return {
     directoryPath: payload.directoryPath,
     pairedItems: payload.pairedItems?.length ?? 0,
@@ -257,7 +232,6 @@ function buildScanDebugPayload(payload) {
     stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
   };
 }
-
 function resetGrid() {
   disconnectVideoObserver();
   refs.reviewGrid.classList.toggle('empty-state', currentItems.length === 0);
@@ -268,25 +242,20 @@ function resetGrid() {
     rootMargin: '360px 0px'
   });
 }
-
 function renderMoreItems(count = RENDER_BATCH_SIZE) {
   if (currentItems.length === 0) {
     updateActionState();
     return;
   }
-
   const end = Math.min(renderedCount + count, currentItems.length);
   const fragment = document.createDocumentFragment();
-
   for (let index = renderedCount; index < end; index += 1) {
     fragment.appendChild(buildCard(currentItems[index], index));
   }
-
   refs.reviewGrid.appendChild(fragment);
   renderedCount = end;
   updateActionState();
 }
-
 function buildCard(item, index) {
   const card = document.createElement('article');
   card.className = 'review-card';
@@ -297,12 +266,12 @@ function buildCard(item, index) {
     </div>
     <div class="review-card-body">
       <div class="review-card-title">
-        <strong>${escapeHtml(getItemTitle(item))}</strong>
-        ${renderReviewStatus(item)}
+        <strong>${escapeHtml(getItemTitle(item, currentMode))}</strong>
+        ${renderReviewStatus(item, currentMode)}
       </div>
-      <div class="review-card-meta">${escapeHtml(getItemRelativePath(item))}</div>
+      <div class="review-card-meta">${escapeHtml(getItemRelativePath(item, currentMode))}</div>
       <div class="review-card-tags">
-        ${renderCardTags(item)}
+        ${renderCardTags(item, currentMode)}
       </div>
     </div>
   `;
@@ -318,63 +287,18 @@ function buildCard(item, index) {
   }
   return card;
 }
-
-function renderReviewStatus(item) {
-  if (currentMode === 'problem-review') {
-    if (item.decision === 'discard') {
-      return '<span class="stage-pill stage-failed">丢弃</span>';
-    }
-    if (item.decision === 'keep-afteredit') {
-      return '<span class="stage-pill stage-succeeded">AfterEdit</span>';
-    }
-    if (item.decision) {
-      return `<span class="stage-pill stage-running">${escapeHtml(renderDecisionLabel(item.decision))}</span>`;
-    }
-    return '<span class="stage-pill stage-running">待复查</span>';
-  }
-
-  const status = item.reviewStatus;
-  if (!status) {
-    return '<span class="stage-pill stage-running">未同步</span>';
-  }
-  if (status === '通过') {
-    return '<span class="stage-pill stage-succeeded">通过</span>';
-  }
-  if (status === '需修改') {
-    return '<span class="stage-pill stage-failed">需修改</span>';
-  }
-  return `<span class="stage-pill stage-running">${escapeHtml(status)}</span>`;
-}
-
-function renderCardTags(item) {
-  if (currentMode === 'problem-review') {
-    return [
-      item.phase,
-      item.errorCode,
-      item.nextStage
-    ].filter(Boolean).map((value) => `<span>${escapeHtml(value)}</span>`).join('');
-  }
-
-  return (item.tagging?.tags ?? []).slice(0, 3).map((tag) => `
-    <span>${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</span>
-  `).join('');
-}
-
 function handleVideoIntersection(entries) {
   for (const entry of entries) {
     const video = entry.target;
-
     if (!(video instanceof HTMLVideoElement)) {
       continue;
     }
-
     if (entry.isIntersecting) {
       if (!video.src && video.dataset.src) {
         video.src = video.dataset.src;
       }
       continue;
     }
-
     if (video.src) {
       video.pause();
       video.removeAttribute('src');
@@ -382,39 +306,32 @@ function handleVideoIntersection(entries) {
     }
   }
 }
-
 function maybeAutoLoadMore() {
   if (isDetailOpen()) {
     return;
   }
-
   if (renderedCount >= currentItems.length) {
     return;
   }
-
   const remaining = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-
   if (remaining < 900) {
     renderMoreItems();
   }
 }
-
 function openDetail(index) {
   if (index < 0 || index >= currentItems.length) {
     return;
   }
-
   selectedIndex = index;
   const item = currentItems[index];
-
   document.body.classList.add('is-review-modal-open');
   refs.detailView.classList.remove('hidden');
-  refs.detailTitle.textContent = getItemTitle(item);
+  refs.detailTitle.textContent = getItemTitle(item, currentMode);
   refs.detailSubtitle.textContent = currentMode === 'problem-review'
-    ? `${getItemRelativePath(item)} · ${item.errorCode ?? 'problem-clip'}`
+    ? `${getItemRelativePath(item, currentMode)} · ${item.errorCode ?? 'problem-clip'}`
     : `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
   refs.detailVideo.src = mediaUrl(item);
-  refs.detailTags.innerHTML = renderDetailTags(item);
+  refs.detailTags.innerHTML = renderDetailTags(item, currentMode);
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
@@ -424,7 +341,6 @@ function openDetail(index) {
   updateActionState();
   refs.closeDetail.focus();
 }
-
 function closeDetail() {
   refs.detailVideo.pause();
   refs.detailVideo.removeAttribute('src');
@@ -432,68 +348,9 @@ function closeDetail() {
   refs.detailView.classList.add('hidden');
   document.body.classList.remove('is-review-modal-open');
 }
-
 function isDetailOpen() {
   return !refs.detailView.classList.contains('hidden');
 }
-
-function renderDetailTags(item) {
-  if (currentMode === 'problem-review') {
-    return renderProblemDetail(item);
-  }
-
-  const tagging = item.tagging ?? {};
-  const tags = tagging.tags ?? [];
-  return `
-    <div class="review-state-box">
-      <div>
-        <span class="status-label">LS 同步状态</span>
-        <strong>${escapeHtml(item.reviewStatus ?? '未同步')}</strong>
-      </div>
-      <div>
-        <span class="status-label">备注</span>
-        <p>${escapeHtml(item.reviewNote ?? '—')}</p>
-      </div>
-    </div>
-    <div class="review-state-box">
-      <div><span class="status-label">Taxonomy</span><strong>${escapeHtml(tagging.taxonomyVersion ?? '—')}</strong></div>
-      <div><span class="status-label">模型复核</span><strong>${tagging.reviewRequired ? '需要' : '不需要'}</strong></div>
-      <div><span class="status-label">复核原因</span><p>${escapeHtml(tagging.reviewReason ?? '—')}</p></div>
-    </div>
-    <div class="review-tag-list">
-      ${tags.length === 0 ? '<p>JSON 中没有 tags。</p>' : tags.map((tag, index) => `
-        <section class="review-tag-item">
-          <h3>${index + 1}. ${escapeHtml(tag.dimension || '未命名维度')}</h3>
-          <p><strong>路径</strong> ${escapeHtml((tag.labelPath ?? []).join(' > ') || '—')}</p>
-          <p><strong>角色</strong> ${escapeHtml(tag.tagRole || '—')} · <strong>层级</strong> ${escapeHtml(tag.selectedLevel || '—')}</p>
-          <p><strong>证据</strong> ${escapeHtml(tag.evidenceType || '—')} · <strong>置信度</strong> ${escapeHtml(tag.confidenceScore ?? '—')}</p>
-          <p>${escapeHtml(tag.evidenceNote || '—')}</p>
-        </section>
-      `).join('')}
-    </div>
-  `;
-}
-
-function renderProblemDetail(item) {
-  return `
-    <div class="review-state-box">
-      <div><span class="status-label">阶段</span><strong>${escapeHtml(item.phase ?? '—')}</strong></div>
-      <div><span class="status-label">错误码</span><strong>${escapeHtml(item.errorCode ?? '—')}</strong></div>
-      <div><span class="status-label">原因</span><p>${escapeHtml(item.reason ?? '—')}</p></div>
-    </div>
-    <div class="review-state-box">
-      <div><span class="status-label">决策</span><strong>${escapeHtml(renderDecisionLabel(item.decision))}</strong></div>
-      <div><span class="status-label">目标池</span><strong>${escapeHtml(item.targetPool ?? '—')}</strong></div>
-      <div><span class="status-label">下一环节</span><strong>${escapeHtml(item.nextStage ?? '—')}</strong></div>
-      <div><span class="status-label">复查时间</span><p>${escapeHtml(item.reviewedAt ?? '—')}</p></div>
-    </div>
-    <div class="review-state-box">
-      <div><span class="status-label">源路径</span><p>${escapeHtml(item.sourcePath ?? '—')}</p></div>
-      <div><span class="status-label">当前路径</span><p>${escapeHtml(item.currentPath ?? '—')}</p></div>
-    </div>
-  `;
-}
-
 async function downloadLabelStudioPackage() {
   const payload = await buildLabelStudioPackage();
   downloadText('label-studio-tag-review-tasks.json', JSON.stringify(payload.tasks, null, 2));
@@ -505,7 +362,6 @@ async function downloadLabelStudioPackage() {
     payload.labelConfig
   ].join('\n');
 }
-
 async function importIntoLabelStudio() {
   const body = buildLabelStudioRequestBody();
   refs.reviewOutput.textContent = '正在导入 Label Studio...';
@@ -516,7 +372,6 @@ async function importIntoLabelStudio() {
   updateActionState();
   refs.reviewOutput.textContent = buildDebugJson(payload);
 }
-
 async function syncLabelStudio() {
   const body = buildLabelStudioRequestBody({ requireProjectId: true });
   refs.reviewOutput.textContent = '正在同步 Label Studio 审核结论...';
@@ -524,17 +379,14 @@ async function syncLabelStudio() {
   refs.reviewOutput.textContent = buildDebugJson(payload);
   await scanDirectory();
 }
-
 async function applyProblemDecision(decision) {
   if (currentMode !== 'problem-review') {
     return;
   }
-
   const item = currentItems[selectedIndex];
   if (!item?.id) {
     throw new Error('请先选择一个问题片段。');
   }
-
   refs.reviewOutput.textContent = '正在写入复查结论...';
   const payload = await apiPost('/api/review-queue/decision', {
     directoryPath: requireDirectoryPath(),
@@ -548,26 +400,21 @@ async function applyProblemDecision(decision) {
   closeDetail();
   await scanDirectory();
 }
-
 async function buildLabelStudioPackage() {
   return apiPost('/api/tag-review/label-studio/package', {
     directoryPath: requireDirectoryPath()
   });
 }
-
 function buildLabelStudioRequestBody(options = {}) {
   const labelStudioUrl = refs.labelStudioUrl.value.trim();
   const token = refs.labelStudioToken.value.trim();
   const projectId = refs.labelStudioProjectId.value.trim();
-
   if (!labelStudioUrl || !token) {
     throw new Error('请先填写 Label Studio 地址和 Token。');
   }
-
   if (options.requireProjectId && !projectId) {
     throw new Error('同步前请填写 Label Studio Project ID。');
   }
-
   return {
     directoryPath: requireDirectoryPath(),
     labelStudioUrl,
@@ -576,18 +423,15 @@ function buildLabelStudioRequestBody(options = {}) {
     projectTitle: refs.labelStudioProjectTitle.value.trim() || undefined
   };
 }
-
 function openCurrentLabelStudioTask() {
   const item = currentItems[selectedIndex];
   if (!item || !canOpenLabelStudioTask(item)) {
     return;
   }
-
   const baseUrl = refs.labelStudioUrl.value.trim().replace(/\/+$/u, '');
   const projectId = refs.labelStudioProjectId.value.trim();
   window.open(`${baseUrl}/projects/${encodeURIComponent(projectId)}/data?task=${encodeURIComponent(item.labelStudioTaskId)}`, '_blank');
 }
-
 function canOpenLabelStudioTask(item) {
   return Boolean(
     item?.labelStudioTaskId &&
@@ -595,24 +439,20 @@ function canOpenLabelStudioTask(item) {
     refs.labelStudioProjectId.value.trim()
   );
 }
-
 function renderLabelStudioLink(projectUrl) {
   if (!projectUrl) {
     refs.labelStudioProjectLink.classList.add('hidden');
     return;
   }
-
   refs.labelStudioProjectLink.href = projectUrl;
   refs.labelStudioProjectLink.classList.remove('hidden');
 }
-
 function mediaUrl(item) {
   const url = new URL('/api/tag-review/media', location.origin);
   url.searchParams.set('directoryPath', currentScan?.directoryPath ?? requireDirectoryPath());
-  url.searchParams.set('relativePath', getItemRelativePath(item));
+  url.searchParams.set('relativePath', getItemRelativePath(item, currentMode));
   return url.toString();
 }
-
 function updateActionState() {
   const hasItems = currentItems.length > 0;
   const hasProjectId = refs.labelStudioProjectId.value.trim().length > 0;
@@ -627,39 +467,6 @@ function updateActionState() {
   refs.decisionKeepProblem.disabled = !hasSelectedProblem;
   refs.decisionManualRetry.disabled = !hasSelectedProblem;
 }
-
-function getItemTitle(item) {
-  return currentMode === 'problem-review'
-    ? item.fileName ?? pathBaseName(item.relativePath ?? '问题片段')
-    : item.videoFileName;
-}
-
-function getItemRelativePath(item) {
-  return currentMode === 'problem-review'
-    ? item.relativePath
-    : item.videoRelativePath;
-}
-
-function renderDecisionLabel(decision) {
-  if (decision === 'discard') {
-    return '丢弃';
-  }
-  if (decision === 'keep-afteredit') {
-    return '保留到 AfterEdit';
-  }
-  if (decision === 'keep-problem') {
-    return '保留到 ProblemClips';
-  }
-  if (decision === 'manual-retry') {
-    return '转人工命名';
-  }
-  return '待复查';
-}
-
-function pathBaseName(value) {
-  return String(value).split(/[\\/]/u).filter(Boolean).pop() ?? String(value);
-}
-
 function requireDirectoryPath() {
   const directoryPath = refs.reviewDirectory.value.trim();
   if (!directoryPath) {
@@ -667,7 +474,6 @@ function requireDirectoryPath() {
   }
   return directoryPath;
 }
-
 function downloadText(fileName, text) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
   const anchor = document.createElement('a');
@@ -678,14 +484,12 @@ function downloadText(fileName, text) {
   anchor.remove();
   URL.revokeObjectURL(url);
 }
-
 function disconnectVideoObserver() {
   if (videoObserver) {
     videoObserver.disconnect();
     videoObserver = null;
   }
 }
-
 async function wrapAction(action) {
   try {
     await action();
