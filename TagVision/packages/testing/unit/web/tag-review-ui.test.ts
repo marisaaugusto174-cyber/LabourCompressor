@@ -1,0 +1,160 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+const reviewHtml = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/review.html'),
+  'utf8'
+);
+const reviewJs = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/tag-review.js'),
+  'utf8'
+);
+const stylesCss = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/styles.css'),
+  'utf8'
+);
+const indexHtml = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/index.html'),
+  'utf8'
+);
+const launcherScript = readFileSync(
+  path.join(process.cwd(), 'Start TagVision macOS.command'),
+  'utf8'
+);
+const serverTs = readFileSync(
+  path.join(process.cwd(), 'apps/web/server.ts'),
+  'utf8'
+);
+const apiClientJs = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/api-client.js'),
+  'utf8'
+);
+const formStateJs = readFileSync(
+  path.join(process.cwd(), 'apps/web/public/form-state.js'),
+  'utf8'
+);
+const localDialogsTs = readFileSync(
+  path.join(process.cwd(), 'apps/web/local-dialogs.ts'),
+  'utf8'
+);
+const packageJson = JSON.parse(
+  readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
+) as {
+  readonly version?: string;
+  readonly description?: string;
+  readonly scripts?: Record<string, string>;
+  readonly files?: readonly string[];
+};
+
+test('review ui exposes directory scan and Label Studio controls', () => {
+  for (const id of [
+    'review-directory',
+    'scan-button',
+    'download-ls-package',
+    'ls-url',
+    'ls-token',
+    'ls-project-id',
+    'import-ls',
+    'sync-ls',
+    'review-grid',
+    'detail-view'
+  ]) {
+    assert.equal(reviewHtml.includes(`id="${id}"`), true, `missing #${id}`);
+  }
+
+  assert.equal(reviewHtml.includes('src="/tag-review.js'), true);
+});
+
+test('main web ui links to the tag review page', () => {
+  assert.equal(indexHtml.includes('href="/review.html"'), true);
+  assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);
+  assert.equal(indexHtml.includes('进入审核'), true);
+  assert.equal(indexHtml.includes('Labour Compressor'), false);
+});
+
+test('release metadata names the local tool as TagVision V0.1 macOS', () => {
+  assert.equal(packageJson.name, 'tagvision-macos');
+  assert.equal(packageJson.version, '0.1.0');
+  assert.match(packageJson.description ?? '', /TagVision V0\.1 macOS/u);
+  assert.equal(packageJson.scripts?.['pack:macos:v0.1'], 'bash scripts/pack-macos.sh');
+  assert.equal(packageJson.files?.includes('apps/'), true);
+  assert.equal(packageJson.files?.includes('Start TagVision macOS.command'), true);
+  assert.equal(reviewHtml.includes('TagVision V0.1 macOS'), true);
+  assert.equal(reviewHtml.includes('Release: TagVision V0.1 macOS'), true);
+});
+
+test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {
+  assert.match(reviewHtml, /id="detail-view"[^>]*review-detail-modal/u);
+  assert.match(stylesCss, /\.review-detail-modal\s*\{[^}]*position:\s*fixed/su);
+  assert.match(stylesCss, /\.is-review-modal-open\s*\{[^}]*overflow:\s*hidden/su);
+  assert.equal(reviewJs.includes("document.body.classList.add('is-review-modal-open')"), true);
+  assert.match(reviewJs, /function maybeAutoLoadMore\(\)\s*\{[\s\S]*?if \(isDetailOpen\(\)\) \{/u);
+  assert.equal(reviewJs.includes('scrollIntoView'), false);
+});
+
+test('review detail exposes accepted path editor and save action', () => {
+  for (const id of [
+    'accepted-path-list',
+    'accepted-path-select',
+    'add-accepted-path',
+    'save-accepted-result'
+  ]) {
+    assert.equal(reviewHtml.includes(`id="${id}"`), true, `missing #${id}`);
+  }
+
+  assert.equal(reviewJs.includes("apiPost('/api/tag-review/accepted'"), true);
+  assert.equal(reviewJs.includes('renderAcceptedPathOptions'), true);
+});
+
+test('review cards use thumbnail images instead of mounting videos', () => {
+  assert.match(reviewJs, /function thumbnailUrl/u);
+  assert.match(reviewJs, /\/api\/tag-review\/thumbnail/u);
+  assert.match(reviewJs, /<img[^>]+data-src="\$\{escapeHtml\(thumbnailUrl\(item\)\)\}"/u);
+  assert.doesNotMatch(reviewJs, /<video muted playsinline preload="none"/u);
+});
+
+test('review cards expose a compact cover layout with stable tag overflow', () => {
+  assert.match(reviewJs, /review-card-cover-bar/u);
+  assert.match(reviewJs, /review-card-media-type/u);
+  assert.match(reviewJs, /remainingTagCount/u);
+  assert.match(reviewJs, /review-card-tag-more/u);
+  assert.match(reviewJs, /review-card-tag-empty/u);
+  assert.match(reviewJs, /#\$\{index \+ 1\}/u);
+  assert.match(stylesCss, /\.review-card-video::after/u);
+  assert.match(stylesCss, /\.review-card-title strong/u);
+  assert.match(stylesCss, /text-overflow: ellipsis/u);
+});
+
+test('mac launcher starts TagVision from its own directory and opens review ui', () => {
+  assert.match(launcherScript, /cd "\$SCRIPT_DIR"/u);
+  assert.match(launcherScript, /\/opt\/homebrew\/bin/u);
+  assert.match(launcherScript, /\/usr\/local\/bin/u);
+  assert.match(launcherScript, /npm install/u);
+  assert.match(launcherScript, /TAGVISION_WEB_HOST:-127\.0\.0\.1/u);
+  assert.match(launcherScript, /TAGVISION_WEB_PORT:-4312/u);
+  assert.match(launcherScript, /curl -fsS "\$TAGVISION_URL"/u);
+  assert.match(launcherScript, /TagVision V0\.1 macOS is ready/u);
+  assert.match(launcherScript, /open "\$TAGVISION_URL"/u);
+  assert.match(launcherScript, /npm run web/u);
+});
+
+test('server does not write json errors after response headers were sent', () => {
+  assert.match(serverTs, /if \(response\.headersSent\)/u);
+  assert.match(serverTs, /response\.destroy/u);
+});
+
+test('review runtime dependencies are present for module imports', () => {
+  assert.match(reviewJs, /from '\.\/api-client\.js'/u);
+  assert.match(reviewJs, /from '\.\/form-state\.js'/u);
+  assert.match(apiClientJs, /export async function apiGet/u);
+  assert.match(apiClientJs, /export async function apiPost/u);
+  assert.match(apiClientJs, /export function buildDebugJson/u);
+  assert.match(formStateJs, /export function escapeHtml/u);
+});
+
+test('local folder chooser activates Finder before opening mac dialog', () => {
+  assert.match(localDialogsTs, /tell application "Finder" to activate/u);
+  assert.match(localDialogsTs, /choose folder/u);
+});

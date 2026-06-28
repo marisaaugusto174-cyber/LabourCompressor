@@ -1,0 +1,136 @@
+{
+  "openai": {
+    "enabled": false,
+    "provider": "openai",
+    "authMode": "api-key",
+    "modelName": "gpt-5.4",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "google": {
+    "enabled": false,
+    "provider": "google",
+    "authMode": "api-key",
+    "modelName": "gemini-3.5-flash",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": [
+        "openid",
+        "email",
+        "profile"
+      ]
+    }
+  },
+  "anthropic": {
+    "enabled": false,
+    "provider": "anthropic",
+    "authMode": "api-key",
+    "modelName": "claude-sonnet-4-20250514",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "qwen": {
+    "enabled": false,
+    "provider": "qwen",
+    "authMode": "api-key",
+    "modelName": "qwen3.7-plus",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "zhipu": {
+    "enabled": false,
+    "provider": "zhipu",
+    "authMode": "api-key",
+    "modelName": "glm-4.5",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "deepseek": {
+    "enabled": false,
+    "provider": "deepseek",
+    "authMode": "api-key",
+    "modelName": "deepseek-chat",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "moonshot": {
+    "enabled": false,
+    "provider": "moonshot",
+    "authMode": "api-key",
+    "modelName": "kimi-k2.5",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "baidu": {
+    "enabled": false,
+    "provider": "baidu",
+    "authMode": "api-key",
+    "modelName": "ernie-4.5-turbo",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "tencent-hunyuan": {
+    "enabled": false,
+    "provider": "tencent-hunyuan",
+    "authMode": "api-key",
+    "modelName": "hunyuan-turbo",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  },
+  "minimax": {
+    "enabled": false,
+    "provider": "minimax",
+    "authMode": "api-key",
+    "modelName": "minimax-m1",
+    "apiKey": "",
+    "oauth": {
+      "authorizeUrl": "",
+      "clientId": "",
+      "redirectUri": "",
+      "scope": []
+    }
+  }
+}

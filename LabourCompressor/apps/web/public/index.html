@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Labour Compressor</title>
+    <link rel="stylesheet" href="/styles.css?v=20260628a" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <h1>Labour Compressor</h1>
+          <span class="build-version">V0.5</span>
+        </div>
+        <div class="header-chip-list">
+          <a class="chip" href="/review.html">打标质检</a>
+        </div>
+      </header>
+
+      <section id="file-protocol-warning" class="panel warning hidden">
+        <h2>请通过本地服务打开</h2>
+        <a href="http://127.0.0.1:4311/" target="_blank" rel="noreferrer">http://127.0.0.1:4311/</a>
+      </section>
+
+      <section id="workbench" class="workbench workbench-grid" data-workbench-mode="mainline">
+        <div class="workbench-header">
+          <h2>工作台</h2>
+          <div class="segmented-control workbench-mode-control" role="group" aria-label="工作台模式">
+            <button id="workbench-mode-mainline" type="button" data-workbench-mode="mainline" aria-pressed="true">主线</button>
+            <button id="workbench-mode-advanced" type="button" data-workbench-mode="advanced" aria-pressed="false">高级</button>
+          </div>
+        </div>
+        <section class="panel workbench-config-shell">
+        <div class="panel-header">
+          <div>
+            <h2>运行配置</h2>
+          </div>
+          <div id="configuration-actions" class="actions compact">
+            <button id="open-provider-config" type="button">配置模型 API</button>
+            <button id="open-platform-credentials" type="button">配置下载凭证</button>
+          </div>
+        </div>
+
+        <form id="task-form" class="layout workbench-form">
+          <section id="workbench-source" class="subpanel workbench-source">
+            <h3>任务素材</h3>
+
+            <div class="segmented-control source-mode-control" role="radiogroup" aria-label="输入方式">
+              <label>
+                <input id="source-mode-spreadsheet" name="sourceMode" type="radio" value="spreadsheet" checked />
+                <span>用户表</span>
+              </label>
+              <label>
+                <input id="source-mode-local" name="sourceMode" type="radio" value="local" />
+                <span>本地素材</span>
+              </label>
+            </div>
+
+            <div data-source-panel="spreadsheet">
+              <div class="path-field drop-target" data-target="spreadsheet" data-kind="file">
+                <div class="path-meta">
+                  <label for="spreadsheet">用户表路径</label>
+                </div>
+                <div class="path-control">
+                  <input id="spreadsheet" name="spreadsheet" required />
+                  <button
+                    class="picker-button"
+                    type="button"
+                    data-dialog-kind="file"
+                    data-target="spreadsheet"
+                    data-prompt="选择用户表"
+                  >
+                    选择文件
+                  </button>
+                </div>
+              </div>
+
+              <div id="primary-run-action" class="primary-run-row">
+                <button
+                  id="run-button"
+                  class="primary-run-button"
+                  type="button"
+                  data-pipeline-stage="all"
+                >
+                  一键全流程
+                </button>
+              </div>
+            </div>
+
+            <div data-source-panel="local" class="hidden">
+              <div class="path-field drop-target" data-target="sourceIntakeDirectory" data-kind="folder">
+                <div class="path-meta">
+                  <label for="sourceIntakeDirectory">素材目录</label>
+                </div>
+                <div class="path-control">
+                  <input id="sourceIntakeDirectory" name="sourceIntakeDirectory" form="task-form" />
+                  <button
+                    class="picker-button"
+                    type="button"
+                    data-dialog-kind="folder"
+                    data-target="sourceIntakeDirectory"
+                    data-prompt="选择素材目录"
+                  >
+                    选择目录
+                  </button>
+                </div>
+              </div>
+              <div class="primary-run-row">
+                <button id="import-source-directory" class="primary-run-button" type="button">导入素材目录并继续</button>
+              </div>
+            </div>
+
+            <details class="advanced-run-panel" id="stage-controls">
+              <summary>高级：按阶段单独执行</summary>
+              <div class="stage-launcher">
+                <button type="button" data-pipeline-stage="download">下载</button>
+                <button type="button" data-pipeline-stage="segment">分割</button>
+                <button type="button" data-pipeline-stage="compress">压缩</button>
+                <button type="button" data-pipeline-stage="tag">打标</button>
+                <button type="button" data-pipeline-stage="archive">归档</button>
+              </div>
+            </details>
+
+            <div id="model-config" class="inline-grid compact-grid">
+              <label>打标模型
+                <select id="provider-profile" name="selectedModelProfileId"></select>
+              </label>
+              <label>自动打标并发数
+                <span class="range-control">
+                  <input
+                    id="tagging-concurrency"
+                    name="taggingConcurrency"
+                    type="range"
+                    min="1"
+                    max="64"
+                  />
+                  <strong id="tagging-concurrency-value">16</strong>
+                </span>
+              </label>
+            </div>
+
+            <div id="taxonomy-config" class="readonly-grid">
+              <div class="readonly-item">
+                <label class="readonly-label" for="taxonomy-preset">标签库</label>
+                <span class="select-action-row">
+                  <select id="taxonomy-preset" name="taxonomyPreset"></select>
+                  <button id="import-taxonomy-preset" type="button" class="secondary-button">导入标签库</button>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section id="workbench-readiness" class="subpanel workbench-readiness">
+            <h3>运行准备</h3>
+            <div id="readiness-core"></div>
+            <h3>授权与归档</h3>
+
+            <div class="path-field drop-target" data-target="archiveRoot" data-kind="folder">
+              <div class="path-meta">
+                <label for="archiveRoot">归档根目录</label>
+              </div>
+              <div class="path-control">
+                <input id="archiveRoot" name="archiveRoot" required />
+                <button
+                  class="picker-button"
+                  type="button"
+                  data-dialog-kind="folder"
+                  data-target="archiveRoot"
+                  data-prompt="选择归档根目录"
+                >
+                  选择目录
+                </button>
+              </div>
+            </div>
+
+            <div id="readiness-status" class="readiness-list">
+              <div id="provider-readiness" class="readiness-row"><span>模型 API</span><strong>检查中</strong></div>
+              <div id="credential-readiness" class="readiness-row"><span>下载凭证</span><strong>检查中</strong></div>
+            </div>
+
+            <details class="archive-paths-panel" id="archive-paths-panel">
+              <summary>流程路径</summary>
+              <div class="readonly-grid archive-paths-grid">
+                <div class="readonly-item">
+                  <span class="readonly-label">程序内总表</span>
+                  <span id="master-spreadsheet-display" class="readonly-value"></span>
+                </div>
+                <div class="readonly-item">
+                  <span class="readonly-label">下载缓存目录</span>
+                  <span id="download-dir-display" class="readonly-value"></span>
+                </div>
+                <div class="readonly-item">
+                  <span class="readonly-label">片段输出目录</span>
+                  <span id="afteredit-dir-display" class="readonly-value"></span>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <input id="masterSpreadsheetPath" name="masterSpreadsheetPath" type="hidden" />
+          <input id="writebackTarget" name="writebackTarget" type="hidden" />
+          <input id="promptLibrary" name="promptLibrary" type="hidden" />
+          <input id="providerConfigPath" name="providerConfigPath" type="hidden" />
+          <input id="platformCredentialConfigPath" name="platformCredentialConfigPath" type="hidden" />
+          <input id="downloadDir" name="downloadDir" type="hidden" />
+          <input id="downloaderMode" name="downloaderMode" type="hidden" />
+          <input id="mergeMode" name="mergeMode" type="hidden" />
+          <input id="taggingMode" name="taggingMode" type="hidden" />
+          <input id="manualEditGate" name="manualEditGate" type="hidden" />
+          <input id="afterEditDirectoryName" name="afterEditDirectoryName" type="hidden" />
+          <input id="problemClipsDirectoryName" name="problemClipsDirectoryName" type="hidden" />
+          <input id="pipelineStage" name="pipelineStage" type="hidden" />
+        </form>
+
+        <section class="subpanel advanced-tools">
+          <h3>高级工具</h3>
+          <div class="advanced-group-grid">
+            <details id="advanced-execution" class="advanced-group" open>
+              <summary>执行与恢复</summary>
+              <div id="advanced-execution-content"></div>
+            </details>
+            <details id="advanced-tagging" class="advanced-group">
+              <summary>分割与打标</summary>
+              <div id="advanced-tagging-content"></div>
+            </details>
+            <details id="advanced-authorization" class="advanced-group">
+              <summary>授权与归档</summary>
+              <div id="advanced-authorization-content"></div>
+            </details>
+            <details id="advanced-diagnostics" class="advanced-group">
+              <summary>诊断与结果</summary>
+              <div id="advanced-diagnostics-content"></div>
+            </details>
+          </div>
+
+          <details class="advanced-run-panel" id="diagnostic-controls">
+            <summary>诊断与恢复</summary>
+            <div class="actions compact advanced-action-row">
+              <button id="preflight-button" type="button" class="secondary-button">运行 Preflight</button>
+              <button type="button" class="secondary-button" data-pipeline-stage="resume-cache">从已整理表继续</button>
+            </div>
+          </details>
+
+          <details class="advanced-run-panel" id="more-settings">
+            <summary>更多设置</summary>
+            <div class="path-field drop-target" data-target="afterEditBatchSampleFile" data-kind="file">
+              <div class="path-meta">
+                <label for="afterEditBatchSampleFile">批次样例文件</label>
+              </div>
+              <div class="path-control">
+                <input id="afterEditBatchSampleFile" name="afterEditBatchSampleFile" form="task-form" />
+                <button
+                  class="picker-button"
+                  type="button"
+                  data-dialog-kind="file"
+                  data-target="afterEditBatchSampleFile"
+                  data-prompt="选择批次样例文件"
+                >
+                  选择文件
+                </button>
+              </div>
+            </div>
+            <div class="actions compact advanced-action-row">
+              <button id="build-afteredit-batch-sheet" type="button" class="secondary-button">按样例批次生成表并载入</button>
+            </div>
+            <div class="inline-grid compact-grid">
+              <label class="checkbox-field">
+                <input id="auto-segmentation" name="autoSegmentation" type="checkbox" form="task-form" />
+                <span>自动分割长视频</span>
+              </label>
+              <label>分割方案
+                <select id="segmentation-profile" name="segmentationProfileId" form="task-form">
+                  <option value="standard_ad">standard_ad</option>
+                  <option value="fast_cut">fast_cut</option>
+                  <option value="conservative">conservative</option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </section>
+      </section>
+
+      <section class="panel task-status-panel workbench-status">
+        <div class="panel-header task-status-header">
+          <h2>任务状态</h2>
+          <div id="task-control-actions" class="actions compact task-control-actions" hidden>
+            <button id="pause-task" type="button" class="secondary-button" hidden disabled>暂停</button>
+            <button id="resume-task" type="button" hidden disabled>恢复</button>
+            <button id="stop-task" type="button" class="danger-button" hidden disabled>强制停止</button>
+          </div>
+        </div>
+
+        <div id="task-idle-state" class="task-idle-state">尚未运行任务</div>
+
+        <div id="task-active-state" class="task-active-state" role="status" aria-live="polite" hidden>
+          <div id="task-summary" class="status-workbench">
+            <div class="status-primary-block">
+              <span class="status-label">当前状态</span>
+              <strong id="status-overall"></strong>
+              <span id="status-phase" class="status-secondary"></span>
+            </div>
+            <div class="status-primary-block">
+              <span class="status-label">处理进度</span>
+              <strong id="status-progress"></strong>
+              <div
+                id="status-progress-track"
+                class="status-progress-track"
+                role="progressbar"
+                aria-label="任务处理进度"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
+                hidden
+              >
+                <span id="status-progress-bar" class="status-progress-bar"></span>
+              </div>
+            </div>
+          </div>
+
+          <div id="status-current" class="status-current" hidden>
+            <span class="status-label">当前文件</span>
+            <strong id="status-item"></strong>
+          </div>
+
+          <div id="status-context" class="status-context" hidden>
+            <span id="status-model"></span>
+            <span id="status-source"></span>
+            <span id="status-platform" hidden></span>
+          </div>
+          <div id="status-next-action" class="status-next-action" hidden></div>
+        </div>
+
+        <details id="runtime-details-panel" class="status-details-panel" hidden>
+          <summary>运行检查与阶段</summary>
+          <div class="runtime-detail-grid">
+            <div>
+              <h3>Preflight 检查</h3>
+              <div id="preflight-list" class="task-list empty-state"></div>
+            </div>
+            <div>
+              <h3>阶段进度</h3>
+              <div id="timeline-list" class="task-list empty-state"></div>
+            </div>
+          </div>
+        </details>
+
+        <div id="results-list" class="results-list empty-state"></div>
+
+        <details id="debug-recovery-panel" class="status-details-panel debug-panel" hidden>
+          <summary>调试与恢复</summary>
+          <div class="actions compact debug-actions">
+            <button id="export-failures" type="button" hidden disabled>导出失败 CSV</button>
+            <button id="partial-writeback" type="button" class="secondary-button" hidden disabled>部分回表</button>
+          </div>
+          <div class="dual-output">
+            <div>
+              <h3>Preflight</h3>
+              <pre id="preflight-output" class="output"></pre>
+            </div>
+            <div>
+              <h3>原始任务日志</h3>
+              <pre id="event-log" class="output log"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+      </section>
+
+    </main>
+    <dialog id="provider-config-dialog" class="config-dialog">
+      <form id="provider-config-form" method="dialog" class="config-dialog-card">
+        <div class="panel-header">
+          <div>
+            <h2>配置模型 API</h2>
+          </div>
+          <div class="actions compact">
+            <button id="close-provider-config" type="button" class="secondary-button">关闭</button>
+          </div>
+        </div>
+
+        <div id="provider-config-banner" class="provider-config-banner hidden"></div>
+
+        <div id="provider-model-list" class="task-list"></div>
+
+        <pre id="provider-config-output" class="output hidden"></pre>
+      </form>
+    </dialog>
+    <dialog id="platform-credentials-dialog" class="config-dialog">
+      <form method="dialog" class="config-dialog-card">
+        <div class="panel-header">
+          <div>
+            <h2>配置下载凭证</h2>
+          </div>
+          <div class="actions compact">
+            <button id="close-platform-credentials" type="button" class="secondary-button">关闭</button>
+          </div>
+        </div>
+
+        <div id="platform-credentials-banner" class="platform-credential-banner hidden"></div>
+
+        <div id="platform-credentials-fields" class="platform-credential-list"></div>
+
+        <pre id="platform-credentials-output" class="output hidden"></pre>
+      </form>
+    </dialog>
+    <script type="module" src="/app.js?v=20260628a"></script>
+  </body>
+</html>
