@@ -4,7 +4,8 @@
 
 - Project: `LabourCompressor`
 - Product Version: `v0.5`
-- Current Priority: core governance document alignment
+- Current Priority: GOV-003 application integration boundaries
+- Completed Gates: Phase 0, GOV-004
 - Planning Rule: current facts first, incremental gates, no hidden debt
 
 ---
@@ -90,6 +91,21 @@ git diff --check
 ```
 
 完成 Phase 0 前不启动以下代码治理阶段。
+
+---
+
+## Completed Governance Evidence
+
+### GOV-004: Xiaohongshu Download Hardening
+
+Completed on 2026-06-28:
+
+- 同页 master/backup URL 按序轮换，全部失败后最多刷新页面一次。
+- 拒绝 HTML/JSON 挑战响应，校验 `Content-Length` 与实际字节数。
+- 候选切换重置进度，失败和取消清理 `.part` 与 abort listener。
+- CLI、结果页和任务状态页共享结构化中文错误语义。
+- 针对性测试 89/89、治理测试 19/19、完整回归 399/399 通过。
+- 外部真实验收连续两次产出 1080×1440 H.264/AAC MP4，无 `.part` 残留；真实凭证、token 和媒体地址未持久化。
 
 ---
 
@@ -197,41 +213,6 @@ node --test packages/testing/unit/governance/*.test.ts
 
 ---
 
-## GOV-004: Xiaohongshu Download Hardening
-
-### Current Facts
-
-小红书已支持 `yt-dlp` 优先和页面解析回退，具备 H.264 优先、有限重试、取消和 `.part` 清理测试。
-
-### Entry Condition
-
-Phase 0 完成后，作为第一个下载质量治理任务执行。
-
-### Construction Boundary
-
-- 同一页面内按顺序尝试 master 和 backup URL。
-- 拒绝明确的 HTML/JSON 挑战响应。
-- 已知 `Content-Length` 必须与实际写入一致。
-- 清理 retry/abort listener。
-- 不扩大到图文、主页、短链接或自动登录。
-
-### Exit Condition
-
-- 备用 URL 可在不重新获取页面时接棒。
-- 截断和错误媒体类型不会生成成功产物。
-- 失败和取消无 `.part` 残留。
-- 真实凭证、token 和媒体签名不进入仓库或输出。
-
-### Verification
-
-```bash
-node --test packages/testing/unit/download/xiaohongshu-downloader.test.ts
-node --test packages/testing/unit/download/ytdlp-downloader.test.ts
-npm run test:taxonomy-domain
-```
-
----
-
 ## GOV-005: Dedicated Orchestration Boundary
 
 ### Current Facts
@@ -301,11 +282,11 @@ npm run test:taxonomy-domain
 
 ## Governance Order
 
-执行顺序固定为：
+执行顺序固定为（前两项已完成）：
 
-1. Phase 0 文档现实对齐。
-2. GOV-004 小红书下载完整性。
-3. GOV-003 应用与 adapter 边界。
+1. [completed] Phase 0 文档现实对齐。
+2. [completed] GOV-004 小红书下载完整性。
+3. [current] GOV-003 应用与 adapter 边界。
 4. GOV-001 按触达范围收敛超大文件。
 5. GOV-002 建立 typecheck 门禁。
 6. GOV-005 迁移 orchestrator。
