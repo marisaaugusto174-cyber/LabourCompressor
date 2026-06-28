@@ -94,6 +94,6 @@ function createEntry(
         })
       )
     ),
-    supportedAuthModes: Object.freeze(['api-key', 'oauth-link'])
+    supportedAuthModes: Object.freeze(['api-key', 'oauth-link'] as const)
   });
 }

@@ -20,7 +20,7 @@ export interface QwenImageContentPart {
 
 export interface QwenVideoFileContentPart {
   readonly video: string;
-  readonly fps?: number;
+  readonly fps?: number | undefined;
 }
 
 export type QwenMessageContentPart =
@@ -30,18 +30,18 @@ export type QwenMessageContentPart =
 export interface QwenProbeResult {
   readonly model: string;
   readonly text: string;
-  readonly requestId?: string;
+  readonly requestId?: string | undefined;
   readonly usage?: {
-    readonly promptTokens?: number;
-    readonly completionTokens?: number;
-    readonly totalTokens?: number;
+    readonly promptTokens?: number | undefined;
+    readonly completionTokens?: number | undefined;
+    readonly totalTokens?: number | undefined;
   };
 }
 
 export interface QwenVideoCompletionInput {
   readonly prompt: string;
   readonly videoDataUrl: string;
-  readonly fps?: number;
+  readonly fps?: number | undefined;
 }
 
 const QWEN_TEXT_TIMEOUT_MS = 120_000;

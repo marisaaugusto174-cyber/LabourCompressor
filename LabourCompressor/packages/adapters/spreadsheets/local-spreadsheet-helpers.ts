@@ -116,8 +116,8 @@ export function detectHasHeaderRow(
 
 export function resolveSourceColumn(input: {
   readonly headers: readonly string[];
-  readonly urlColumnIndex?: number;
-  readonly urlColumnName?: string;
+  readonly urlColumnIndex?: number | undefined;
+  readonly urlColumnName?: string | undefined;
 }): Readonly<{
   readonly kind: 'url' | 'local-file';
   readonly index: number;
@@ -280,7 +280,7 @@ export function loadWritableSpreadsheetSheet(
 export function applySpreadsheetWritebackUpdates(input: {
   readonly matrix: (string | number)[][];
   readonly updates: readonly SpreadsheetWritebackUpdate[];
-  readonly acceptedTagsColumnName?: string;
+  readonly acceptedTagsColumnName?: string | undefined;
 }): {
   readonly matrix: (string | number)[][];
   readonly hyperlinks: readonly SpreadsheetHyperlinkUpdate[];
@@ -415,7 +415,7 @@ export function ensureMasterSpreadsheetTemplate(
 
   mkdirSync(path.dirname(filePath), { recursive: true });
   const workbook = xlsx.utils.book_new();
-  const worksheet = xlsx.utils.aoa_to_sheet([MASTER_SPREADSHEET_HEADERS]);
+  const worksheet = xlsx.utils.aoa_to_sheet([[...MASTER_SPREADSHEET_HEADERS]]);
   xlsx.utils.book_append_sheet(workbook, worksheet, sheetName ?? 'Sheet1');
   xlsx.writeFile(workbook, filePath);
 }

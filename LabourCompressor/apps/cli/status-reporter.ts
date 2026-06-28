@@ -13,12 +13,12 @@ export interface CliStageEvent {
   readonly stage: string;
   readonly status: CliStageStatus;
   readonly message: string;
-  readonly phase?: string;
-  readonly timestamp?: string;
-  readonly currentItem?: string;
-  readonly progress?: CliStageProgress;
-  readonly durationMs?: number;
-  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
+  readonly phase?: string | undefined;
+  readonly timestamp?: string | undefined;
+  readonly currentItem?: string | undefined;
+  readonly progress?: CliStageProgress | undefined;
+  readonly durationMs?: number | undefined;
+  readonly details?: Readonly<Record<string, string | number | boolean | null>> | undefined;
 }
 
 export function formatCliStageEvent(event: CliStageEvent): string {

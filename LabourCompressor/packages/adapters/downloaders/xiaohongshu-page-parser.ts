@@ -10,12 +10,14 @@ export interface XiaohongshuVideoCandidate {
 export interface XiaohongshuVideo {
   readonly noteId: string;
   readonly title: string;
-  readonly durationSeconds?: number;
+  readonly durationSeconds?: number | undefined;
   readonly candidates: readonly XiaohongshuVideoCandidate[];
 }
 
 type JsonObject = Record<string, unknown>;
-type StreamCandidate = XiaohongshuVideoCandidate & { readonly durationMs?: number };
+type StreamCandidate = XiaohongshuVideoCandidate & {
+  readonly durationMs?: number | undefined;
+};
 
 export function extractXiaohongshuNoteId(inputUrl: string): string | undefined {
   let parsedUrl: URL;

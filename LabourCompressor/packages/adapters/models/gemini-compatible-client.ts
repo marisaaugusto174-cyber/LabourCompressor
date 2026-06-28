@@ -15,7 +15,7 @@ export interface GeminiVideoCompletionInput {
   readonly prompt: string;
   readonly videoBase64: string;
   readonly mimeType: string;
-  readonly thinkingLevel?: 'high';
+  readonly thinkingLevel?: 'high' | undefined;
 }
 
 const GEMINI_TIMEOUT_MS = 600_000;
@@ -41,7 +41,7 @@ export function createGeminiCompatibleClient(config: LocalProviderConfig) {
     },
     async completeText(input: {
       readonly prompt: string;
-      readonly thinkingLevel?: 'high';
+      readonly thinkingLevel?: 'high' | undefined;
     }): Promise<GeminiProbeResult> {
       return requestGemini({
         config,

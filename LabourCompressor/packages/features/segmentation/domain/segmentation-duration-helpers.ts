@@ -35,7 +35,7 @@ export function findNearestAcceptedSegmentIndex(
   let nextIndex: number | undefined;
 
   for (let index = 0; index < accepted.length; index += 1) {
-    if (accepted[index].sourceIndex < sourceIndex) {
+    if (accepted[index]!.sourceIndex < sourceIndex) {
       previousIndex = index;
       continue;
     }
@@ -53,10 +53,10 @@ export function findNearestAcceptedSegmentIndex(
   }
 
   const previousDistance = Math.abs(
-    segment.startSeconds - accepted[previousIndex].segment.endSeconds
+    segment.startSeconds - accepted[previousIndex]!.segment.endSeconds
   );
   const nextDistance = Math.abs(
-    accepted[nextIndex].segment.startSeconds - segment.endSeconds
+    accepted[nextIndex]!.segment.startSeconds - segment.endSeconds
   );
 
   return previousDistance <= nextDistance ? previousIndex : nextIndex;

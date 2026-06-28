@@ -26,7 +26,7 @@ export const handleProviderConfigRoutes: WebRouteHandler = async ({ request, res
     sendJson(
       response,
       await probeSelectedProvider({
-        providerConfigPath: body.providerConfigPath ?? context.defaultProviderConfig,
+        providerConfigPath: readString(body.providerConfigPath) || context.defaultProviderConfig,
         selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.7-plus'
       })
     );

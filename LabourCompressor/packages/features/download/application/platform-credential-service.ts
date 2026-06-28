@@ -2,10 +2,10 @@ import { type SupportedPlatform } from '../domain/index.ts';
 
 export interface PlatformCredentialSummary {
   readonly platform: SupportedPlatform;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly credentialStorePath?: string;
-  readonly credentialUploadedAt?: string;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
+  readonly credentialStorePath?: string | undefined;
+  readonly credentialUploadedAt?: string | undefined;
 }
 
 export interface PlatformOperationResult {
@@ -19,23 +19,23 @@ export interface PlatformCredentialRepository {
   list(): Promise<readonly PlatformCredentialSummary[]>;
   save(input: {
     readonly platform: SupportedPlatform;
-    readonly cookiesFilePath?: string;
-    readonly cookiesFromBrowser?: string;
+    readonly cookiesFilePath?: string | undefined;
+    readonly cookiesFromBrowser?: string | undefined;
   }): Promise<readonly PlatformCredentialSummary[]>;
   importFile(input: {
     readonly platform: SupportedPlatform;
     readonly sourceCookiesFilePath: string;
-    readonly now?: Date;
+    readonly now?: Date | undefined;
   }): Promise<readonly PlatformCredentialSummary[]>;
 }
 
 export interface PlatformCredentialProbePort {
   probeCredential(input: {
     readonly platform: SupportedPlatform;
-    readonly cookiesFilePath?: string;
-    readonly cookiesFromBrowser?: string;
-    readonly sampleUrl?: string;
-    readonly now?: Date;
+    readonly cookiesFilePath?: string | undefined;
+    readonly cookiesFromBrowser?: string | undefined;
+    readonly sampleUrl?: string | undefined;
+    readonly now?: Date | undefined;
   }): Promise<PlatformOperationResult>;
   probeDownload(input: {
     readonly url: string;
@@ -58,8 +58,8 @@ export function createPlatformCredentialService(dependencies: {
     async importAndProbe(input: {
       readonly platform: SupportedPlatform;
       readonly sourceCookiesFilePath: string;
-      readonly now?: Date;
-      readonly sampleUrl?: string;
+      readonly now?: Date | undefined;
+      readonly sampleUrl?: string | undefined;
     }) {
       const summary = await dependencies.repository.importFile(input);
       const entry = summary.find((candidate) => candidate.platform === input.platform);

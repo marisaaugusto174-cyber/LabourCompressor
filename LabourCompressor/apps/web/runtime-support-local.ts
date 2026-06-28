@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, rename, stat } from 'node:fs/promises';
+import { access, mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -26,11 +26,11 @@ export async function ensureDefaultMasterSpreadsheet(filePath: string): Promise<
 }
 
 export async function buildPostEditRecordSheet(input: {
-  readonly downloadDirectory?: string;
-  readonly videoDirectoryPath?: string;
-  readonly afterEditDirectoryName?: string;
-  readonly outputFilePath?: string;
-  readonly batchSampleFilePath?: string;
+  readonly downloadDirectory?: string | undefined;
+  readonly videoDirectoryPath?: string | undefined;
+  readonly afterEditDirectoryName?: string | undefined;
+  readonly outputFilePath?: string | undefined;
+  readonly batchSampleFilePath?: string | undefined;
 }): Promise<Readonly<Record<string, unknown>>> {
   const afterEditDirectoryName = input.afterEditDirectoryName ?? 'AfterEdit';
   const afterEditDirectoryPath =
@@ -134,7 +134,7 @@ interface AfterEditBatchFilter {
 
 function resolveAfterEditBatchFilter(input: {
   readonly afterEditDirectoryPath: string;
-  readonly batchSampleFilePath?: string;
+  readonly batchSampleFilePath?: string | undefined;
 }): AfterEditBatchFilter | null {
   if (typeof input.batchSampleFilePath !== 'string' || input.batchSampleFilePath.trim().length === 0) {
     return null;
@@ -342,8 +342,8 @@ async function probeVideoMetadata(filePath: string): Promise<{
       filePath
     ]);
     const parsed = JSON.parse(stdout) as {
-      readonly streams?: readonly { readonly height?: number }[];
-      readonly format?: { readonly duration?: string };
+      readonly streams?: readonly { readonly height?: number }[] | undefined;
+      readonly format?: { readonly duration?: string } | undefined;
     };
     const height = parsed.streams?.find((stream) => Number.isFinite(stream.height))?.height;
     const durationSeconds = Math.max(0, Math.round(Number(parsed.format?.duration ?? 0)));

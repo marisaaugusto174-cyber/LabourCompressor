@@ -56,18 +56,18 @@ export async function runTaggingBatch(input: {
   readonly resultsByRow: Map<number, PipelineRowState>;
   readonly failures: RunLocalPipelineFailure[];
   readonly startedAt: string;
-  readonly taggingMode?: 'simulated' | 'qwen';
-  readonly selectedModelProfileId?: string;
-  readonly taggingConcurrency?: number;
-  readonly selectedVideoModelProfile?: VideoModelProfile;
-  readonly realModelProviderConfig?: LocalProviderConfig;
-  readonly candidateFixtures?: Record<string, readonly string[]>;
+  readonly taggingMode?: 'simulated' | 'qwen' | undefined;
+  readonly selectedModelProfileId?: string | undefined;
+  readonly taggingConcurrency?: number | undefined;
+  readonly selectedVideoModelProfile?: VideoModelProfile | undefined;
+  readonly realModelProviderConfig?: LocalProviderConfig | undefined;
+  readonly candidateFixtures?: Record<string, readonly string[]> | undefined;
   readonly taxonomyTree: ParsedTaxonomyTree;
   readonly promptLibrary: PromptLibraryDocument;
-  readonly taxonomyBaseMarkdown?: string;
-  readonly taxonomyVersionId?: string;
-  readonly archiveDimension?: string;
-  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
+  readonly taxonomyBaseMarkdown?: string | undefined;
+  readonly taxonomyVersionId?: string | undefined;
+  readonly archiveDimension?: string | undefined;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly emit: (
     stage: string,
     status: CliStageEvent['status'],
@@ -247,9 +247,9 @@ export async function runTaggingBatch(input: {
 }
 
 export function resolveTaggingConcurrency(input: {
-  readonly explicitConcurrency?: number;
-  readonly profileDefaultConcurrency?: number;
-  readonly itemCount?: number;
+  readonly explicitConcurrency?: number | undefined;
+  readonly profileDefaultConcurrency?: number | undefined;
+  readonly itemCount?: number | undefined;
 }): number {
   const rawConcurrency =
     input.explicitConcurrency ??
@@ -266,7 +266,7 @@ export function resolveTaggingConcurrency(input: {
 
 export async function resolveRequiredContentTopic(input: {
   readonly acceptedPaths: readonly string[];
-  readonly archiveDimension?: string;
+  readonly archiveDimension?: string | undefined;
   readonly requestFallbackPaths: () => Promise<readonly string[]>;
 }): Promise<RequiredContentTopicResolution> {
   const archiveDimension = input.archiveDimension ?? '内容题材';
@@ -416,7 +416,7 @@ function buildTimings(input: {
   readonly itemStartedAt: number;
   readonly modelRequestMs: number;
   readonly tagNormalizeMs: number;
-  readonly archiveMs?: number;
+  readonly archiveMs?: number | undefined;
 }): PipelineItemTimings {
   return Object.freeze({
     preprocessMs: 0,
@@ -434,8 +434,8 @@ function isVideoTooShortError(error: unknown): boolean {
 
 export async function withRateLimitRetry<T>(input: {
   readonly operation: () => Promise<T>;
-  readonly maxRetries?: number;
-  readonly delayMs?: number;
+  readonly maxRetries?: number | undefined;
+  readonly delayMs?: number | undefined;
 }): Promise<T> {
   const maxRetries = input.maxRetries ?? 2;
   const delayMs = input.delayMs ?? 1200;
@@ -471,7 +471,7 @@ export function zeroTimings(): PipelineItemTimings {
 
 function buildTaggingJsonPayload(input: {
   readonly taxonomyVersionId: string;
-  readonly modelJson?: unknown;
+  readonly modelJson?: unknown | undefined;
   readonly acceptedPaths: readonly string[];
 }): unknown {
   if (input.modelJson !== undefined) {

@@ -32,16 +32,16 @@ export interface PlatformProbeResult {
   readonly key: string;
   readonly ok: boolean;
   readonly message: string;
-  readonly details?: Readonly<Record<string, unknown>>;
+  readonly details?: Readonly<Record<string, string | number | boolean | null>> | undefined;
 }
 
 export async function probePlatformDownload(input: {
   readonly url: string;
   readonly outputDirectory: string;
-  readonly ytDlpBinary?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly platformCredentialConfigPath?: string;
+  readonly ytDlpBinary?: string | undefined;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
+  readonly platformCredentialConfigPath?: string | undefined;
 }): Promise<PlatformProbeResult> {
   const platformCredentialConfig = await loadConfig(input.platformCredentialConfigPath);
   try {
@@ -81,12 +81,12 @@ export async function probePlatformDownload(input: {
 
 export async function probePlatformCredentialConnectivity(input: {
   readonly platform: SupportedPlatform;
-  readonly ytDlpBinary?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly sampleUrl?: string;
-  readonly fetch?: DouyinFetch;
-  readonly now?: Date;
+  readonly ytDlpBinary?: string | undefined;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
+  readonly sampleUrl?: string | undefined;
+  readonly fetch?: DouyinFetch | undefined;
+  readonly now?: Date | undefined;
 }): Promise<PlatformProbeResult> {
   const cookiesFilePath = input.cookiesFilePath?.trim() || undefined;
   const cookiesFromBrowser = input.cookiesFromBrowser?.trim() || undefined;
@@ -125,14 +125,14 @@ export async function probePlatformCredentialConnectivity(input: {
   }
 }
 
-async function probeXiaohongshu(cookiesFilePath: string | undefined, fetchImpl: DouyinFetch = fetch): Promise<PlatformProbeResult> {
+async function probeXiaohongshu(cookiesFilePath: string | undefined, fetchImpl?: DouyinFetch): Promise<PlatformProbeResult> {
   try {
     const headers: Record<string, string> = { referer: 'https://www.xiaohongshu.com/', 'user-agent': USER_AGENT };
     if (cookiesFilePath !== undefined) {
       const cookie = await readNetscapeCookieHeader(cookiesFilePath, ['xiaohongshu.com']);
       if (cookie.length > 0) headers.cookie = cookie;
     }
-    const response = await fetchImpl('https://www.xiaohongshu.com/', { headers });
+    const response = await (fetchImpl ?? nativeProbeFetch)('https://www.xiaohongshu.com/', { headers });
     if (!response.ok) throw structuredError('xiaohongshu-page-unavailable', `小红书首页请求失败，HTTP ${response.status}。`);
     await response.text();
     return credentialResult('xiaohongshu', true, 'cookies 静态检查与平台连通性测试通过。', true, undefined, { reason: 'xiaohongshu-homepage' });
@@ -144,7 +144,7 @@ async function probeXiaohongshu(cookiesFilePath: string | undefined, fetchImpl: 
   }
 }
 
-async function probeDouyin(sampleUrl: string, cookiesFilePath: string | undefined, fetchImpl: DouyinFetch = fetch): Promise<PlatformProbeResult> {
+async function probeDouyin(sampleUrl: string, cookiesFilePath: string | undefined, fetchImpl?: DouyinFetch): Promise<PlatformProbeResult> {
   const videoId = extractDouyinVideoId(sampleUrl);
   if (videoId === undefined) return credentialResult('douyin', false, '测试 URL 不可用，请换一个当前可访问的视频 URL。', false, 'unsupported-url', { sampleUrl, reason: 'sample-url' });
   const ssrUrl = new URL('https://www.douyin.com/jingxuan');
@@ -155,7 +155,7 @@ async function probeDouyin(sampleUrl: string, cookiesFilePath: string | undefine
       const cookie = await readNetscapeCookieHeader(cookiesFilePath, ['douyin.com']);
       if (cookie.length > 0) headers.cookie = cookie;
     }
-    const response = await fetchImpl(ssrUrl.toString(), { headers });
+    const response = await (fetchImpl ?? nativeProbeFetch)(ssrUrl.toString(), { headers });
     if (!response.ok) throw structuredError('douyin-ssr-unavailable', `抖音页面 SSR 请求失败，HTTP ${response.status}。`);
     const video = extractDouyinSsrVideo(await response.text());
     return credentialResult('douyin', true, 'cookies 连通性测试通过。', true, undefined, { sampleUrl, ssrUrl: ssrUrl.toString(), reason: 'douyin-ssr', title: video.title });
@@ -164,6 +164,16 @@ async function probeDouyin(sampleUrl: string, cookiesFilePath: string | undefine
     const failure = describeFailure(structured.errorCode);
     return credentialResult('douyin', false, failure.message, true, structured.errorCode, { sampleUrl, ssrUrl: ssrUrl.toString(), reason: failure.reason, errorDetail: structured.errorDetail ?? null });
   }
+}
+
+function nativeProbeFetch(
+  url: string,
+  init?: Parameters<DouyinFetch>[1]
+): ReturnType<DouyinFetch> {
+  return fetch(url, {
+    ...(init?.headers === undefined ? {} : { headers: init.headers }),
+    ...(init?.signal === undefined ? {} : { signal: init.signal })
+  });
 }
 
 export async function inspectCookiesFileForPlatform(input: { readonly filePath: string; readonly platform: SupportedPlatform; readonly now: Date }) {
@@ -193,11 +203,11 @@ function domainMatches(cookieDomain: string, target: string): boolean {
   return cookieDomain === target || cookieDomain.endsWith(`.${target}`);
 }
 
-function credentialResult(platform: SupportedPlatform, ok: boolean, message: string, entered: boolean, errorCode?: string, extra: Record<string, unknown> = {}): PlatformProbeResult {
+function credentialResult(platform: SupportedPlatform, ok: boolean, message: string, entered: boolean, errorCode?: string, extra: Record<string, string | number | boolean | null> = {}): PlatformProbeResult {
   return result('platform-credential-probe', ok, message, { platform, enteredMetadataProbeLayer: entered, errorCode: errorCode ?? null, ...extra });
 }
 
-function result(key: string, ok: boolean, message: string, details: Record<string, unknown>): PlatformProbeResult {
+function result(key: string, ok: boolean, message: string, details: Record<string, string | number | boolean | null>): PlatformProbeResult {
   return Object.freeze({ key, ok, message, details: Object.freeze(details) });
 }
 

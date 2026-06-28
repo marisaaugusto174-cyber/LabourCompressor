@@ -14,7 +14,7 @@ export interface ArchivePlacementPlan {
 export function buildArchivePlacementPlans(input: {
   readonly acceptedPaths: readonly string[];
   readonly fileName: string;
-  readonly multiplePlacementMode?: 'copy-all' | 'primary-only';
+  readonly multiplePlacementMode?: 'copy-all' | 'primary-only' | undefined;
 }): readonly ArchivePlacementPlan[] {
   const acceptedPaths = [...new Set(input.acceptedPaths.map((pathValue) => pathValue.trim()))];
 

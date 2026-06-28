@@ -17,7 +17,7 @@ export async function archiveFileByPlans(input: {
   readonly taxonomyVersionId: string;
   readonly fingerprintId: string;
   readonly recordedAt: string;
-  readonly jsonSidecarContent?: string;
+  readonly jsonSidecarContent?: string | undefined;
 }): Promise<readonly ArchiveRecord[]> {
   if (input.placementPlans.length === 0) {
     throw new Error('Archive operation requires at least one placement plan.');

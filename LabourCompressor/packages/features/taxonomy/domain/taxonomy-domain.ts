@@ -11,7 +11,7 @@ export interface TaxonomyNode {
   readonly label: string;
   readonly depth: number;
   readonly path: TaxonomyPath;
-  readonly parentId?: TaxonomyNodeId;
+  readonly parentId?: TaxonomyNodeId | undefined;
   readonly childIds: readonly TaxonomyNodeId[];
 }
 
@@ -44,7 +44,7 @@ export interface TaxonomyVersion {
   readonly createdAt: string;
   readonly rootNodeIds: readonly TaxonomyNodeId[];
   readonly changeSet: TaxonomyChangeSet;
-  readonly previousVersionId?: TaxonomyVersionId;
+  readonly previousVersionId?: TaxonomyVersionId | undefined;
 }
 
 interface CreateTaxonomyPathInput {
@@ -56,15 +56,15 @@ interface CreateTaxonomyNodeInput {
   readonly label: string;
   readonly depth: number;
   readonly path: TaxonomyPath;
-  readonly parentId?: TaxonomyNodeId;
-  readonly childIds?: readonly TaxonomyNodeId[];
+  readonly parentId?: TaxonomyNodeId | undefined;
+  readonly childIds?: readonly TaxonomyNodeId[] | undefined;
 }
 
 interface CreateTaxonomyChangeSetInput {
-  readonly addedPaths?: readonly TaxonomyPath[];
-  readonly removedPaths?: readonly TaxonomyPath[];
-  readonly movedNodes?: readonly TaxonomyMovedNode[];
-  readonly renamedNodes?: readonly TaxonomyRenamedNode[];
+  readonly addedPaths?: readonly TaxonomyPath[] | undefined;
+  readonly removedPaths?: readonly TaxonomyPath[] | undefined;
+  readonly movedNodes?: readonly TaxonomyMovedNode[] | undefined;
+  readonly renamedNodes?: readonly TaxonomyRenamedNode[] | undefined;
 }
 
 interface CreateTaxonomyVersionInput {
@@ -74,8 +74,8 @@ interface CreateTaxonomyVersionInput {
   readonly checksum: string;
   readonly createdAt: string;
   readonly rootNodeIds: readonly TaxonomyNodeId[];
-  readonly changeSet?: TaxonomyChangeSet;
-  readonly previousVersionId?: TaxonomyVersionId;
+  readonly changeSet?: TaxonomyChangeSet | undefined;
+  readonly previousVersionId?: TaxonomyVersionId | undefined;
 }
 
 export function createTaxonomyPath(

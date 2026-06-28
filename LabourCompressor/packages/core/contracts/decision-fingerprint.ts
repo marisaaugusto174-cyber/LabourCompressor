@@ -18,9 +18,9 @@ export interface DecisionFingerprint {
   readonly taskId: TaskId;
   readonly entityId: string;
   readonly entityType: DecisionEntityType;
-  readonly taxonomyVersionId?: TaxonomyVersionId;
-  readonly integrationVersion?: string;
-  readonly modelAdapterVersion?: string;
+  readonly taxonomyVersionId?: TaxonomyVersionId | undefined;
+  readonly integrationVersion?: string | undefined;
+  readonly modelAdapterVersion?: string | undefined;
   readonly decisionClass: string;
   readonly timestamp: string;
 }
@@ -30,9 +30,9 @@ export interface CreateDecisionFingerprintInput {
   readonly taskId: TaskId;
   readonly entityId: string;
   readonly entityType: DecisionEntityType;
-  readonly taxonomyVersionId?: TaxonomyVersionId;
-  readonly integrationVersion?: string;
-  readonly modelAdapterVersion?: string;
+  readonly taxonomyVersionId?: TaxonomyVersionId | undefined;
+  readonly integrationVersion?: string | undefined;
+  readonly modelAdapterVersion?: string | undefined;
   readonly decisionClass: string;
   readonly timestamp: string;
 }

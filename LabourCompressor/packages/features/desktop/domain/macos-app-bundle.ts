@@ -2,7 +2,7 @@ export interface MacosAppBundleInput {
   readonly appName: string;
   readonly projectRoot: string;
   readonly defaultPort: number;
-  readonly nodeExecutablePath?: string;
+  readonly nodeExecutablePath?: string | undefined;
 }
 
 export interface MacosAppBundleFile {

@@ -13,7 +13,7 @@ export interface SegmentationProfileDefinition {
   readonly preferredMinimumSeconds: number;
   readonly maximumSeconds: number;
   readonly source: 'builtin' | 'repository';
-  readonly manifestPath?: string;
+  readonly manifestPath?: string | undefined;
 }
 
 export type SegmentationProfileRules = Pick<
@@ -56,7 +56,7 @@ export const BUILTIN_SEGMENTATION_PROFILE_DEFINITIONS: readonly SegmentationProf
 ]);
 
 export async function listSegmentationProfileDefinitions(input: {
-  readonly repositoryDirectory?: string;
+  readonly repositoryDirectory?: string | undefined;
 } = {}): Promise<readonly SegmentationProfileDefinition[]> {
   const repositoryProfiles = await loadSegmentationProfileRepository(
     input.repositoryDirectory ?? SEGMENTATION_PROFILE_REPOSITORY_DIR

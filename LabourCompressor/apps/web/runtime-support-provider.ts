@@ -141,7 +141,7 @@ export async function saveSelectedProviderApiKey(input: {
   readonly providerConfigPath: string;
   readonly selectedModelProfileId: string;
   readonly apiKey: string;
-  readonly probe?: typeof probeSelectedProvider;
+  readonly probe?: typeof probeSelectedProvider | undefined;
 }): Promise<Readonly<Record<string, unknown>>> {
   const profile = getVideoModelProfile(input.selectedModelProfileId);
   const raw = JSON.parse(await readFile(input.providerConfigPath, 'utf8')) as Record<

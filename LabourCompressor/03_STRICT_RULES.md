@@ -68,13 +68,19 @@ V0.5 默认主线必须由 Web UI 驱动：
 - `noUncheckedIndexedAccess`
 - `exactOptionalPropertyTypes`
 
-当前仓库尚未安装并执行正式 TypeScript compiler，且 `apps/**` 尚未纳入类型检查。当前可执行门禁是 Node 运行解析、测试和 governance tests；建立 `npm run typecheck` 的工作进入 `05_STEP_BY_STEP_PLAN.md`。
+`typescript@6.0.3` 与 `@types/node@22.20.0` 已固定为开发依赖。`apps/**/*.ts` 和生产 `packages/**/*.ts` 必须通过：
 
-在 typecheck 门禁落地前仍禁止：
+```bash
+npm run typecheck
+```
+
+`npm run test:taxonomy-domain` 与 `npm run verify` 必须先执行该检查。以下情况属于即时拒绝条件：
 
 - 新增显式 `any` 逃避收缩。
 - 对外部输入直接断言为内部类型。
+- 使用 `@ts-ignore`、关闭 strict 选项或扩大 `skipLibCheck` 逃避诊断。
 - 为消除错误而使用无解释的类型强制转换。
+- 提交无法通过 `npm run typecheck`。
 
 ---
 

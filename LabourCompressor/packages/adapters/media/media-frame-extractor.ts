@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 export interface ExtractRepresentativeFramesInput {
   readonly mediaFilePath: string;
   readonly outputDirectory: string;
-  readonly maxFrames?: number;
+  readonly maxFrames?: number | undefined;
 }
 
 export interface ExtractRepresentativeFramesResult {
@@ -119,7 +119,7 @@ export async function encodeFileAsDataUrl(filePath: string): Promise<string> {
 export async function prepareVideoTaggingCache(input: {
   readonly mediaFilePath: string;
   readonly cacheRootDirectory: string;
-  readonly profile?: VideoTaggingCacheProfile;
+  readonly profile?: VideoTaggingCacheProfile | undefined;
 }): Promise<VideoTaggingCacheResult> {
   const profile = input.profile ?? DEFAULT_VIDEO_TAGGING_CACHE_PROFILE;
   const sourceHash = await hashFile(input.mediaFilePath);
@@ -187,7 +187,7 @@ export async function prepareVideoTaggingCache(input: {
 export function buildVideoTaggingCacheArgs(input: {
   readonly inputFilePath: string;
   readonly outputFilePath: string;
-  readonly profile?: VideoTaggingCacheProfile;
+  readonly profile?: VideoTaggingCacheProfile | undefined;
 }): readonly string[] {
   const profile = input.profile ?? DEFAULT_VIDEO_TAGGING_CACHE_PROFILE;
   const maxrateKbps = profile.videoBitrateKbps;
@@ -288,8 +288,8 @@ async function readVideoMetadata(filePath: string): Promise<VideoMetadata> {
     filePath
   ]);
   const parsed = JSON.parse(output) as {
-    format?: { duration?: string };
-    streams?: Array<{ avg_frame_rate?: string; r_frame_rate?: string }>;
+    format?: { duration?: string } | undefined;
+    streams?: Array<{ avg_frame_rate?: string | undefined; r_frame_rate?: string }> | undefined;
   };
   const durationSec = Number(parsed.format?.duration ?? '0');
   const fps = parseFps(

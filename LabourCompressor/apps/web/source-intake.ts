@@ -41,8 +41,8 @@ interface ScannedSourceFile {
 export async function importSourceMediaDirectory(input: {
   readonly sourceDirectoryPath: string;
   readonly downloadDirectory: string;
-  readonly afterEditDirectoryName?: string;
-  readonly outputFilePath?: string;
+  readonly afterEditDirectoryName?: string | undefined;
+  readonly outputFilePath?: string | undefined;
 }): Promise<SourceIntakeResult> {
   const sourceDirectoryPath = path.resolve(input.sourceDirectoryPath);
   const afterEditDirectoryPath = path.join(
@@ -227,8 +227,8 @@ async function probeVideoMetadata(filePath: string): Promise<{
       filePath
     ]);
     const parsed = JSON.parse(stdout) as {
-      readonly streams?: readonly { readonly height?: number }[];
-      readonly format?: { readonly duration?: string };
+      readonly streams?: readonly { readonly height?: number }[] | undefined;
+      readonly format?: { readonly duration?: string } | undefined;
     };
     const height = parsed.streams?.find((stream) => Number.isFinite(stream.height))?.height;
     const durationSeconds = Math.max(0, Math.round(Number(parsed.format?.duration ?? 0)));

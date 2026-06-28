@@ -22,7 +22,7 @@ import { type StageContext } from './stage-context.ts';
 
 export async function runSegmentStage(input: StageContext & {
   readonly appendRows: SpreadsheetAppendRow[];
-  readonly segmentationDependencies?: AutoSegmentationDependencies;
+  readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
 }): Promise<void> {
   const afterEditDirectoryPath = path.join(
     input.input.options.downloadDir,

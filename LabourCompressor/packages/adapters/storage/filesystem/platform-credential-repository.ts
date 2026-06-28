@@ -21,9 +21,10 @@ export function createPlatformCredentialFileRepository(options: {
 }): PlatformCredentialRepository {
   return Object.freeze({
     list: () => loadSummary(options),
-    async save(input) {
+    async save(input: Parameters<PlatformCredentialRepository['save']>[0]) {
       const raw = await readJsonObject(options.configFilePath);
-      const current = isRecord(raw[input.platform]) ? raw[input.platform] : {};
+      const candidate = raw[input.platform];
+      const current: Readonly<Record<string, unknown>> = isRecord(candidate) ? candidate : {};
       raw[input.platform] = {
         ...current,
         cookiesFilePath: input.cookiesFilePath ?? readString(current.cookiesFilePath),
@@ -32,7 +33,7 @@ export function createPlatformCredentialFileRepository(options: {
       await writeJson(options.configFilePath, raw);
       return loadSummary(options);
     },
-    async importFile(input) {
+    async importFile(input: Parameters<PlatformCredentialRepository['importFile']>[0]) {
       await access(input.sourceCookiesFilePath);
       const platformDirectory = path.join(options.repositoryRoot, input.platform);
       const cookiesFilePath = path.join(platformDirectory, 'cookies.txt');
@@ -90,8 +91,8 @@ async function loadConfig(filePath: string): Promise<PlatformCredentialConfig | 
 }
 
 async function loadMetadata(directory: string): Promise<{
-  readonly credentialStorePath?: string;
-  readonly credentialUploadedAt?: string;
+  readonly credentialStorePath?: string | undefined;
+  readonly credentialUploadedAt?: string | undefined;
 } | undefined> {
   try {
     const raw = JSON.parse(await readFile(path.join(directory, 'metadata.json'), 'utf8')) as unknown;

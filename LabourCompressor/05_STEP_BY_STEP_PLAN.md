@@ -107,21 +107,37 @@ Completed on 2026-06-28:
 - 针对性测试 89/89、治理测试 19/19、完整回归 399/399 通过。
 - 外部真实验收连续两次产出 1080×1440 H.264/AAC MP4，无 `.part` 残留；真实凭证、token 和媒体地址未持久化。
 
+### GOV-003: Application Integration Boundaries
+
+Completed on 2026-06-28:
+
+- 建立 platform credential application service、filesystem repository 与 connectivity probe adapter。
+- Web runtime support 保留兼容 facade，平台协议和网络探测移出 route/composition facade。
+- 针对性测试与完整回归通过，HTTP 路径和响应 DTO 保持兼容。
+
+### GOV-001: Oversized Production Modules
+
+Completed on 2026-06-28:
+
+- 七个历史超限生产模块全部拆至 500 行以内并保留旧入口。
+- 新增全局生产模块 500 行尺寸门禁。
+- 完整回归 402/402 通过。
+
+### GOV-002: Executable TypeScript Gate
+
+Completed on 2026-06-28:
+
+- 固定 `typescript@6.0.3` 与 `@types/node@22.20.0`。
+- `apps/**/*.ts` 与生产 `packages/**/*.ts` 纳入 strict typecheck。
+- `npm run typecheck` 与 `npm run verify` 返回 0，完整回归 402/402 通过。
+
 ---
 
-## GOV-001: Oversized Production Modules
+## GOV-001: Oversized Production Modules [completed]
 
 ### Current Facts
 
-当前超过 500 行的生产文件至少包括：
-
-- `apps/web/runtime-support-platform.ts`
-- `apps/web/public/app.js`
-- `packages/adapters/downloaders/ytdlp-downloader.ts`
-- `apps/web/public/tag-review.js`
-- `apps/web/tag-review.ts`
-- `packages/adapters/spreadsheets/local-spreadsheet-helpers.ts`
-- `apps/web/runtime-support-local.ts`
+生产文件尺寸门禁已覆盖 `apps/**` 与 `packages/**`；历史超限文件已完成职责拆分。
 
 ### Entry Condition
 
@@ -149,14 +165,14 @@ npm run test:taxonomy-domain
 
 ---
 
-## GOV-002: Executable TypeScript Gate
+## GOV-002: Executable TypeScript Gate [completed]
 
 ### Current Facts
 
 - `tsconfig.json` 启用了 strict 选项。
-- `typescript` 未作为项目依赖安装。
-- `apps/**` 不在当前 include 范围。
-- 当前 Node 测试能执行 TypeScript，但不等于类型检查。
+- TypeScript 与 Node 类型版本已固定。
+- `apps/**` 与生产 `packages/**` 已纳入 strict typecheck。
+- typecheck 已进入 `test:taxonomy-domain` 和 `verify` 门禁。
 
 ### Entry Condition
 
@@ -179,11 +195,11 @@ npm run typecheck
 
 ---
 
-## GOV-003: Application Integration Boundaries
+## GOV-003: Application Integration Boundaries [completed]
 
 ### Current Facts
 
-apps 作为 composition root 合法导入 adapter，但部分 `runtime-support-*.ts` 同时承担配置、网络探测、文件写入和错误翻译。
+apps 作为 composition root 合法导入 adapter；平台凭证协调、文件 repository 与协议 probe 已分层，旧 runtime-support 导出由 facade 兼容。
 
 ### Entry Condition
 
@@ -282,14 +298,14 @@ npm run test:taxonomy-domain
 
 ## Governance Order
 
-执行顺序固定为（前两项已完成）：
+执行顺序固定为：
 
 1. [completed] Phase 0 文档现实对齐。
 2. [completed] GOV-004 小红书下载完整性。
-3. [current] GOV-003 应用与 adapter 边界。
-4. GOV-001 按触达范围收敛超大文件。
-5. GOV-002 建立 typecheck 门禁。
-6. GOV-005 迁移 orchestrator。
+3. [completed] GOV-003 应用与 adapter 边界。
+4. [completed] GOV-001 全量收敛超大文件。
+5. [completed] GOV-002 建立 typecheck 门禁。
+6. [current] GOV-005 迁移 orchestrator。
 7. GOV-006 评估并接入 storage/SQLite。
 
 如果前置条件不满足，不得跳级实施后续目标。

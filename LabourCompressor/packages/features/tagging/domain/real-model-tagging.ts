@@ -33,19 +33,19 @@ export interface GenerateModelCandidatePathsInput {
   readonly promptLibrary: PromptLibraryDocument;
   readonly providerConfig: LocalProviderConfig;
   readonly videoCacheDirectory: string;
-  readonly selectedModelProfileId?: string;
-  readonly taxonomyBaseMarkdown?: string;
-  readonly taxonomyVersionId?: string;
-  readonly archiveDimension?: string;
-  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
+  readonly selectedModelProfileId?: string | undefined;
+  readonly taxonomyBaseMarkdown?: string | undefined;
+  readonly taxonomyVersionId?: string | undefined;
+  readonly archiveDimension?: string | undefined;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
 }
 
 export interface GenerateModelCandidatePathsResult {
   readonly candidatePaths: readonly string[];
   readonly rawText: string;
   readonly promptInstruction: string;
-  readonly parsedJson?: unknown;
-  readonly videoTaggingCache?: VideoTaggingCacheResult;
+  readonly parsedJson?: unknown | undefined;
+  readonly videoTaggingCache?: VideoTaggingCacheResult | undefined;
 }
 
 export const MIN_MODEL_VIDEO_DURATION_SECONDS = 2;
@@ -156,10 +156,10 @@ async function completeWithQwen(input: {
   readonly promptInstruction: string;
   readonly allowedPaths: readonly string[];
   readonly content: readonly QwenMessageContentPart[];
-  readonly videoTaggingCache?: VideoTaggingCacheResult;
+  readonly videoTaggingCache?: VideoTaggingCacheResult | undefined;
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
-  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
-  readonly archiveDimension?: string;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
+  readonly archiveDimension?: string | undefined;
 }) {
   const client = createQwenCompatibleClient(input.providerConfig);
   return isVideoMediaFile(input.mediaFilePath)
@@ -184,11 +184,11 @@ async function completeWithGemini(input: {
   readonly mediaFilePath: string;
   readonly promptInstruction: string;
   readonly allowedPaths: readonly string[];
-  readonly videoTaggingCache?: VideoTaggingCacheResult;
-  readonly selectedProfileThinkingLevel?: 'high';
+  readonly videoTaggingCache?: VideoTaggingCacheResult | undefined;
+  readonly selectedProfileThinkingLevel?: 'high' | undefined;
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
-  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
-  readonly archiveDimension?: string;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
+  readonly archiveDimension?: string | undefined;
 }) {
   const client = createGeminiCompatibleClient(input.providerConfig);
 
@@ -373,8 +373,8 @@ async function buildModelContentParts(input: {
   readonly promptInstruction: string;
   readonly allowedPaths: readonly string[];
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
-  readonly modelResponseShape?: 'paths-json-array' | 'structured-json';
-  readonly archiveDimension?: string;
+  readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
+  readonly archiveDimension?: string | undefined;
 }): Promise<readonly QwenMessageContentPart[]> {
   const extension = path.extname(input.mediaFilePath).toLowerCase();
   const content: QwenMessageContentPart[] = [

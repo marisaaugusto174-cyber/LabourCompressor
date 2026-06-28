@@ -37,7 +37,7 @@ export function parsePromptLibraryMarkdown(
       }
 
       currentSection = {
-        heading: headingMatch[2].trim(),
+        heading: headingMatch[2]!.trim(),
         level: headingMatch[1] === '##' ? 2 : 3,
         contentLines: []
       };

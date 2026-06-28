@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 export async function chooseLocalPath(input: {
   readonly kind: 'file' | 'folder';
   readonly prompt: string;
-  readonly defaultPath?: string;
+  readonly defaultPath?: string | undefined;
 }): Promise<LocalDialogResult> {
   try {
     const { stdout } = await execFileAsync('osascript', ['-e', buildChoosePathScript(input)], {
@@ -62,7 +62,7 @@ export async function checkDirectoryWritable(key: string, directoryPath: string)
 function buildChoosePathScript(input: {
   readonly kind: 'file' | 'folder';
   readonly prompt: string;
-  readonly defaultPath?: string;
+  readonly defaultPath?: string | undefined;
 }): string {
   const chooser = input.kind === 'folder' ? 'choose folder' : 'choose file';
   return [
@@ -73,7 +73,7 @@ function buildChoosePathScript(input: {
 
 function buildDefaultLocationClause(input: {
   readonly kind: 'file' | 'folder';
-  readonly defaultPath?: string;
+  readonly defaultPath?: string | undefined;
 }): string {
   if (typeof input.defaultPath !== 'string' || input.defaultPath.trim().length === 0) return '';
   const normalizedPath = input.kind === 'folder' ? input.defaultPath : path.dirname(input.defaultPath);

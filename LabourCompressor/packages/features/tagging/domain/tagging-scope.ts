@@ -22,7 +22,7 @@ export interface DirectoryTaggingScope {
   readonly id: TaggingScopeId;
   readonly kind: 'directory';
   readonly directoryPath: string;
-  readonly assetIds?: readonly string[];
+  readonly assetIds?: readonly string[] | undefined;
 }
 
 export function createDefaultDownloadBatchTaggingScope(input: {
@@ -52,7 +52,7 @@ export function createAssetSelectionTaggingScope(input: {
 export function createDirectoryTaggingScope(input: {
   readonly id: TaggingScopeId;
   readonly directoryPath: string;
-  readonly assetIds?: readonly string[];
+  readonly assetIds?: readonly string[] | undefined;
 }): DirectoryTaggingScope {
   assertNonEmptyValue(input.directoryPath, 'Directory tagging scope path');
 

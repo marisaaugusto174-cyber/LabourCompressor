@@ -61,8 +61,8 @@ export async function importPlatformCredentialFile(input: {
   readonly filePath: string;
   readonly platform: SupportedPlatform;
   readonly sourceCookiesFilePath: string;
-  readonly credentialRepositoryRoot?: string;
-  readonly now?: Date;
+  readonly credentialRepositoryRoot?: string | undefined;
+  readonly now?: Date | undefined;
 }): Promise<readonly PlatformCredentialSummaryEntry[]> {
   return createPlatformCredentialFileRepository({
     configFilePath: input.filePath,
@@ -74,11 +74,11 @@ export async function importAndProbePlatformCredentialFile(input: {
   readonly filePath: string;
   readonly platform: SupportedPlatform;
   readonly sourceCookiesFilePath: string;
-  readonly credentialRepositoryRoot?: string;
-  readonly ytDlpBinary?: string;
-  readonly now?: Date;
-  readonly homepageFetch?: HomepageFetch;
-  readonly probe?: PlatformCredentialProbe;
+  readonly credentialRepositoryRoot?: string | undefined;
+  readonly ytDlpBinary?: string | undefined;
+  readonly now?: Date | undefined;
+  readonly homepageFetch?: HomepageFetch | undefined;
+  readonly probe?: PlatformCredentialProbe | undefined;
 }): Promise<Readonly<{
   readonly summary: readonly PlatformCredentialSummaryEntry[];
   readonly probe: RuntimeCheckResult;
@@ -147,12 +147,12 @@ export async function importAndProbePlatformCredentialFile(input: {
 }
 
 export async function ensureDouyinCredentialFallback(input: {
-  readonly platformCredentialConfigPath?: string;
-  readonly candidateCookiesPaths?: readonly string[];
-  readonly now?: Date;
+  readonly platformCredentialConfigPath?: string | undefined;
+  readonly candidateCookiesPaths?: readonly string[] | undefined;
+  readonly now?: Date | undefined;
 }): Promise<Readonly<{
   readonly applied: boolean;
-  readonly cookiesFilePath?: string;
+  readonly cookiesFilePath?: string | undefined;
 }>> {
   const filePath = input.platformCredentialConfigPath?.trim();
   if (filePath === undefined || filePath.length === 0) {
@@ -196,8 +196,8 @@ export async function ensureDouyinCredentialFallback(input: {
 export async function savePlatformCredentialConfig(input: {
   readonly filePath: string;
   readonly platform: SupportedPlatform;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
 }): Promise<readonly PlatformCredentialSummaryEntry[]> {
   return createPlatformCredentialFileRepository({
     configFilePath: input.filePath,
@@ -223,7 +223,7 @@ export async function loadPlatformCredentialConfig(
 
 async function resolvePlatformHomepageSampleUrl(input: {
   readonly platform: SupportedPlatform;
-  readonly fetch?: HomepageFetch;
+  readonly fetch?: HomepageFetch | undefined;
 }): Promise<string | undefined> {
   const homepageUrl = PLATFORM_HOMEPAGE_URLS[input.platform];
   const fetchHomepage = input.fetch ?? defaultHomepageFetch;
@@ -344,9 +344,9 @@ function buildCredentialProbeResult(input: {
   readonly platform: SupportedPlatform;
   readonly message: string;
   readonly enteredMetadataProbeLayer: boolean;
-  readonly errorCode?: string;
-  readonly errorDetail?: string;
-  readonly extraDetails?: Readonly<Record<string, string | number | boolean | null>>;
+  readonly errorCode?: string | undefined;
+  readonly errorDetail?: string | undefined;
+  readonly extraDetails?: Readonly<Record<string, string | number | boolean | null>> | undefined;
 }): RuntimeCheckResult {
   return Object.freeze({
     key: 'platform-credential-probe',

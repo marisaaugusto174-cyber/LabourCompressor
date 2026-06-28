@@ -24,8 +24,8 @@ export async function runYtDlpProcess(input: {
   readonly binaryPath: string;
   readonly args: readonly string[];
   readonly cwd: string;
-  readonly signal?: AbortSignal;
-  readonly onProgress?: (event: DownloadExecutionProgress) => void;
+  readonly signal?: AbortSignal | undefined;
+  readonly onProgress?: ((event: DownloadExecutionProgress) => void) | undefined;
 }): Promise<string> {
   return new Promise((resolve, reject) => {
     if (input.signal?.aborted === true) return reject(createDownloadCancelledError());
@@ -81,7 +81,7 @@ function createLineCollector(onLine: (line: string) => void): (chunk: string) =>
   };
 }
 
-function createDownloadCancelledError(): Error {
+export function createDownloadCancelledError(): Error {
   const error = new Error('Download cancelled.');
   error.name = 'PipelineCancelledError';
   return error;

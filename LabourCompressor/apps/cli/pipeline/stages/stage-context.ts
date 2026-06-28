@@ -7,7 +7,7 @@ import { type RunLocalPipelineOptions } from '../options.ts';
 export interface StageContext {
   readonly input: {
     readonly options: RunLocalPipelineOptions;
-    readonly control?: PipelineControl;
+    readonly control?: PipelineControl | undefined;
   };
   readonly sheet: ReturnType<typeof readSpreadsheetTaskSheet>;
   readonly emit: ReturnType<typeof createStageEmitter>;

@@ -100,10 +100,10 @@ async function checkYtDlp(options: RunLocalPipelineOptions): Promise<RuntimeChec
 
 function buildYtDlpPreflightMessage(input: {
   readonly available: boolean;
-  readonly version?: string;
-  readonly isStale?: boolean;
+  readonly version?: string | undefined;
+  readonly isStale?: boolean | undefined;
 }, options: {
-  readonly staleYtDlpIsNonBlocking?: boolean;
+  readonly staleYtDlpIsNonBlocking?: boolean | undefined;
 } = {}): string {
   if (!input.available) {
     return 'yt-dlp validation failed.';

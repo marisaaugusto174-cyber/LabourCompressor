@@ -9,14 +9,14 @@ export interface PromptPresetDefinition {
   readonly label: string;
   readonly filePath: string;
   readonly source: 'taxonomy' | 'repository';
-  readonly manifestPath?: string;
+  readonly manifestPath?: string | undefined;
 }
 
 export const PROMPT_REPOSITORY_DIR = projectPath('config/repositories/prompts');
 
 export function listPromptPresets(input: {
   readonly taxonomyPresets: readonly TaxonomyPresetDefinition[];
-  readonly repositoryDirectory?: string;
+  readonly repositoryDirectory?: string | undefined;
 }): readonly PromptPresetDefinition[] {
   const byFilePath = new Map<string, PromptPresetDefinition>();
 

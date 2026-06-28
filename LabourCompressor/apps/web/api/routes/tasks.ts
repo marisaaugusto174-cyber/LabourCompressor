@@ -88,7 +88,7 @@ export const handleTaskRoutes: WebRouteHandler = async ({ request, response, url
 };
 
 function buildSelectedContentTopicByFileName(
-  events: readonly { readonly currentItem?: string; readonly details?: unknown }[]
+  events: readonly { readonly currentItem?: string | undefined; readonly details?: unknown }[]
 ): Readonly<Record<string, string>> {
   const selectedPaths: Record<string, string> = {};
 

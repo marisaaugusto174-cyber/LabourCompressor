@@ -12,9 +12,9 @@ export type SimulatedDownloadFixture =
       readonly mode: 'muxed';
       readonly extension: string;
       readonly content: string;
-      readonly title?: string;
-      readonly resolutionLabel?: string;
-      readonly durationSeconds?: number;
+      readonly title?: string | undefined;
+      readonly resolutionLabel?: string | undefined;
+      readonly durationSeconds?: number | undefined;
     }
   | {
       readonly mode: 'separated';
@@ -22,9 +22,9 @@ export type SimulatedDownloadFixture =
       readonly audioExtension: string;
       readonly videoContent: string;
       readonly audioContent: string;
-      readonly title?: string;
-      readonly resolutionLabel?: string;
-      readonly durationSeconds?: number;
+      readonly title?: string | undefined;
+      readonly resolutionLabel?: string | undefined;
+      readonly durationSeconds?: number | undefined;
     };
 
 export function createSimulatedDownloaderAdapter(input: {

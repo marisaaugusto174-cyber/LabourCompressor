@@ -39,10 +39,10 @@ export { buildNumbersWritebackScript, ensureMasterSpreadsheetTemplate };
 
 export function readSpreadsheetTaskSheet(input: {
   readonly filePath: string;
-  readonly sheetName?: string;
-  readonly hasHeaderRow?: boolean;
-  readonly urlColumnIndex?: number;
-  readonly urlColumnName?: string;
+  readonly sheetName?: string | undefined;
+  readonly hasHeaderRow?: boolean | undefined;
+  readonly urlColumnIndex?: number | undefined;
+  readonly urlColumnName?: string | undefined;
 }): SpreadsheetSheetData {
   const workbook = xlsx.readFile(input.filePath);
   const sheetName = input.sheetName ?? workbook.SheetNames[0];
@@ -109,9 +109,9 @@ export function readSpreadsheetTaskSheet(input: {
 export function writeTagResultsToSpreadsheet(input: {
   readonly filePath: string;
   readonly updates: readonly SpreadsheetWritebackUpdate[];
-  readonly appendRows?: readonly SpreadsheetAppendRow[];
-  readonly sheetName?: string;
-  readonly acceptedTagsColumnName?: string;
+  readonly appendRows?: readonly SpreadsheetAppendRow[] | undefined;
+  readonly sheetName?: string | undefined;
+  readonly acceptedTagsColumnName?: string | undefined;
 }): void {
   const fileKind = detectSpreadsheetFileKind(input.filePath);
 
@@ -159,7 +159,7 @@ export function writeTagResultsToSpreadsheet(input: {
 export function appendRowsToMasterSpreadsheet(input: {
   readonly filePath: string;
   readonly entries: readonly MasterSpreadsheetWritebackEntry[];
-  readonly sheetName?: string;
+  readonly sheetName?: string | undefined;
 }): void {
   if (input.entries.length === 0) {
     return;
@@ -182,7 +182,7 @@ export function appendRowsToMasterSpreadsheet(input: {
         const existingColumnIndex = existingHeaders.indexOf(header);
         return existingColumnIndex === -1
           ? ''
-          : displayValue(existingRow[existingColumnIndex] ?? '');
+          : displayValue(String(existingRow[existingColumnIndex] ?? ''));
       })
     )
   ];
@@ -250,27 +250,27 @@ export function appendRowsToMasterSpreadsheet(input: {
 }
 export interface PostEditArchiveRecordFileEntry {
   readonly fileName: string;
-  readonly relativePath?: string;
-  readonly originalFileName?: string;
-  readonly sourceUrl?: string;
-  readonly archiveState?: string;
-  readonly taggingJsonFileName?: string;
-  readonly sourceFilePath?: string;
-  readonly currentFilePath?: string;
-  readonly compressedCachePath?: string;
-  readonly sourceRowNumber?: number | string;
-  readonly segmentIndex?: number | string;
-  readonly failureMessage?: string;
-  readonly errorMessage?: string;
+  readonly relativePath?: string | undefined;
+  readonly originalFileName?: string | undefined;
+  readonly sourceUrl?: string | undefined;
+  readonly archiveState?: string | undefined;
+  readonly taggingJsonFileName?: string | undefined;
+  readonly sourceFilePath?: string | undefined;
+  readonly currentFilePath?: string | undefined;
+  readonly compressedCachePath?: string | undefined;
+  readonly sourceRowNumber?: number | string | undefined;
+  readonly segmentIndex?: number | string | undefined;
+  readonly failureMessage?: string | undefined;
+  readonly errorMessage?: string | undefined;
 }
 
 export function createPostEditArchiveRecordSpreadsheet(input: {
   readonly filePath: string;
-  readonly fileNames?: readonly string[];
-  readonly fileEntries?: readonly PostEditArchiveRecordFileEntry[];
-  readonly sheetName?: string;
+  readonly fileNames?: readonly string[] | undefined;
+  readonly fileEntries?: readonly PostEditArchiveRecordFileEntry[] | undefined;
+  readonly sheetName?: string | undefined;
 }): void {
-  const fileEntries =
+  const fileEntries: readonly PostEditArchiveRecordFileEntry[] =
     input.fileEntries ??
     input.fileNames?.map((fileName) => Object.freeze({ fileName })) ??
     [];
@@ -278,7 +278,7 @@ export function createPostEditArchiveRecordSpreadsheet(input: {
   mkdirSync(path.dirname(input.filePath), { recursive: true });
   const workbook = xlsx.utils.book_new();
   const worksheet = xlsx.utils.aoa_to_sheet([
-    POST_EDIT_ARCHIVE_RECORD_HEADERS,
+    [...POST_EDIT_ARCHIVE_RECORD_HEADERS],
     ...fileEntries.map((entry) => [
       entry.fileName,
       entry.relativePath ?? entry.fileName,

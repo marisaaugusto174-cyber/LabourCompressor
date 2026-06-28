@@ -13,7 +13,11 @@ import {
   collectDownloadedArtifacts,
   extractReportedFilePaths
 } from './ytdlp-output-artifacts.ts';
-import { parseYtDlpProgressLine, runYtDlpProcess } from './ytdlp-process.ts';
+import {
+  createDownloadCancelledError,
+  parseYtDlpProgressLine,
+  runYtDlpProcess
+} from './ytdlp-process.ts';
 import {
   inspectYtDlpBinary,
   resolveYtDlpBinaryPath,
@@ -30,10 +34,10 @@ export {
 } from './ytdlp-runtime.ts';
 
 export interface YtDlpAdapterOptions {
-  readonly binaryPath?: string;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly platformCredentialConfig?: PlatformCredentialConfig;
+  readonly binaryPath?: string | undefined;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
+  readonly platformCredentialConfig?: PlatformCredentialConfig | undefined;
   readonly resolveCredential?: (
     request: DownloadRequest
   ) => PlatformCredentialEntry | undefined;
@@ -69,8 +73,8 @@ export interface DownloadProbeResult {
 }
 
 export interface ResolvedYtDlpCredential {
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
   readonly source:
     | 'platform-cookies-file'
     | 'platform-browser-cookies'
@@ -83,8 +87,8 @@ export interface ResolvedYtDlpCredential {
 
 export interface YtDlpBinaryInspection {
   readonly available: boolean;
-  readonly version?: string;
-  readonly isStale?: boolean;
+  readonly version?: string | undefined;
+  readonly isStale?: boolean | undefined;
 }
 
 export function createYtDlpDownloaderAdapter(
@@ -307,8 +311,8 @@ function createStructuredDownloadError(error: unknown): Error {
       : String(error);
   const probe = classifyYtDlpErrorMessage(message);
   const structured = new Error(buildUserFacingDownloadMessage(probe.status, probe.message)) as Error & {
-    readonly downloadErrorCode?: string;
-    readonly downloadErrorDetail?: string;
+    readonly downloadErrorCode?: string | undefined;
+    readonly downloadErrorDetail?: string | undefined;
   };
   Object.defineProperty(structured, 'downloadErrorCode', {
     value: probe.status,
@@ -323,8 +327,8 @@ function createStructuredDownloadError(error: unknown): Error {
 
 function createDownloadProbeError(status: DownloadProbeStatus): Error {
   const structured = new Error(buildUserFacingDownloadMessage(status, '')) as Error & {
-    readonly downloadErrorCode?: string;
-    readonly downloadErrorDetail?: string;
+    readonly downloadErrorCode?: string | undefined;
+    readonly downloadErrorDetail?: string | undefined;
   };
   Object.defineProperty(structured, 'downloadErrorCode', {
     value: status,
@@ -340,7 +344,7 @@ function createDownloadProbeError(status: DownloadProbeStatus): Error {
 export function extractStructuredDownloadError(error: unknown): Readonly<{
   readonly errorCode: string;
   readonly errorMessage: string;
-  readonly errorDetail?: string;
+  readonly errorDetail?: string | undefined;
 }> {
   if (
     typeof error === 'object' &&
@@ -350,7 +354,7 @@ export function extractStructuredDownloadError(error: unknown): Readonly<{
   ) {
     const structuredError = error as Error & {
       readonly downloadErrorCode: string;
-      readonly downloadErrorDetail?: string;
+      readonly downloadErrorDetail?: string | undefined;
     };
 
     return Object.freeze({

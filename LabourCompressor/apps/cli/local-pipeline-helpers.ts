@@ -3,6 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { appendRowsToMasterSpreadsheet, writeTagResultsToSpreadsheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
+import { type SimulatedDownloadFixture } from '../../packages/adapters/downloaders/simulated-downloader.ts';
 import { type SpreadsheetTaskRow } from '../../packages/features/spreadsheet-tasks/domain/index.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
@@ -18,22 +19,22 @@ export interface PipelineRowState {
   readonly url: string;
   readonly collector: string;
   readonly archiveState: string;
-  readonly sourceFilePath?: string;
-  readonly currentFilePath?: string;
-  readonly compressedCachePath?: string;
-  readonly sourceRowNumber?: number;
-  readonly segmentIndex?: number;
-  readonly errorMessage?: string;
+  readonly sourceFilePath?: string | undefined;
+  readonly currentFilePath?: string | undefined;
+  readonly compressedCachePath?: string | undefined;
+  readonly sourceRowNumber?: number | undefined;
+  readonly segmentIndex?: number | undefined;
+  readonly errorMessage?: string | undefined;
   readonly levelValues: Readonly<Record<string, string>>;
   readonly archivePath: string;
   readonly archiveFileName: string;
-  readonly taggingJsonFileName?: string;
-  readonly taggingJsonArchivePath?: string;
-  readonly taggingJsonPayload?: unknown;
+  readonly taggingJsonFileName?: string | undefined;
+  readonly taggingJsonArchivePath?: string | undefined;
+  readonly taggingJsonPayload?: unknown | undefined;
   readonly acceptedPaths: readonly string[];
-  readonly selectedContentTopicPath?: string;
-  readonly timings?: PipelineItemTimings;
-  readonly failure?: RunLocalPipelineFailure;
+  readonly selectedContentTopicPath?: string | undefined;
+  readonly timings?: PipelineItemTimings | undefined;
+  readonly failure?: RunLocalPipelineFailure | undefined;
 }
 
 export function createStageEmitter(
@@ -57,7 +58,7 @@ export function createStageEmitter(
 
 export async function loadDownloadFixtures(
   options: RunLocalPipelineOptions
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, SimulatedDownloadFixture>> {
   if (options.downloaderMode === 'yt-dlp') {
     return {};
   }
@@ -67,7 +68,7 @@ export async function loadDownloadFixtures(
       requireValue(options.downloadFixtures, '--download-fixtures is required when downloader-mode=simulated.'),
       'utf8'
     )
-  ) as Record<string, unknown>;
+  ) as Record<string, SimulatedDownloadFixture>;
 }
 
 export async function loadCandidateFixtures(
@@ -91,7 +92,7 @@ export async function writePipelineResults(input: {
   readonly archiveLibraryRoot: string;
   readonly results: readonly PipelineRowState[];
   readonly startedAt: string;
-  readonly userWritebackRowNumbers?: readonly number[];
+  readonly userWritebackRowNumbers?: readonly number[] | undefined;
 }): Promise<void> {
   const writebackTarget = input.options.writebackTarget ?? 'user';
   const userWritebackRowNumbers =

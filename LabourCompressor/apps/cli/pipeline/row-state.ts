@@ -8,19 +8,19 @@ import { type PipelineRowState } from '../local-pipeline-helpers.ts';
 export function createBasicRowState(input: {
   readonly row: SpreadsheetTaskRow;
   readonly archiveState: string;
-  readonly sourceFilePath?: string;
-  readonly currentFilePath?: string;
-  readonly compressedCachePath?: string;
-  readonly sourceRowNumber?: number;
-  readonly segmentIndex?: number;
-  readonly errorMessage?: string;
-  readonly levelValues?: Readonly<Record<string, string>>;
-  readonly archivePath?: string;
-  readonly archiveFileName?: string;
-  readonly taggingJsonFileName?: string;
-  readonly taggingJsonArchivePath?: string;
-  readonly acceptedPaths?: readonly string[];
-  readonly selectedContentTopicPath?: string;
+  readonly sourceFilePath?: string | undefined;
+  readonly currentFilePath?: string | undefined;
+  readonly compressedCachePath?: string | undefined;
+  readonly sourceRowNumber?: number | undefined;
+  readonly segmentIndex?: number | undefined;
+  readonly errorMessage?: string | undefined;
+  readonly levelValues?: Readonly<Record<string, string>> | undefined;
+  readonly archivePath?: string | undefined;
+  readonly archiveFileName?: string | undefined;
+  readonly taggingJsonFileName?: string | undefined;
+  readonly taggingJsonArchivePath?: string | undefined;
+  readonly acceptedPaths?: readonly string[] | undefined;
+  readonly selectedContentTopicPath?: string | undefined;
 }): PipelineRowState {
   return {
     rowNumber: input.row.rowNumber,

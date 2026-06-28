@@ -17,7 +17,7 @@ export interface ExportSegmentResult {
 }
 
 export interface FfmpegSegmentExporterOptions {
-  readonly binaryPath?: string;
+  readonly binaryPath?: string | undefined;
 }
 
 export function createFfmpegSegmentExporter(

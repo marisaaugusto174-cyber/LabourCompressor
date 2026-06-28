@@ -32,24 +32,24 @@ export interface RuntimeTaskSnapshot {
   readonly id: string;
   readonly status: RuntimeTaskStatus;
   readonly createdAt: string;
-  readonly startedAt?: string;
-  readonly completedAt?: string;
+  readonly startedAt?: string | undefined;
+  readonly completedAt?: string | undefined;
   readonly options: RunLocalPipelineOptions;
-  readonly latestEvent?: CliStageEvent;
-  readonly result?: RunLocalPipelineResult;
-  readonly error?: string;
+  readonly latestEvent?: CliStageEvent | undefined;
+  readonly result?: RunLocalPipelineResult | undefined;
+  readonly error?: string | undefined;
 }
 
 interface RuntimeTaskState {
   id: string;
   status: RuntimeTaskStatus;
   createdAt: string;
-  startedAt?: string;
-  completedAt?: string;
+  startedAt?: string | undefined;
+  completedAt?: string | undefined;
   options: RunLocalPipelineOptions;
-  latestEvent?: CliStageEvent;
-  result?: RunLocalPipelineResult;
-  error?: string;
+  latestEvent?: CliStageEvent | undefined;
+  result?: RunLocalPipelineResult | undefined;
+  error?: string | undefined;
   events: CliStageEvent[];
   emitter: EventEmitter;
   abortController: AbortController;
@@ -63,9 +63,9 @@ type PersistedRuntimeTask = Omit<
 >;
 
 export function createRuntimeTaskService(options: {
-  readonly stateFilePath?: string;
-  readonly maxPersistedTasks?: number;
-  readonly pipelineRunner?: RuntimePipelineRunner;
+  readonly stateFilePath?: string | undefined;
+  readonly maxPersistedTasks?: number | undefined;
+  readonly pipelineRunner?: RuntimePipelineRunner | undefined;
 } = {}) {
   const maxPersistedTasks = options.maxPersistedTasks ?? 50;
   const pipelineRunner = options.pipelineRunner ?? runLocalPipelineCommand;
@@ -322,7 +322,7 @@ function loadPersistedTasks(stateFilePath: string | undefined): RuntimeTaskState
 
   try {
     const parsed = JSON.parse(readFileSync(stateFilePath, 'utf8')) as {
-      readonly tasks?: readonly PersistedRuntimeTask[];
+      readonly tasks?: readonly PersistedRuntimeTask[] | undefined;
     };
 
     return (parsed.tasks ?? []).map((task) => normalizeRestoredTask(task));

@@ -11,7 +11,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 export interface FfmpegMergeOptions {
-  readonly binaryPath?: string;
+  readonly binaryPath?: string | undefined;
 }
 
 export function createFfmpegMergeOperator(

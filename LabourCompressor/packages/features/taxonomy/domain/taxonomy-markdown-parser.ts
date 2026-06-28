@@ -39,7 +39,7 @@ const PROMPT_BASE_ROOT_LABELS = new Set([
 export function parseTaxonomyMarkdown(
   markdown: string,
   options?: {
-    readonly rootMode?: 'heading' | 'bullet-root';
+    readonly rootMode?: 'heading' | 'bullet-root' | undefined;
   }
 ): ParsedTaxonomyTree {
   const lines = markdown.split(/\r?\n/u);
@@ -159,16 +159,13 @@ interface TaxonomyNodeDraft {
   readonly id: TaxonomyNodeId;
   readonly label: string;
   readonly depth: number;
-  readonly parentId?: TaxonomyNodeId;
+  readonly parentId?: TaxonomyNodeId | undefined;
   readonly pathSegments: readonly string[];
   readonly childIds: TaxonomyNodeId[];
 }
 
 function appendNode(input: AppendNodeInput): void {
-  while (
-    input.stack.length > 0 &&
-    input.stack[input.stack.length - 1]?.depth >= input.depth
-  ) {
+  while (input.stack.at(-1)?.depth !== undefined && input.stack.at(-1)!.depth >= input.depth) {
     input.stack.pop();
   }
 

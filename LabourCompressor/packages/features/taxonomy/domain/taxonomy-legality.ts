@@ -4,7 +4,7 @@ export interface TaxonomyPathLookup {
   readonly input: string;
   readonly normalizedPath: string;
   readonly exists: boolean;
-  readonly nodeId?: string;
+  readonly nodeId?: string | undefined;
 }
 
 export interface TaxonomyPathValidationResult {
@@ -16,7 +16,7 @@ export interface TaxonomyPathValidationResult {
     | 'unknown-path'
     | 'duplicate-input'
     | 'contains-empty-segment';
-  readonly nodeId?: string;
+  readonly nodeId?: string | undefined;
 }
 
 export function normalizeTaxonomyPathInput(path: string): string {

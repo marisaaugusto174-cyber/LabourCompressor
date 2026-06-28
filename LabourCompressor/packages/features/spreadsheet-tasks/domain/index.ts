@@ -46,8 +46,8 @@ export interface SpreadsheetTaskRow {
   readonly rowNumber: number;
   readonly url: string;
   readonly sourceKind: 'url' | 'local-file';
-  readonly sourceFileName?: string;
-  readonly sourceFileRelativePath?: string;
+  readonly sourceFileName?: string | undefined;
+  readonly sourceFileRelativePath?: string | undefined;
   readonly values: Readonly<Record<string, string>>;
 }
 
@@ -69,8 +69,8 @@ export interface SpreadsheetSheetData {
 
 export interface SpreadsheetWritebackUpdate {
   readonly rowNumber: number;
-  readonly acceptedPaths?: readonly string[];
-  readonly columnValues?: Readonly<Record<string, SpreadsheetCellValue>>;
+  readonly acceptedPaths?: readonly string[] | undefined;
+  readonly columnValues?: Readonly<Record<string, SpreadsheetCellValue>> | undefined;
 }
 
 export type SpreadsheetAppendRow = Readonly<Record<string, SpreadsheetCellValue>>;
@@ -79,16 +79,16 @@ export interface MasterSpreadsheetWritebackEntry {
   readonly url: string;
   readonly collector: string;
   readonly archiveState: string;
-  readonly sourceFilePath?: string;
-  readonly currentFilePath?: string;
-  readonly compressedCachePath?: string;
-  readonly sourceRowNumber?: number;
-  readonly segmentIndex?: number;
-  readonly errorMessage?: string;
+  readonly sourceFilePath?: string | undefined;
+  readonly currentFilePath?: string | undefined;
+  readonly compressedCachePath?: string | undefined;
+  readonly sourceRowNumber?: number | undefined;
+  readonly segmentIndex?: number | undefined;
+  readonly errorMessage?: string | undefined;
   readonly levelValues: Readonly<Record<string, string>>;
   readonly archivePath: string;
   readonly archiveFileName: SpreadsheetCellValue;
-  readonly taggingJsonFileName?: SpreadsheetCellValue;
+  readonly taggingJsonFileName?: SpreadsheetCellValue | undefined;
   readonly sourceSpreadsheet: string;
   readonly processedAt: string;
 }

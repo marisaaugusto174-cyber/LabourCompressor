@@ -252,9 +252,9 @@ export function applyDownloadFailureStates(input: {
   readonly downloadTasks: readonly {
     readonly id: string;
     readonly status: string;
-    readonly errorCode?: string;
-    readonly errorMessage?: string;
-    readonly updatedAt?: string;
+    readonly errorCode?: string | undefined;
+    readonly errorMessage?: string | undefined;
+    readonly updatedAt?: string | undefined;
   }[];
   readonly startedAt: string;
   readonly failures: RunLocalPipelineFailure[];
@@ -381,8 +381,8 @@ export function finalizePipelineResult(input: {
   readonly totalRows: number;
   readonly failures: readonly RunLocalPipelineFailure[];
   readonly resultsByRow: ReadonlyMap<number, PipelineRowState>;
-  readonly forceSucceededRows?: number;
-  readonly currentRunSpreadsheetPath?: string;
+  readonly forceSucceededRows?: number | undefined;
+  readonly currentRunSpreadsheetPath?: string | undefined;
 }): RunLocalPipelineResult {
   const completedAt = new Date().toISOString();
   const results = [...input.resultsByRow.values()].sort((left, right) => left.rowNumber - right.rowNumber);

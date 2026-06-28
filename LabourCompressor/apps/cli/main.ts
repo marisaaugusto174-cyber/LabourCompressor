@@ -132,13 +132,14 @@ try {
       outputDirectory: getRequiredArg(args, 'output-dir'),
       outputFileStem: 'probe'
     });
+    const platformCredentialConfigPath = args['platform-credential-config'];
     const platformCredentialConfig =
-      args['platform-credential-config'] === undefined
+      platformCredentialConfigPath === undefined
         ? undefined
         : parsePlatformCredentialConfig(
             JSON.parse(
               await import('node:fs/promises').then(({ readFile }) =>
-                readFile(args['platform-credential-config'], 'utf8')
+                readFile(platformCredentialConfigPath, 'utf8')
               )
             )
           );

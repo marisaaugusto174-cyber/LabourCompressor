@@ -28,8 +28,8 @@ export type { LocalPipelineStage } from './pipeline/options.ts';
 export async function runLocalPipelineStageCommand(input: {
   readonly options: RunLocalPipelineOptions;
   readonly report: (event: CliStageEvent) => void;
-  readonly segmentationDependencies?: AutoSegmentationDependencies;
-  readonly control?: PipelineControl;
+  readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
+  readonly control?: PipelineControl | undefined;
 }): Promise<RunLocalPipelineResult> {
   const pipelineStage = input.options.pipelineStage ?? 'all';
 
@@ -75,16 +75,16 @@ export async function runLocalPipelineStageCommand(input: {
   return runSingleStage(input as {
     readonly options: RunLocalPipelineOptions & { readonly pipelineStage: LocalPipelineStage };
     readonly report: (event: CliStageEvent) => void;
-    readonly segmentationDependencies?: AutoSegmentationDependencies;
-    readonly control?: PipelineControl;
+    readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
+    readonly control?: PipelineControl | undefined;
   });
 }
 
 async function runSingleStage(input: {
   readonly options: RunLocalPipelineOptions & { readonly pipelineStage: LocalPipelineStage };
   readonly report: (event: CliStageEvent) => void;
-  readonly segmentationDependencies?: AutoSegmentationDependencies;
-  readonly control?: PipelineControl;
+  readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
+  readonly control?: PipelineControl | undefined;
 }): Promise<RunLocalPipelineResult> {
   const startedAt = input.options.timestamp ?? new Date().toISOString();
   const workflowSessionId =

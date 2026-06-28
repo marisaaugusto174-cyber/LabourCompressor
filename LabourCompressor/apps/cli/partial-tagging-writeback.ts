@@ -43,8 +43,8 @@ export interface PartialTaggingWritebackResult {
 
 export async function writePartialTaggingResultsFromSidecars(input: {
   readonly options: RunLocalPipelineOptions;
-  readonly selectedContentTopicByFileName?: Readonly<Record<string, string>>;
-  readonly startedAt?: string;
+  readonly selectedContentTopicByFileName?: Readonly<Record<string, string>> | undefined;
+  readonly startedAt?: string | undefined;
 }): Promise<PartialTaggingWritebackResult> {
   const startedAt = input.startedAt ?? new Date().toISOString();
   const sheet = readSpreadsheetTaskSheet({
@@ -204,7 +204,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 function mergeFallbackContentTopicPath(input: {
   readonly candidatePaths: readonly string[];
-  readonly selectedContentTopicPath?: string;
+  readonly selectedContentTopicPath?: string | undefined;
 }): readonly string[] {
   const normalizedFallback = input.selectedContentTopicPath?.trim() ?? '';
 

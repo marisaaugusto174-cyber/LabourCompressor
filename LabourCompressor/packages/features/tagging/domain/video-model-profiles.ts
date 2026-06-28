@@ -11,7 +11,7 @@ export interface VideoModelProfile {
   readonly provider: ModelProvider;
   readonly modelName: string;
   readonly videoSupported: true;
-  readonly thinkingLevel?: 'high';
+  readonly thinkingLevel?: 'high' | undefined;
   readonly defaultTaggingConcurrency: number;
 }
 

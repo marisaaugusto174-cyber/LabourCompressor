@@ -18,9 +18,9 @@ import {
 } from './xiaohongshu-downloader.ts';
 
 export interface PlatformAwareDownloaderOptions extends YtDlpAdapterOptions {
-  readonly douyin?: DownloaderAdapter;
-  readonly xiaohongshu?: DownloaderAdapter;
-  readonly fallback?: DownloaderAdapter;
+  readonly douyin?: DownloaderAdapter | undefined;
+  readonly xiaohongshu?: DownloaderAdapter | undefined;
+  readonly fallback?: DownloaderAdapter | undefined;
 }
 
 export function createPlatformAwareDownloaderAdapter(

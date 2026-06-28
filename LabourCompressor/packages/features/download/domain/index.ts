@@ -37,6 +37,8 @@ export type {
 } from './download-records.ts';
 export type {
   DownloadBatchResult,
+  DownloadExecutionOptions,
+  DownloadExecutionProgress,
   DownloaderAdapter,
   MergeOperator,
   MergeStreamsInput,

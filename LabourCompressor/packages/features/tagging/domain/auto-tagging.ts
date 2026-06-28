@@ -34,8 +34,8 @@ export interface AutomaticTaggingInput {
 
 export interface AutomaticTaggingResult {
   readonly promptInstruction: string;
-  readonly candidateSet?: TagCandidateSet;
-  readonly assignment?: TagAssignment;
+  readonly candidateSet?: TagCandidateSet | undefined;
+  readonly assignment?: TagAssignment | undefined;
   readonly acceptedPaths: readonly string[];
   readonly rejectedPaths: readonly string[];
 }

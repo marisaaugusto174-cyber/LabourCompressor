@@ -20,7 +20,7 @@ export interface RetrievalManifest {
 export function filterLocalIndexEntriesByTags(input: {
   readonly localIndexEntries: readonly LocalIndexEntry[];
   readonly requestedTags: readonly string[];
-  readonly matchMode?: 'any' | 'all';
+  readonly matchMode?: 'any' | 'all' | undefined;
 }): readonly LocalIndexEntry[] {
   const normalizedTags = input.requestedTags.map((tagPath) => tagPath.trim());
 

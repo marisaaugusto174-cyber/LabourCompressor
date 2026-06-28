@@ -13,11 +13,11 @@ export const handleDownloadProbeRoutes: WebRouteHandler = async ({ request, resp
   sendJson(
     response,
     await probePlatformDownload({
-      url: body.url,
-      outputDirectory: body.outputDirectory ?? path.join(PROJECT_ROOT, '.runtime-probe'),
-      ytDlpBinary: body.ytDlpBinary,
-      cookiesFilePath: body.cookiesFilePath,
-      cookiesFromBrowser: body.cookiesFromBrowser,
+      url: readString(body.url),
+      outputDirectory: readString(body.outputDirectory) || path.join(PROJECT_ROOT, '.runtime-probe'),
+      ytDlpBinary: readString(body.ytDlpBinary) || undefined,
+      cookiesFilePath: readString(body.cookiesFilePath) || undefined,
+      cookiesFromBrowser: readString(body.cookiesFromBrowser) || undefined,
       platformCredentialConfigPath:
         readString(body.platformCredentialConfigPath) ||
         context.defaultPlatformCredentialConfig

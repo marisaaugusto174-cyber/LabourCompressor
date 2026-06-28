@@ -26,7 +26,7 @@ export interface TagCandidateSet {
   readonly fingerprintId: DecisionFingerprintId;
   readonly candidatePaths: readonly string[];
   readonly rejectedSummary: RejectedCandidateSummary;
-  readonly confidence?: number;
+  readonly confidence?: number | undefined;
   readonly generatedAt: string;
 }
 
@@ -40,7 +40,7 @@ export interface TagAssignment {
   readonly acceptedPaths: readonly string[];
   readonly assignedAt: string;
   readonly source: TagAssignmentSource;
-  readonly confidence?: number;
+  readonly confidence?: number | undefined;
 }
 
 interface CreateTagCandidateSetInput {
@@ -50,8 +50,8 @@ interface CreateTagCandidateSetInput {
   readonly taxonomyVersionId: TaxonomyVersionId;
   readonly fingerprintId: DecisionFingerprintId;
   readonly candidatePaths: readonly string[];
-  readonly rejectedSummary?: RejectedCandidateSummary;
-  readonly confidence?: number;
+  readonly rejectedSummary?: RejectedCandidateSummary | undefined;
+  readonly confidence?: number | undefined;
   readonly generatedAt: string;
 }
 
@@ -65,7 +65,7 @@ interface CreateTagAssignmentInput {
   readonly acceptedPaths: readonly string[];
   readonly assignedAt: string;
   readonly source: TagAssignmentSource;
-  readonly confidence?: number;
+  readonly confidence?: number | undefined;
 }
 
 interface CreateTagAssignmentFromCandidateSetInput {
@@ -74,7 +74,7 @@ interface CreateTagAssignmentFromCandidateSetInput {
   readonly acceptedPaths: readonly string[];
   readonly assignedAt: string;
   readonly source: Extract<TagAssignmentSource, 'model' | 'migration'>;
-  readonly confidence?: number;
+  readonly confidence?: number | undefined;
 }
 
 export function createTagCandidateSet(

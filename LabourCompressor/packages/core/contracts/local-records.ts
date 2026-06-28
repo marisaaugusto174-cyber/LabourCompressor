@@ -51,9 +51,9 @@ export interface LocalIndexEntry {
 
 export interface LocalRecordSnapshot {
   readonly taskRecord: TaskRecord;
-  readonly tagResultRecord?: TagResultRecord;
-  readonly archiveRecord?: ArchiveRecord;
-  readonly localIndexEntry?: LocalIndexEntry;
+  readonly tagResultRecord?: TagResultRecord | undefined;
+  readonly archiveRecord?: ArchiveRecord | undefined;
+  readonly localIndexEntry?: LocalIndexEntry | undefined;
 }
 
 export function createTagResultRecord(input: {
@@ -161,9 +161,9 @@ export function createLocalIndexEntry(input: {
 
 export function createLocalRecordSnapshot(input: {
   readonly taskRecord: TaskRecord;
-  readonly tagResultRecord?: TagResultRecord;
-  readonly archiveRecord?: ArchiveRecord;
-  readonly localIndexEntry?: LocalIndexEntry;
+  readonly tagResultRecord?: TagResultRecord | undefined;
+  readonly archiveRecord?: ArchiveRecord | undefined;
+  readonly localIndexEntry?: LocalIndexEntry | undefined;
 }): LocalRecordSnapshot {
   return Object.freeze({
     taskRecord: input.taskRecord,

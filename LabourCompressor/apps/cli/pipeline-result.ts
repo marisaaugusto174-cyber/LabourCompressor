@@ -15,7 +15,7 @@ export interface RunLocalPipelineItemResult {
   readonly levelValues: Readonly<Record<string, string>>;
   readonly archivePath: string;
   readonly archiveFileName: string;
-  readonly selectedContentTopicPath?: string;
+  readonly selectedContentTopicPath?: string | undefined;
   readonly acceptedPaths: readonly string[];
   readonly timings?: Readonly<{
     readonly preprocessMs: number;
@@ -23,8 +23,8 @@ export interface RunLocalPipelineItemResult {
     readonly tagNormalizeMs: number;
     readonly archiveMs: number;
     readonly totalMs: number;
-  }>;
-  readonly failure?: RunLocalPipelineFailure;
+  }> | undefined;
+  readonly failure?: RunLocalPipelineFailure | undefined;
 }
 
 export interface RunLocalPipelineResult {
@@ -36,5 +36,5 @@ export interface RunLocalPipelineResult {
   readonly failedRows: number;
   readonly results: readonly RunLocalPipelineItemResult[];
   readonly failures: readonly RunLocalPipelineFailure[];
-  readonly currentRunSpreadsheetPath?: string;
+  readonly currentRunSpreadsheetPath?: string | undefined;
 }

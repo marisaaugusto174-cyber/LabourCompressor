@@ -16,7 +16,7 @@ export interface TaxonomyPresetDefinition {
   readonly archiveDimension: string;
   readonly modelResponseShape: 'structured-json' | 'paths-json-array';
   readonly taxonomyParseMode: 'heading' | 'bullet-root';
-  readonly promptLibraryPath?: string;
+  readonly promptLibraryPath?: string | undefined;
 }
 
 export type TaxonomyPresetId =
@@ -72,8 +72,8 @@ export function listTaxonomyPresets(): readonly TaxonomyPresetDefinition[] {
 }
 
 export function resolveTaxonomyInput(input: {
-  readonly taxonomyPath?: string;
-  readonly taxonomyPreset?: string;
+  readonly taxonomyPath?: string | undefined;
+  readonly taxonomyPreset?: string | undefined;
 }): string {
   if (input.taxonomyPath !== undefined && input.taxonomyPath.trim().length > 0) {
     return input.taxonomyPath.trim();
@@ -155,8 +155,8 @@ export function loadTaxonomyPresetRepository(repositoryDirectory: string): reado
 
 export async function importExternalTaxonomyPreset(input: {
   readonly sourceFilePath: string;
-  readonly repositoryDirectory?: string;
-  readonly label?: string;
+  readonly repositoryDirectory?: string | undefined;
+  readonly label?: string | undefined;
 }): Promise<TaxonomyPresetDefinition> {
   const sourceFilePath = input.sourceFilePath.trim();
   if (sourceFilePath.length === 0) {

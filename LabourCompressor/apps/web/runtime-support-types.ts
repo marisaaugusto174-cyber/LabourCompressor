@@ -4,7 +4,7 @@ export interface RuntimeCheckResult {
   readonly key: string;
   readonly ok: boolean;
   readonly message: string;
-  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
+  readonly details?: Readonly<Record<string, string | number | boolean | null>> | undefined;
 }
 
 export interface VideoCacheStats {
@@ -32,8 +32,8 @@ export interface LocalDialogResult {
 
 export interface PlatformCredentialSummaryEntry {
   readonly platform: SupportedPlatform;
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
-  readonly credentialStorePath?: string;
-  readonly credentialUploadedAt?: string;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
+  readonly credentialStorePath?: string | undefined;
+  readonly credentialUploadedAt?: string | undefined;
 }

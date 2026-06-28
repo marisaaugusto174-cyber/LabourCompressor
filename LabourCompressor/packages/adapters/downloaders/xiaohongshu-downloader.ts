@@ -22,11 +22,11 @@ export {
 } from './xiaohongshu-page-parser.ts';
 
 export interface XiaohongshuDownloaderOptions {
-  readonly cookiesFilePath?: string;
-  readonly fetch?: typeof fetch;
-  readonly downloadedAt?: () => string;
-  readonly maxPageAttempts?: number;
-  readonly retryDelayMs?: (attempt: number) => number;
+  readonly cookiesFilePath?: string | undefined;
+  readonly fetch?: typeof fetch | undefined;
+  readonly downloadedAt?: (() => string) | undefined;
+  readonly maxPageAttempts?: number | undefined;
+  readonly retryDelayMs?: ((attempt: number) => number) | undefined;
 }
 
 export function createXiaohongshuDownloaderAdapter(
@@ -63,7 +63,7 @@ export function createXiaohongshuDownloaderAdapter(
         try {
           const pageResponse = await fetchImpl(request.normalizedUrl, {
             headers: pageHeaders,
-            signal: executionOptions.signal
+            ...(executionOptions.signal === undefined ? {} : { signal: executionOptions.signal })
           });
 
           if (!pageResponse.ok) {
@@ -138,7 +138,7 @@ async function downloadSelectedCandidate(input: {
     try {
       const response = await input.fetch(url, {
         headers: MEDIA_HEADERS,
-        signal: input.executionOptions.signal
+        ...(input.executionOptions.signal === undefined ? {} : { signal: input.executionOptions.signal })
       });
       if (!response.ok) {
         throw createMediaHttpError(response.status);

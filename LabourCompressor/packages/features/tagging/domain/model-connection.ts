@@ -27,8 +27,8 @@ export interface ModelConnectionConfig {
   readonly provider: ModelProvider;
   readonly authMode: ModelAuthMode;
   readonly modelName: string;
-  readonly apiKeyConfig?: ApiKeyAuthConfig;
-  readonly oauthConfig?: OAuthAuthConfig;
+  readonly apiKeyConfig?: ApiKeyAuthConfig | undefined;
+  readonly oauthConfig?: OAuthAuthConfig | undefined;
 }
 
 export interface ModelConnectionValidationResult {

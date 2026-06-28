@@ -29,7 +29,7 @@ export type ReviewQueueNextStage = 'discarded' | 'compress' | 'problem-review' |
 
 export interface ReviewQueueItem {
   readonly id: string;
-  readonly sourceTaskId?: string;
+  readonly sourceTaskId?: string | undefined;
   readonly phase: string;
   readonly errorCode: string;
   readonly reason: string;
@@ -37,10 +37,10 @@ export interface ReviewQueueItem {
   readonly currentPath: string;
   readonly fileName: string;
   readonly relativePath: string;
-  readonly decision?: ReviewQueueDecision;
-  readonly targetPool?: ReviewQueueTargetPool;
-  readonly nextStage?: ReviewQueueNextStage;
-  readonly reviewedAt?: string;
+  readonly decision?: ReviewQueueDecision | undefined;
+  readonly targetPool?: ReviewQueueTargetPool | undefined;
+  readonly nextStage?: ReviewQueueNextStage | undefined;
+  readonly reviewedAt?: string | undefined;
 }
 
 export interface ReviewQueueStateFile {
@@ -59,7 +59,7 @@ export interface ReviewQueueDecisionResult {
   readonly directoryPath: string;
   readonly item: ReviewQueueItem;
   readonly state: ReviewQueueStateFile;
-  readonly afterEditSpreadsheetPath?: string;
+  readonly afterEditSpreadsheetPath?: string | undefined;
 }
 
 export async function scanReviewQueueDirectory(input: {
@@ -135,7 +135,7 @@ export async function applyReviewQueueDecision(input: {
   readonly directoryPath: string;
   readonly reviewItemId: string;
   readonly decision: ReviewQueueDecision;
-  readonly afterEditDirectoryPath?: string;
+  readonly afterEditDirectoryPath?: string | undefined;
 }): Promise<ReviewQueueDecisionResult> {
   const directoryPath = path.resolve(input.directoryPath);
   const scan = await scanReviewQueueDirectory({ directoryPath });

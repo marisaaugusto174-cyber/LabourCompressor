@@ -47,7 +47,7 @@ export async function getVideoCacheStats(
 export async function clearVideoCache(input: {
   readonly cacheRootDirectory: string;
   readonly mode: 'all' | 'expired';
-  readonly expiryDays?: number;
+  readonly expiryDays?: number | undefined;
 }): Promise<VideoCacheStats> {
   if (input.mode === 'all') {
     await rm(input.cacheRootDirectory, { recursive: true, force: true });

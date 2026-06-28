@@ -35,16 +35,16 @@ export interface TaskRecord {
   readonly status: TaskStatus;
   readonly workflowSessionId: WorkflowSessionId;
   readonly attempt: number;
-  readonly checkpoint?: TaskCheckpoint;
-  readonly lastVerifiedStep?: string;
-  readonly resumeState?: TaskResumeState;
+  readonly checkpoint?: TaskCheckpoint | undefined;
+  readonly lastVerifiedStep?: string | undefined;
+  readonly resumeState?: TaskResumeState | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
-  readonly startedAt?: string;
-  readonly finishedAt?: string;
-  readonly parentTaskId?: TaskId;
-  readonly errorCode?: string;
-  readonly errorMessage?: string;
+  readonly startedAt?: string | undefined;
+  readonly finishedAt?: string | undefined;
+  readonly parentTaskId?: TaskId | undefined;
+  readonly errorCode?: string | undefined;
+  readonly errorMessage?: string | undefined;
 }
 
 export interface CreateTaskRecordInput {
@@ -52,14 +52,14 @@ export interface CreateTaskRecordInput {
   readonly kind: TaskKind;
   readonly workflowSessionId: WorkflowSessionId;
   readonly createdAt: string;
-  readonly parentTaskId?: TaskId;
+  readonly parentTaskId?: TaskId | undefined;
 }
 
 export interface TaskFailureInput {
   readonly errorCode: string;
   readonly errorMessage: string;
   readonly failedAt: string;
-  readonly checkpoint?: TaskCheckpoint;
+  readonly checkpoint?: TaskCheckpoint | undefined;
 }
 
 export function createTaskRecord(input: CreateTaskRecordInput): TaskRecord {
@@ -117,7 +117,7 @@ export function startTaskRecord(
   task: TaskRecord,
   input: {
     readonly startedAt: string;
-    readonly attempt?: number;
+    readonly attempt?: number | undefined;
   }
 ): TaskRecord {
   assertNonEmptyValue(input.startedAt, 'Task startedAt');
@@ -180,7 +180,7 @@ export function completeTaskRecord(
   task: TaskRecord,
   input: {
     readonly finishedAt: string;
-    readonly checkpoint?: TaskCheckpoint;
+    readonly checkpoint?: TaskCheckpoint | undefined;
   }
 ): TaskRecord {
   assertNonEmptyValue(input.finishedAt, 'Task finishedAt');

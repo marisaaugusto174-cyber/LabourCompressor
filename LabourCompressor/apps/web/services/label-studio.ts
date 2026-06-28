@@ -3,7 +3,7 @@ import { type buildLabelStudioImportPackage } from '../tag-review.ts';
 export async function importLabelStudioTasks(input: {
   readonly labelStudioUrl: string;
   readonly token: string;
-  readonly projectId?: string;
+  readonly projectId?: string | undefined;
   readonly projectTitle: string;
   readonly importPackage: ReturnType<typeof buildLabelStudioImportPackage>;
 }): Promise<Readonly<Record<string, unknown>>> {

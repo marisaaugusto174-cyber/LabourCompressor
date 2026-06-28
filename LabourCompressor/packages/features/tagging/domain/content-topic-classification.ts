@@ -1,5 +1,5 @@
 export interface ContentTopicArchiveDecision {
-  readonly selectedPath?: string;
+  readonly selectedPath?: string | undefined;
   readonly levelValues: Readonly<{
     '一级标签': string;
     '二级标签': string;
@@ -10,7 +10,7 @@ export interface ContentTopicArchiveDecision {
 
 export interface ArchivePathSelectionInput {
   readonly acceptedPaths: readonly string[];
-  readonly archiveDimension?: string;
+  readonly archiveDimension?: string | undefined;
 }
 
 export function buildStructuredLevelValues(

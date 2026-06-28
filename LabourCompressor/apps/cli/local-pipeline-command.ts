@@ -41,8 +41,8 @@ export type { RunLocalPipelineOptions } from './pipeline/options.ts';
 export async function runLocalPipelineCommand(input: {
   readonly options: RunLocalPipelineOptions;
   readonly report: (event: CliStageEvent) => void;
-  readonly segmentationDependencies?: AutoSegmentationDependencies;
-  readonly control?: PipelineControl;
+  readonly segmentationDependencies?: AutoSegmentationDependencies | undefined;
+  readonly control?: PipelineControl | undefined;
 }): Promise<RunLocalPipelineResult> {
   if (input.options.pipelineStage !== undefined) {
     return runLocalPipelineStageCommand(input);

@@ -37,7 +37,7 @@ export function ensureSpreadsheetSchemaColumns(matrix: (string | number)[][]): (
 export function writeMatrixToWorksheetPreservingLayout(input: {
   readonly worksheet: XLSX.WorkSheet;
   readonly matrix: readonly (readonly (string | number)[])[];
-  readonly hyperlinks?: readonly SpreadsheetHyperlinkUpdate[];
+  readonly hyperlinks?: readonly SpreadsheetHyperlinkUpdate[] | undefined;
 }): void {
   const currentRange = input.worksheet['!ref']
     ? xlsx.utils.decode_range(input.worksheet['!ref'])

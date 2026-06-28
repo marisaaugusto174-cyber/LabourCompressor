@@ -10,7 +10,7 @@ export interface MediaInfoProbeResult {
 }
 
 export interface FfprobeMediaInfoOptions {
-  readonly binaryPath?: string;
+  readonly binaryPath?: string | undefined;
 }
 
 export function createFfprobeMediaInfoReader(
@@ -44,10 +44,10 @@ export function buildFfprobeMediaInfoArgs(filePath: string): readonly string[] {
 
 export function parseFfprobeMediaInfo(raw: string): MediaInfoProbeResult {
   const parsed = JSON.parse(raw) as {
-    readonly format?: { readonly duration?: string };
+    readonly format?: { readonly duration?: string } | undefined;
     readonly streams?: readonly {
-      readonly width?: number;
-      readonly height?: number;
+      readonly width?: number | undefined;
+      readonly height?: number | undefined;
     }[];
   };
   const durationSeconds = Number(parsed.format?.duration ?? Number.NaN);

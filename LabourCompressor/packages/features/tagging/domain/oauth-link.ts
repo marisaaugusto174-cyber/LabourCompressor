@@ -8,7 +8,7 @@ export interface OAuthLinkConfig {
   readonly authorizeUrl: string;
   readonly clientId: string;
   readonly redirectUri: string;
-  readonly scopes?: readonly string[];
+  readonly scopes?: readonly string[] | undefined;
   readonly state: string;
 }
 

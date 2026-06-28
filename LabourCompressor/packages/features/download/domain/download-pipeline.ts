@@ -41,16 +41,16 @@ export interface DownloaderAdapter {
 }
 
 export interface DownloadExecutionOptions {
-  readonly signal?: AbortSignal;
-  readonly onProgress?: (event: DownloadExecutionProgress) => void;
+  readonly signal?: AbortSignal | undefined;
+  readonly onProgress?: ((event: DownloadExecutionProgress) => void) | undefined;
 }
 
 export interface DownloadExecutionProgress {
-  readonly percent?: number;
-  readonly speedText?: string;
-  readonly etaText?: string;
-  readonly downloadedBytes?: number;
-  readonly totalBytes?: number;
+  readonly percent?: number | undefined;
+  readonly speedText?: string | undefined;
+  readonly etaText?: string | undefined;
+  readonly downloadedBytes?: number | undefined;
+  readonly totalBytes?: number | undefined;
 }
 
 export interface DownloadBatchProgressEvent {
@@ -61,7 +61,7 @@ export interface DownloadBatchProgressEvent {
     readonly current: number;
     readonly total: number;
   };
-  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
+  readonly details?: Readonly<Record<string, string | number | boolean | null>> | undefined;
 }
 
 export interface MergeStreamsInput {
@@ -125,9 +125,9 @@ export async function runSpreadsheetDownloadBatch(input: {
   readonly downloader: DownloaderAdapter;
   readonly mergeOperator: MergeOperator;
   readonly startedAt: string;
-  readonly signal?: AbortSignal;
-  readonly waitIfPaused?: () => Promise<void>;
-  readonly onProgress?: (event: DownloadBatchProgressEvent) => void;
+  readonly signal?: AbortSignal | undefined;
+  readonly waitIfPaused?: (() => Promise<void>) | undefined;
+  readonly onProgress?: ((event: DownloadBatchProgressEvent) => void) | undefined;
 }): Promise<DownloadBatchResult> {
   const jobs = createSpreadsheetDownloadJobs({
     sheet: input.sheet,

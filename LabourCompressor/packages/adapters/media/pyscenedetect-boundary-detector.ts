@@ -16,7 +16,7 @@ export interface PySceneDetectInput {
 }
 
 export interface PySceneDetectBoundaryDetectorOptions {
-  readonly binaryPath?: string;
+  readonly binaryPath?: string | undefined;
 }
 
 export function createPySceneDetectBoundaryDetector(
@@ -67,7 +67,7 @@ export function parseSceneDetectCsv(raw: string): readonly CandidateShot[] {
     throw new Error('SceneDetect CSV must include Start Timecode and End Timecode.');
   }
 
-  const headers = splitCsvLine(lines[headerLineIndex]);
+  const headers = splitCsvLine(lines[headerLineIndex]!);
   const startIndex = headers.indexOf('Start Timecode');
   const endIndex = headers.indexOf('End Timecode');
 

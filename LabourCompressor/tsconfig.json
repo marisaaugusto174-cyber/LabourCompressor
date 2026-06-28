@@ -8,9 +8,17 @@
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "include": [
+    "apps/**/*.ts",
     "packages/**/*.ts"
+  ],
+  "exclude": [
+    "packages/testing/**"
   ]
 }

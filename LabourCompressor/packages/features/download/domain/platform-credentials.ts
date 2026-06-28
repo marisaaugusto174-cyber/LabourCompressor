@@ -1,17 +1,17 @@
 import { type SupportedPlatform } from './platform-detection.ts';
 
 export interface PlatformCredentialEntry {
-  readonly cookiesFilePath?: string;
-  readonly cookiesFromBrowser?: string;
+  readonly cookiesFilePath?: string | undefined;
+  readonly cookiesFromBrowser?: string | undefined;
 }
 
 export interface PlatformCredentialConfig {
-  readonly global?: PlatformCredentialEntry;
-  readonly bilibili?: PlatformCredentialEntry;
-  readonly youtube?: PlatformCredentialEntry;
-  readonly douyin?: PlatformCredentialEntry;
-  readonly tiktok?: PlatformCredentialEntry;
-  readonly xiaohongshu?: PlatformCredentialEntry;
+  readonly global?: PlatformCredentialEntry | undefined;
+  readonly bilibili?: PlatformCredentialEntry | undefined;
+  readonly youtube?: PlatformCredentialEntry | undefined;
+  readonly douyin?: PlatformCredentialEntry | undefined;
+  readonly tiktok?: PlatformCredentialEntry | undefined;
+  readonly xiaohongshu?: PlatformCredentialEntry | undefined;
 }
 
 const SUPPORTED_PLATFORMS = Object.freeze([

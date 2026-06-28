@@ -13,8 +13,8 @@ const xlsx = XLSX.default ?? XLSX;
 export function writeTagResultsToNumbers(input: {
   readonly filePath: string;
   readonly updates: readonly SpreadsheetWritebackUpdate[];
-  readonly sheetName?: string;
-  readonly acceptedTagsColumnName?: string;
+  readonly sheetName?: string | undefined;
+  readonly acceptedTagsColumnName?: string | undefined;
 }): void {
   const writableSheet = loadWritableSpreadsheetSheet(input.filePath, input.sheetName);
   const hasHeaderRow = detectHasHeaderRow(writableSheet.matrix);

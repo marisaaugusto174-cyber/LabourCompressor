@@ -11,24 +11,24 @@ import { readNetscapeCookieHeader } from './netscape-cookies.ts';
 export interface DouyinSsrVideo {
   readonly awemeId: string;
   readonly title: string;
-  readonly durationSeconds?: number;
-  readonly resolutionLabel?: string;
+  readonly durationSeconds?: number | undefined;
+  readonly resolutionLabel?: string | undefined;
   readonly playUrl: string;
 }
 
 export interface DouyinSsrDownloaderOptions {
-  readonly cookiesFilePath?: string;
-  readonly fetch?: DouyinFetch;
-  readonly downloadedAt?: () => string;
-  readonly maxSsrAttempts?: number;
-  readonly retryDelayMs?: (attempt: number) => number;
+  readonly cookiesFilePath?: string | undefined;
+  readonly fetch?: DouyinFetch | undefined;
+  readonly downloadedAt?: (() => string) | undefined;
+  readonly maxSsrAttempts?: number | undefined;
+  readonly retryDelayMs?: ((attempt: number) => number) | undefined;
 }
 
 export type DouyinFetch = (
   url: string,
   init?: {
-    readonly headers?: Readonly<Record<string, string>>;
-    readonly signal?: AbortSignal;
+    readonly headers?: Readonly<Record<string, string>> | undefined;
+    readonly signal?: AbortSignal | undefined;
   }
 ) => Promise<DouyinFetchResponse>;
 
@@ -115,7 +115,7 @@ export function createDouyinSsrDownloaderAdapter(
     executionOptions?: DownloadExecutionOptions
   ): Promise<DownloadExecutionResult>;
 } {
-  const fetchImpl = options.fetch ?? fetch;
+  const fetchImpl = options.fetch ?? nativeDouyinFetch;
 
   return Object.freeze({
     async download(
@@ -184,7 +184,7 @@ async function fetchDouyinSsrVideoWithRetry(input: {
   readonly videoId: string;
   readonly headers: Readonly<Record<string, string>>;
   readonly fetchImpl: DouyinFetch;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
   readonly maxAttempts: number;
   readonly retryDelayMs: (attempt: number) => number;
 }): Promise<DouyinSsrVideo> {
@@ -235,6 +235,16 @@ function isRetryableDouyinSsrError(error: unknown): boolean {
     error !== null &&
     'downloadErrorCode' in error &&
     (error as { downloadErrorCode?: unknown }).downloadErrorCode === 'douyin-ssr-unavailable';
+}
+
+function nativeDouyinFetch(
+  url: string,
+  init?: Parameters<DouyinFetch>[1]
+): Promise<DouyinFetchResponse> {
+  return fetch(url, {
+    ...(init?.headers === undefined ? {} : { headers: init.headers }),
+    ...(init?.signal === undefined ? {} : { signal: init.signal })
+  });
 }
 
 function defaultRetryDelayMs(attempt: number): number {

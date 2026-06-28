@@ -32,8 +32,8 @@ export interface DownloadArtifact {
 
 export interface DownloadMediaMetadata {
   readonly sourceTitle: string;
-  readonly resolutionLabel?: string;
-  readonly durationSeconds?: number;
+  readonly resolutionLabel?: string | undefined;
+  readonly durationSeconds?: number | undefined;
 }
 
 export interface DownloadRequest {
@@ -73,7 +73,7 @@ export function createDownloadRequest(input: {
   readonly sourceUrl: string;
   readonly outputDirectory: string;
   readonly outputFileStem: string;
-  readonly fallbackTitle?: string;
+  readonly fallbackTitle?: string | undefined;
 }): DownloadRequest {
   const detectedUrl = detectSupportedPlatformUrl(input.sourceUrl);
 
@@ -94,7 +94,7 @@ export function createDownloadTaskRecord(input: {
   readonly taskId: TaskId;
   readonly workflowSessionId: WorkflowSessionId;
   readonly createdAt: string;
-  readonly parentTaskId?: TaskId;
+  readonly parentTaskId?: TaskId | undefined;
 }): TaskRecord {
   return createTaskRecord({
     id: input.taskId,
@@ -184,8 +184,8 @@ export function getMuxedArtifact(
 export function getSeparatedArtifacts(
   executionResult: DownloadExecutionResult
 ): {
-  readonly videoArtifact?: DownloadArtifact;
-  readonly audioArtifact?: DownloadArtifact;
+  readonly videoArtifact?: DownloadArtifact | undefined;
+  readonly audioArtifact?: DownloadArtifact | undefined;
 } {
   return Object.freeze({
     videoArtifact: executionResult.artifacts.find(

@@ -67,7 +67,7 @@ export async function runAutoSegmentationStage(input: {
     message: string,
     extras?: Omit<CliStageEvent, 'stage' | 'status' | 'message' | 'timestamp'>
   ) => void;
-  readonly dependencies?: AutoSegmentationDependencies;
+  readonly dependencies?: AutoSegmentationDependencies | undefined;
 }): Promise<AutoSegmentationStageResult> {
   const dependencies = resolveSegmentationDependencies(input.dependencies);
   const rules = await resolveSegmentationProfileRules(input.profileId);
@@ -394,7 +394,7 @@ function validateDetectedShots(
       throw new Error('Scene detection returned invalid time ranges.');
     }
 
-    if (shotIndex > 0 && shot.startSeconds < shots[shotIndex - 1].endSeconds) {
+    if (shotIndex > 0 && shot.startSeconds < shots[shotIndex - 1]!.endSeconds) {
       throw new Error('Scene detection returned overlapping time ranges.');
     }
   }

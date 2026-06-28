@@ -57,6 +57,11 @@ interface ClassifiedSegments {
   readonly problems: readonly SegmentDurationProblem[];
 }
 
+interface DurationRules {
+  readonly minimumSeconds: number;
+  readonly maximumSeconds: number;
+}
+
 export function assembleSegments(input: {
   readonly shots: readonly CandidateShot[];
   readonly continuity: readonly ContinuityDecision[];
@@ -72,7 +77,7 @@ export function assembleSegments(input: {
     input.shots.length
   );
   const segments: SegmentTimeRange[] = [];
-  let segmentStartSeconds = input.shots[0].startSeconds;
+  let segmentStartSeconds = input.shots[0]!.startSeconds;
 
   for (let shotIndex = 0; shotIndex < input.shots.length - 1; shotIndex += 1) {
     const decision = continuityByLeftShot.get(shotIndex);
@@ -80,15 +85,15 @@ export function assembleSegments(input: {
     if (decision?.mergeWithNext === false) {
       segments.push(roundSegmentTimeRange({
         startSeconds: segmentStartSeconds,
-        endSeconds: input.shots[shotIndex].endSeconds
+        endSeconds: input.shots[shotIndex]!.endSeconds
       }));
-      segmentStartSeconds = input.shots[shotIndex + 1].startSeconds;
+      segmentStartSeconds = input.shots[shotIndex + 1]!.startSeconds;
     }
   }
 
   segments.push(roundSegmentTimeRange({
     startSeconds: segmentStartSeconds,
-    endSeconds: input.shots[input.shots.length - 1].endSeconds
+    endSeconds: input.shots[input.shots.length - 1]!.endSeconds
   }));
 
   return segments;
@@ -166,7 +171,7 @@ function mergeShortSegmentsIntoAccepted(
     const splitResult = splitSegmentWhenNeeded(
       mergedRun,
       { minimumSeconds, maximumSeconds },
-      run[0].sourceIndex
+      run[0]!.sourceIndex
     );
     accepted.push(...splitResult.accepted);
     problems.push(...splitResult.problems);
@@ -187,10 +192,11 @@ function mergeShortSegmentsIntoAccepted(
       continue;
     }
 
+    const target = accepted[targetIndex]!;
     accepted[targetIndex] = {
-      sourceIndex: accepted[targetIndex].sourceIndex,
+      sourceIndex: target.sourceIndex,
       segment: mergeSegments(
-        accepted[targetIndex].segment,
+        target.segment,
         shortSegment.segment
       )
     };
@@ -238,9 +244,14 @@ function groupConsecutiveShortSegments(
 function mergeSegmentRun(
   run: readonly ClassifiedSegments['shortSegments'][number][]
 ): SegmentTimeRange {
+  const first = run[0];
+  const last = run[run.length - 1];
+  if (first === undefined || last === undefined) {
+    throw new Error('Short segment run must not be empty.');
+  }
   return {
-    startSeconds: run[0].segment.startSeconds,
-    endSeconds: run[run.length - 1].segment.endSeconds
+    startSeconds: first.segment.startSeconds,
+    endSeconds: last.segment.endSeconds
   };
 }
 
@@ -279,11 +290,12 @@ function sortIndexedSegments(
 
 function validateShots(shots: readonly CandidateShot[]): void {
   for (let shotIndex = 0; shotIndex < shots.length; shotIndex += 1) {
-    assertTimeRange(shots[shotIndex], 'Shot');
+    const shot = shots[shotIndex]!;
+    assertTimeRange(shot, 'Shot');
 
     if (
       shotIndex > 0 &&
-      shots[shotIndex].startSeconds < shots[shotIndex - 1].endSeconds
+      shot.startSeconds < shots[shotIndex - 1]!.endSeconds
     ) {
       throw new Error('Shots must be sorted by time.');
     }
@@ -374,12 +386,13 @@ function validateDurationRules(input: EnforceSegmentDurationsInput): void {
 
 function validateSegments(segments: readonly SegmentTimeRange[]): void {
   for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
-    assertTimeRange(segments[segmentIndex], 'Segment');
+    const segment = segments[segmentIndex]!;
+    assertTimeRange(segment, 'Segment');
 
     if (
       segmentIndex > 0 &&
-      segments[segmentIndex].startSeconds <
-        segments[segmentIndex - 1].endSeconds
+      segment.startSeconds <
+        segments[segmentIndex - 1]!.endSeconds
     ) {
       throw new Error('Segments must be sorted by time.');
     }
