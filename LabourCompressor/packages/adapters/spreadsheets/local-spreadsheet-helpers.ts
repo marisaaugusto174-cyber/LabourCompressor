@@ -11,6 +11,19 @@ import {
   type SpreadsheetTaskRow,
   type SpreadsheetWritebackUpdate
 } from '../../features/spreadsheet-tasks/domain/index.ts';
+import {
+  applySpreadsheetSchemaColumnLayout,
+  ensureSpreadsheetSchemaColumns,
+  type SpreadsheetHyperlinkUpdate,
+  writeMatrixToWorksheetPreservingLayout
+} from './local-spreadsheet-layout.ts';
+
+export {
+  applySpreadsheetSchemaColumnLayout,
+  ensureSpreadsheetSchemaColumns,
+  type SpreadsheetHyperlinkUpdate,
+  writeMatrixToWorksheetPreservingLayout
+} from './local-spreadsheet-layout.ts';
 
 const xlsx = XLSX.default ?? XLSX;
 
@@ -20,19 +33,6 @@ export interface WritableSpreadsheetSheet {
   readonly worksheet: XLSX.WorkSheet;
   readonly matrix: (string | number)[][];
 }
-
-export interface SpreadsheetHyperlinkUpdate {
-  readonly rowIndex: number;
-  readonly columnIndex: number;
-  readonly label: string;
-  readonly target: string;
-}
-
-const MACHINE_TRACE_HEADERS = new Set(
-  SPREADSHEET_SCHEMA_COLUMNS
-    .filter((column) => column.role === 'machine-trace')
-    .map((column) => column.header)
-);
 
 export const MASTER_SPREADSHEET_HEADERS = Object.freeze([
   'URL',
@@ -403,135 +403,6 @@ export function appendSpreadsheetRows(input: {
   }
 
   return { matrix, hyperlinks: Object.freeze(hyperlinks) };
-}
-
-export function ensureSpreadsheetSchemaColumns(
-  matrix: (string | number)[][]
-): (string | number)[][] {
-  const nextMatrix = matrix.map((row) => [...row]);
-
-  if (nextMatrix.length === 0) {
-    nextMatrix.push([]);
-  }
-
-  const hasHeaderRow = detectHasHeaderRow(nextMatrix);
-
-  if (!hasHeaderRow) {
-    nextMatrix.unshift([...createSyntheticHeaders(nextMatrix[0]?.length ?? 0)]);
-  }
-
-  const headers = nextMatrix[0]!.map((value) => String(value).trim());
-  const isLocalFileSheet =
-    headers.includes('文件名') &&
-    !headers.some((header) => header === 'URL' || header.toLowerCase() === 'url');
-
-  for (const column of SPREADSHEET_SCHEMA_COLUMNS) {
-    if (isLocalFileSheet && column.header === 'URL') {
-      continue;
-    }
-
-    if (!headers.includes(column.header)) {
-      nextMatrix[0]!.push(column.header);
-      headers.push(column.header);
-    }
-  }
-
-  return nextMatrix;
-}
-
-export function writeMatrixToWorksheetPreservingLayout(input: {
-  readonly worksheet: XLSX.WorkSheet;
-  readonly matrix: readonly (readonly (string | number)[])[];
-  readonly hyperlinks?: readonly SpreadsheetHyperlinkUpdate[];
-}): void {
-  const currentRange = input.worksheet['!ref']
-    ? xlsx.utils.decode_range(input.worksheet['!ref'])
-    : {
-        s: { r: 0, c: 0 },
-        e: { r: 0, c: 0 }
-      };
-  const nextRange = {
-    s: { r: 0, c: 0 },
-    e: {
-      r: Math.max(0, input.matrix.length - 1),
-      c: Math.max(
-        0,
-        ...input.matrix.map((row) => Math.max(0, row.length - 1))
-      )
-    }
-  };
-
-  for (let rowIndex = 0; rowIndex < input.matrix.length; rowIndex += 1) {
-    const row = input.matrix[rowIndex] ?? [];
-
-    for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
-      const cellAddress = xlsx.utils.encode_cell({
-        r: rowIndex,
-        c: columnIndex
-      });
-      const value = row[columnIndex] ?? '';
-      const existingCell = input.worksheet[cellAddress] as XLSX.CellObject | undefined;
-      const nextCell: XLSX.CellObject = existingCell ?? { t: 's', v: '' };
-
-      if (typeof value === 'number') {
-        nextCell.t = 'n';
-        nextCell.v = value;
-      } else {
-        nextCell.t = 's';
-        nextCell.v = String(value);
-      }
-
-      delete nextCell.l;
-      delete nextCell.w;
-      input.worksheet[cellAddress] = nextCell;
-    }
-  }
-
-  for (const hyperlink of input.hyperlinks ?? []) {
-    const cellAddress = xlsx.utils.encode_cell({
-      r: hyperlink.rowIndex,
-      c: hyperlink.columnIndex
-    });
-    const existingCell = input.worksheet[cellAddress] as XLSX.CellObject | undefined;
-    const nextCell: XLSX.CellObject = existingCell ?? { t: 's', v: hyperlink.label };
-    nextCell.t = 's';
-    nextCell.v = hyperlink.label;
-    nextCell.l = {
-      Target: hyperlink.target,
-      Tooltip: hyperlink.target
-    };
-    delete nextCell.w;
-    input.worksheet[cellAddress] = nextCell;
-  }
-
-  for (let rowIndex = nextRange.e.r + 1; rowIndex <= currentRange.e.r; rowIndex += 1) {
-    for (let columnIndex = currentRange.s.c; columnIndex <= currentRange.e.c; columnIndex += 1) {
-      delete input.worksheet[xlsx.utils.encode_cell({ r: rowIndex, c: columnIndex })];
-    }
-  }
-
-  input.worksheet['!ref'] = xlsx.utils.encode_range(nextRange);
-}
-
-export function applySpreadsheetSchemaColumnLayout(input: {
-  readonly worksheet: XLSX.WorkSheet;
-  readonly headers: readonly string[];
-}): void {
-  const existingColumns = input.worksheet['!cols'] ?? [];
-  const nextColumns = [...existingColumns];
-
-  for (const [columnIndex, header] of input.headers.entries()) {
-    if (!MACHINE_TRACE_HEADERS.has(header)) {
-      continue;
-    }
-
-    nextColumns[columnIndex] = {
-      ...(nextColumns[columnIndex] ?? {}),
-      hidden: true
-    };
-  }
-
-  input.worksheet['!cols'] = nextColumns;
 }
 
 export function ensureMasterSpreadsheetTemplate(
