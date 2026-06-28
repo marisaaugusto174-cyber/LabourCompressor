@@ -83,21 +83,8 @@ export function createXiaohongshuDownloaderAdapter(
             );
           }
 
-          const mediaResponse = await fetchImpl(selected.urls[0] ?? '', {
-            headers: MEDIA_HEADERS,
-            signal: executionOptions.signal
-          });
-
-          if (!mediaResponse.ok) {
-            throw createDownloadError(
-              'xiaohongshu-play-url-expired',
-              `下载失败：小红书播放地址不可用或已过期，HTTP ${mediaResponse.status}。`,
-              [401, 403, 404].includes(mediaResponse.status)
-            );
-          }
-
-          return await writeMediaResponse({
-            response: mediaResponse,
+          return await downloadSelectedCandidate({
+            fetch: fetchImpl,
             request,
             video,
             selected,
@@ -130,6 +117,70 @@ export function createXiaohongshuDownloaderAdapter(
           );
     }
   });
+}
+
+async function downloadSelectedCandidate(input: {
+  readonly fetch: typeof fetch;
+  readonly request: DownloadRequest;
+  readonly video: XiaohongshuVideo;
+  readonly selected: XiaohongshuVideoCandidate;
+  readonly executionOptions: DownloadExecutionOptions;
+  readonly downloadedAt: string;
+}): Promise<DownloadExecutionResult> {
+  let lastError: unknown;
+
+  for (const url of input.selected.urls) {
+    throwIfAborted(input.executionOptions.signal);
+    try {
+      const response = await input.fetch(url, {
+        headers: MEDIA_HEADERS,
+        signal: input.executionOptions.signal
+      });
+      if (!response.ok) {
+        throw createMediaHttpError(response.status);
+      }
+      return await writeMediaResponse({ ...input, response });
+    } catch (error) {
+      throwIfAborted(input.executionOptions.signal);
+      const candidateError = normalizeMediaCandidateError(error);
+      if (!isRetryable(candidateError)) {
+        throw candidateError;
+      }
+      lastError = candidateError;
+    }
+  }
+
+  throw lastError ?? createDownloadError(
+    'xiaohongshu-video-data-unavailable',
+    '下载失败：小红书笔记没有可用视频流。',
+    true
+  );
+}
+
+function createMediaHttpError(status: number): Error {
+  if (status === 429) {
+    return createDownloadError(
+      'platform-rate-limited',
+      '下载失败：平台当前限制请求频率。',
+      false
+    );
+  }
+  return createDownloadError(
+    'xiaohongshu-play-url-expired',
+    `下载失败：小红书播放地址不可用或已过期，HTTP ${status}。`,
+    [401, 403, 404].includes(status) || status >= 500
+  );
+}
+
+function normalizeMediaCandidateError(error: unknown): Error {
+  if (readErrorCode(error) !== undefined && error instanceof Error) {
+    return error;
+  }
+  return createDownloadError(
+    'xiaohongshu-play-url-expired',
+    '下载失败：小红书视频流请求失败。',
+    true
+  );
 }
 
 async function writeMediaResponse(input: {
