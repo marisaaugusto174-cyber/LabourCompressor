@@ -27,6 +27,7 @@ import {
   type DownloadRequest,
   type DownloadedMediaAsset
 } from './download-records.ts';
+import { sanitizePlatformUrlForOutput } from './platform-detection.ts';
 
 const execFileAsync = promisify(execFile);
 const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
@@ -163,7 +164,7 @@ export async function runSpreadsheetDownloadBatch(input: {
       input.onProgress?.({
         phase: 'start',
         request,
-        currentItem: job.sourceUrl,
+        currentItem: sanitizePlatformUrlForOutput(job.sourceUrl),
         progress
       });
       const executionResult = await input.downloader.download(request, {
@@ -172,7 +173,7 @@ export async function runSpreadsheetDownloadBatch(input: {
           input.onProgress?.({
             phase: 'progress',
             request,
-            currentItem: job.sourceUrl,
+            currentItem: sanitizePlatformUrlForOutput(job.sourceUrl),
             progress,
             details: buildDownloadProgressDetails(event)
           });
@@ -285,7 +286,7 @@ export async function runSpreadsheetDownloadBatch(input: {
       input.onProgress?.({
         phase: 'failed',
         request,
-        currentItem: job.sourceUrl,
+        currentItem: sanitizePlatformUrlForOutput(job.sourceUrl),
         progress,
         details: {
           errorCode,

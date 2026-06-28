@@ -13,9 +13,13 @@ import {
   resolveYtDlpCredential,
   type YtDlpAdapterOptions
 } from './ytdlp-downloader.ts';
+import {
+  createXiaohongshuDownloaderAdapter
+} from './xiaohongshu-downloader.ts';
 
 export interface PlatformAwareDownloaderOptions extends YtDlpAdapterOptions {
   readonly douyin?: DownloaderAdapter;
+  readonly xiaohongshu?: DownloaderAdapter;
   readonly fallback?: DownloaderAdapter;
 }
 
@@ -29,6 +33,23 @@ export function createPlatformAwareDownloaderAdapter(
       request: DownloadRequest,
       executionOptions: DownloadExecutionOptions = {}
     ): Promise<DownloadExecutionResult> {
+      if (request.platform === 'xiaohongshu') {
+        try {
+          return await fallback.download(request, executionOptions);
+        } catch (error) {
+          const structured = extractStructuredDownloadError(error);
+          if (structured.errorCode !== 'xiaohongshu-no-formats') {
+            throw error;
+          }
+
+          const credential = resolveYtDlpCredential(request, options);
+          const xiaohongshu = options.xiaohongshu ?? createXiaohongshuDownloaderAdapter({
+            cookiesFilePath: credential.cookiesFilePath
+          });
+          return xiaohongshu.download(request, executionOptions);
+        }
+      }
+
       if (request.platform !== 'douyin') {
         return fallback.download(request, executionOptions);
       }

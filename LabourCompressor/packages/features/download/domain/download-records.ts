@@ -13,6 +13,7 @@ import {
 } from '../../../core/contracts/index.ts';
 import {
   detectSupportedPlatformUrl,
+  sanitizePlatformUrlForOutput,
   type DetectedPlatformUrl,
   type SupportedPlatform
 } from './platform-detection.ts';
@@ -121,7 +122,7 @@ export function markDownloadTaskFailed(input: {
   readonly errorMessage: string;
 }): TaskRecord {
   const resumeState = createTaskResumeState({
-    token: input.request.normalizedUrl,
+    token: sanitizePlatformUrlForOutput(input.request.normalizedUrl),
     fromCheckpoint: input.task.lastVerifiedStep ?? 'queued',
     createdAt: input.failedAt
   });
@@ -164,7 +165,7 @@ export function createDownloadedMediaAsset(input: {
     mediaAssetId: input.mediaAssetId,
     taskId: input.executionResult.request.taskId,
     rowNumber: input.executionResult.request.rowNumber,
-    sourceUrl: input.executionResult.request.sourceUrl,
+    sourceUrl: sanitizePlatformUrlForOutput(input.executionResult.request.sourceUrl),
     platform: input.executionResult.request.platform,
     filePath: input.filePath,
     fileName: input.fileName,

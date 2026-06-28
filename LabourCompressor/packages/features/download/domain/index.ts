@@ -1,5 +1,6 @@
 export {
-  detectSupportedPlatformUrl
+  detectSupportedPlatformUrl,
+  sanitizePlatformUrlForOutput
 } from './platform-detection.ts';
 export {
   createDownloadRequest,

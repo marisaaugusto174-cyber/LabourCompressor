@@ -240,7 +240,7 @@ export function buildPlatformCredentialFieldsHtml(entries) {
             <span>上传时间</span>
             <strong>${escapeHtml(entry.credentialUploadedAt ?? '—')}</strong>
           </div>
-          <div class="platform-credential-status" data-probe-status-for="${escapeHtml(entry.platform)}">导入后自动测试平台首页首个视频</div>
+          <div class="platform-credential-status" data-probe-status-for="${escapeHtml(entry.platform)}">导入后自动测试平台连通性</div>
         </section>
       `;
     })
@@ -394,6 +394,8 @@ function formatCredentialProbeCause(reason) {
     case 'runtime':
     case 'runtime-error':
       return '本地下载器异常';
+    case 'xiaohongshu-homepage':
+      return '小红书平台连通性';
     case 'credential-domain-mismatch':
       return 'Cookies 平台不匹配';
     case 'credential-file-unreadable':
@@ -412,7 +414,8 @@ function getPlatformLabel(platform) {
     bilibili: 'Bilibili',
     youtube: 'YouTube',
     douyin: '抖音',
-    tiktok: 'TikTok'
+    tiktok: 'TikTok',
+    xiaohongshu: '小红书'
   }[platform] ?? platform ?? '平台';
 }
 

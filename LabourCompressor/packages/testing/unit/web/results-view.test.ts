@@ -57,3 +57,24 @@ test('opens problem results and limits them to failed and pending items', () => 
   assert.equal(problems.includes('等待你把剪辑后的导出文件'), true);
   assert.match(html, /<details class="result-all">/u);
 });
+
+test('renders actionable Xiaohongshu download failures', () => {
+  const html = buildResultWorkbenchHtml([{
+    rowNumber: 5,
+    archiveState: '下载失败',
+    failure: {
+      phase: 'download',
+      errorCode: 'xiaohongshu-note-not-video'
+    }
+  }, {
+    rowNumber: 6,
+    archiveState: '下载失败',
+    failure: {
+      phase: 'download',
+      errorCode: 'xiaohongshu-play-url-expired'
+    }
+  }]);
+
+  assert.equal(html.includes('小红书笔记不是视频'), true);
+  assert.equal(html.includes('重新运行任务获取新的播放地址'), true);
+});

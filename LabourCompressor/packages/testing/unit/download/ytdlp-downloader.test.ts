@@ -78,6 +78,23 @@ test('builds yt-dlp args with platform credential config override', () => {
   assert.equal(args[cookiesIndex + 1], '/tmp/youtube-cookies.txt');
 });
 
+test('prefers H.264 formats for Xiaohongshu downloads', () => {
+  const args = buildYtDlpArgs(
+    createDownloadRequest({
+      taskId: 'task-xhs',
+      workflowSessionId: 'workflow-xhs',
+      rowNumber: 1,
+      sourceUrl: 'https://www.xiaohongshu.com/explore/abc123',
+      outputDirectory: '/tmp/downloads',
+      outputFileStem: '1-xhs'
+    })
+  );
+  const sortIndex = args.indexOf('--format-sort');
+
+  assert.notEqual(sortIndex, -1);
+  assert.equal(args[sortIndex + 1], 'vcodec:h264,res,br,size');
+});
+
 test('falls back to config global cookies after platform and request-level credentials are absent', () => {
   const resolved = resolveYtDlpCredential(
     createDownloadRequest({
@@ -245,6 +262,23 @@ test('classifies douyin fresh-cookie extractor failures without warnings as prot
   );
 
   assert.equal(result.status, 'douyin-detail-api-blocked');
+});
+
+test('classifies Xiaohongshu no-format failures for page fallback', () => {
+  const result = classifyYtDlpErrorMessage(
+    'ERROR: [XiaoHongShu] abc123: No video formats found!'
+  );
+
+  assert.equal(result.status, 'xiaohongshu-no-formats');
+});
+
+test('redacts Xiaohongshu access tokens from yt-dlp error details', () => {
+  const result = extractStructuredDownloadError(new Error(
+    'ERROR: [XiaoHongShu] abc123: request failed xsec_token=secret-value&xsec_source=pc_feed'
+  ));
+
+  assert.equal(result.errorDetail?.includes('secret-value'), false);
+  assert.equal(result.errorDetail?.includes('xsec_token=[REDACTED]'), true);
 });
 
 test('extracts structured short download error without leaking yt-dlp long logs', () => {

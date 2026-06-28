@@ -30,7 +30,8 @@ import {
 } from '../../packages/adapters/downloaders/platform-aware-downloader.ts';
 import {
   createDownloadRequest,
-  parsePlatformCredentialConfig
+  parsePlatformCredentialConfig,
+  sanitizePlatformUrlForOutput
 } from '../../packages/features/download/domain/index.ts';
 import { runLocalPipelineCommand } from './local-pipeline-command.ts';
 import { createCliStatusReporter } from './status-reporter.ts';
@@ -148,13 +149,15 @@ try {
       platformCredentialConfig
     });
     console.log(JSON.stringify({
-      normalizedUrl: request.normalizedUrl,
+      normalizedUrl: sanitizePlatformUrlForOutput(request.normalizedUrl),
       args: buildYtDlpArgs(request, {
         binaryPath: args['yt-dlp-binary'],
         cookiesFilePath: args['cookies-file'],
         cookiesFromBrowser: args['cookies-from-browser'],
         platformCredentialConfig
-      })
+      }).map((argument) => argument === request.normalizedUrl
+        ? sanitizePlatformUrlForOutput(argument)
+        : argument)
     }, null, 2));
     try {
       await adapter.download(request);

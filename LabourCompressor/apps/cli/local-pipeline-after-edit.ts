@@ -304,6 +304,16 @@ export function humanizeDownloadFailure(
       return '下载失败：当前平台的 cookies 已过期。请更新凭证后重试。';
     case 'blocked-by-bilibili-412':
       return '下载失败：Bilibili 返回 412 风控。请检查 cookies 是否可用，或稍后重试。';
+    case 'xiaohongshu-no-formats':
+      return '下载失败：yt-dlp 未解析到小红书视频格式，页面回退解析也未完成。';
+    case 'xiaohongshu-note-not-video':
+      return '下载失败：该小红书笔记不包含视频，当前版本不下载图文笔记。';
+    case 'xiaohongshu-page-unavailable':
+      return '下载失败：小红书笔记页面暂时不可用，请检查链接、cookies 或稍后重试。';
+    case 'xiaohongshu-video-data-unavailable':
+      return '下载失败：小红书笔记页面中没有可用的视频播放信息。';
+    case 'xiaohongshu-play-url-expired':
+      return '下载失败：小红书播放地址已失效，请重新运行任务。';
     case 'platform-rate-limited':
       return '下载失败：平台触发频率限制。请稍后重试。';
     case 'rename-failed':

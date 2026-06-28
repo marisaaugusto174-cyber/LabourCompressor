@@ -11,13 +11,15 @@ export interface PlatformCredentialConfig {
   readonly youtube?: PlatformCredentialEntry;
   readonly douyin?: PlatformCredentialEntry;
   readonly tiktok?: PlatformCredentialEntry;
+  readonly xiaohongshu?: PlatformCredentialEntry;
 }
 
 const SUPPORTED_PLATFORMS = Object.freeze([
   'bilibili',
   'youtube',
   'douyin',
-  'tiktok'
+  'tiktok',
+  'xiaohongshu'
 ] satisfies readonly SupportedPlatform[]);
 
 export function parsePlatformCredentialConfig(

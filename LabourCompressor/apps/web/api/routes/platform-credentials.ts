@@ -78,7 +78,8 @@ function requireSupportedPlatform(input: unknown): SupportedPlatform {
     value === 'bilibili' ||
     value === 'youtube' ||
     value === 'douyin' ||
-    value === 'tiktok'
+    value === 'tiktok' ||
+    value === 'xiaohongshu'
   ) {
     return value;
   }

@@ -93,6 +93,18 @@ test('platform credential cards expose one import action per platform without ad
   assert.equal(html.includes('data-probe-status-for="douyin"'), true);
 });
 
+test('platform credential cards label Xiaohongshu and describe a connectivity probe', () => {
+  const html = buildPlatformCredentialFieldsHtml([{
+    platform: 'xiaohongshu',
+    cookiesFilePath: undefined,
+    cookiesFromBrowser: undefined
+  }]);
+
+  assert.equal(html.includes('小红书'), true);
+  assert.equal(html.includes('data-platform="xiaohongshu"'), true);
+  assert.equal(html.includes('导入后自动测试平台连通性'), true);
+});
+
 test('platform credential probe formatter explains common douyin protection failures', () => {
   const text = formatPlatformCredentialProbeResult({
     ok: false,

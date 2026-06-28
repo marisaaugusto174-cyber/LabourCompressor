@@ -84,6 +84,11 @@ test('loads platform credential summary for supported platforms', async () => {
         platform: 'tiktok',
         cookiesFilePath: undefined,
         cookiesFromBrowser: undefined
+      },
+      {
+        platform: 'xiaohongshu',
+        cookiesFilePath: undefined,
+        cookiesFromBrowser: undefined
       }
     ]);
   } finally {
@@ -185,6 +190,31 @@ test('importPlatformCredentialFile normalizes headerless Netscape cookies for yt
     });
     const bilibili = summary.find((entry) => entry.platform === 'bilibili');
     const storedContent = readFileSync(bilibili?.cookiesFilePath ?? '', 'utf8');
+
+    assert.equal(storedContent.startsWith('# Netscape HTTP Cookie File\n'), true);
+    assert.equal(storedContent.includes(cookieLine), true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('importPlatformCredentialFile recognizes headerless HttpOnly Netscape records', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-credential-import-httponly-'));
+  const filePath = path.join(tempDir, 'download-platform-credentials.local.json');
+  const credentialRepositoryRoot = path.join(tempDir, '.runtime-credentials', 'download');
+  const cookiesPath = path.join(tempDir, 'xiaohongshu.txt');
+  const cookieLine = '#HttpOnly_.xiaohongshu.com\tTRUE\t/\tTRUE\t4102444800\tweb_session\tfake';
+
+  try {
+    writeFileSync(cookiesPath, `${cookieLine}\n`);
+    const summary = await importPlatformCredentialFile({
+      filePath,
+      platform: 'xiaohongshu',
+      sourceCookiesFilePath: cookiesPath,
+      credentialRepositoryRoot
+    });
+    const entry = summary.find((item) => item.platform === 'xiaohongshu');
+    const storedContent = readFileSync(entry?.cookiesFilePath ?? '', 'utf8');
 
     assert.equal(storedContent.startsWith('# Netscape HTTP Cookie File\n'), true);
     assert.equal(storedContent.includes(cookieLine), true);
@@ -324,7 +354,8 @@ test('first-run setup creates local config files and runtime directories from te
     const platformSummary = await loadPlatformCredentialSummary(platformLocalPath);
 
     assert.equal((providerSummary.qwen as Record<string, unknown>).enabled, false);
-    assert.equal(platformSummary.length, 4);
+    assert.equal(platformSummary.length, 5);
+    assert.equal(platformSummary.some((entry) => entry.platform === 'xiaohongshu'), true);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -660,6 +691,39 @@ test('platform credential probe uses douyin ssr probe and reports success', asyn
     assert.equal(result.details?.enteredMetadataProbeLayer, true);
     assert.equal(result.details?.reason, 'douyin-ssr');
     assert.equal(result.details?.title, 'probe');
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('Xiaohongshu credential probe validates cookies and homepage connectivity without exposing secrets', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-runtime-'));
+  const cookiesPath = path.join(tempDir, 'xiaohongshu.cookies.txt');
+  let receivedCookieHeader = '';
+
+  try {
+    writeFileSync(
+      cookiesPath,
+      [
+        '# Netscape HTTP Cookie File',
+        '.xiaohongshu.com\tTRUE\t/\tTRUE\t1893456000\tweb_session\tfake-session'
+      ].join('\n')
+    );
+
+    const result = await probePlatformCredentialConnectivity({
+      platform: 'xiaohongshu',
+      cookiesFilePath: cookiesPath,
+      fetch: async (_url, init) => {
+        receivedCookieHeader = init?.headers?.cookie ?? '';
+        return createRuntimeTextResponse('<html>xiaohongshu</html>');
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.details?.platform, 'xiaohongshu');
+    assert.equal(result.details?.reason, 'xiaohongshu-homepage');
+    assert.equal(JSON.stringify(result).includes('fake-session'), false);
+    assert.equal(receivedCookieHeader.length > 0, true);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

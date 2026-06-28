@@ -42,6 +42,11 @@ export type DownloadProbeStatus =
   | 'douyin-ssr-unavailable'
   | 'douyin-play-url-expired'
   | 'douyin-detail-api-blocked'
+  | 'xiaohongshu-no-formats'
+  | 'xiaohongshu-note-not-video'
+  | 'xiaohongshu-page-unavailable'
+  | 'xiaohongshu-video-data-unavailable'
+  | 'xiaohongshu-play-url-expired'
   | 'platform-rate-limited'
   | 'rename-failed'
   | 'output-not-detected'
@@ -155,6 +160,10 @@ export function buildYtDlpArgs(
     '--output',
     path.join(request.outputDirectory, `${request.outputFileStem}.%(ext)s`),
   ];
+
+  if (request.platform === 'xiaohongshu') {
+    args.push('--format-sort', 'vcodec:h264,res,br,size');
+  }
 
   if (cookiesFilePath !== undefined) {
     args.push('--cookies', cookiesFilePath);
@@ -416,6 +425,16 @@ export function classifyYtDlpErrorMessage(
   }
 
   if (
+    message.includes('[XiaoHongShu]') &&
+    message.includes('No video formats found')
+  ) {
+    return Object.freeze({
+      status: 'xiaohongshu-no-formats',
+      message: summarizedMessage
+    });
+  }
+
+  if (
     message.includes('Login required') ||
     message.includes('Sign in to confirm') ||
     message.includes('Use --cookies') ||
@@ -609,7 +628,9 @@ function summarizeYtDlpErrorMessage(message: string): string {
     lines[0] ??
     'Download failed.';
 
-  return errorLine.slice(0, 240);
+  return errorLine
+    .replace(/(xsec_token=)[^&\s]+/giu, '$1[REDACTED]')
+    .slice(0, 240);
 }
 
 async function safeReadDir(directoryPath: string): Promise<readonly string[]> {
@@ -641,6 +662,16 @@ function buildUserFacingDownloadMessage(
       return '下载失败：抖音播放地址不可用或已过期，请刷新链接后重试。';
     case 'douyin-detail-api-blocked':
       return '下载失败：抖音详情接口返回空数据，当前 yt-dlp 路径被平台风控阻断。';
+    case 'xiaohongshu-no-formats':
+      return '下载失败：yt-dlp 未解析到小红书视频格式。';
+    case 'xiaohongshu-note-not-video':
+      return '下载失败：该小红书笔记不包含视频。';
+    case 'xiaohongshu-page-unavailable':
+      return '下载失败：小红书笔记页面暂时不可用。';
+    case 'xiaohongshu-video-data-unavailable':
+      return '下载失败：小红书笔记页面中没有可用的视频播放信息。';
+    case 'xiaohongshu-play-url-expired':
+      return '下载失败：小红书播放地址不可用或已过期。';
     case 'platform-rate-limited':
       return '下载失败：平台当前限制请求频率。';
     case 'rename-failed':

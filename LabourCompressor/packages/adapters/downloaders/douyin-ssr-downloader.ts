@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -6,6 +6,7 @@ import {
   type DownloadExecutionResult,
   type DownloadRequest
 } from '../../features/download/domain/index.ts';
+import { readNetscapeCookieHeader } from './netscape-cookies.ts';
 
 export interface DouyinSsrVideo {
   readonly awemeId: string;
@@ -361,34 +362,13 @@ async function buildDouyinRequestHeaders(
   };
 
   if (cookiesFilePath !== undefined) {
-    const cookieHeader = await readNetscapeCookieHeader(cookiesFilePath);
+    const cookieHeader = await readNetscapeCookieHeader(cookiesFilePath, ['douyin.com']);
     if (cookieHeader.length > 0) {
       headers.cookie = cookieHeader;
     }
   }
 
   return Object.freeze(headers);
-}
-
-async function readNetscapeCookieHeader(filePath: string): Promise<string> {
-  try {
-    return (await readFile(filePath, 'utf8'))
-      .split(/\r?\n/u)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith('#'))
-      .map((line) => line.split('\t'))
-      .filter((columns) => columns.length >= 7)
-      .filter((columns) => normalizeCookieDomain(columns[0] ?? '').endsWith('douyin.com'))
-      .map((columns) => `${columns[5] ?? ''}=${columns[6] ?? ''}`)
-      .filter((value) => !value.startsWith('='))
-      .join('; ');
-  } catch {
-    return '';
-  }
-}
-
-function normalizeCookieDomain(domain: string): string {
-  return domain.trim().replace(/^\./u, '').toLowerCase();
 }
 
 function readString(input: unknown): string {

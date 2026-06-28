@@ -329,6 +329,9 @@ function derivePlatformLabelFromText(text) {
   if (normalized.includes('tiktok.com')) {
     return 'TikTok';
   }
+  if (normalized.includes('xiaohongshu.com')) {
+    return '小红书';
+  }
 
   return '—';
 }

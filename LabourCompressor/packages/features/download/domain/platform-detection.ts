@@ -2,7 +2,8 @@ export type SupportedPlatform =
   | 'bilibili'
   | 'youtube'
   | 'douyin'
-  | 'tiktok';
+  | 'tiktok'
+  | 'xiaohongshu';
 
 export interface DetectedPlatformUrl {
   readonly originalUrl: string;
@@ -30,7 +31,7 @@ export function detectSupportedPlatformUrl(
 
   const host = parsedUrl.host.toLowerCase();
   const normalizedUrl = normalizePlatformUrl(parsedUrl);
-  const platform = detectPlatformFromHost(host);
+  const platform = detectPlatformFromUrl(parsedUrl);
 
   return Object.freeze({
     originalUrl: trimmedUrl,
@@ -38,6 +39,20 @@ export function detectSupportedPlatformUrl(
     platform,
     host
   });
+}
+
+export function sanitizePlatformUrlForOutput(inputUrl: string): string {
+  try {
+    const parsedUrl = new URL(inputUrl.trim());
+    const host = parsedUrl.host.toLowerCase();
+    if (host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com')) {
+      parsedUrl.search = '';
+      parsedUrl.hash = '';
+    }
+    return parsedUrl.toString();
+  } catch {
+    return inputUrl;
+  }
 }
 
 function normalizePlatformUrl(parsedUrl: URL): string {
@@ -62,7 +77,8 @@ function normalizePlatformUrl(parsedUrl: URL): string {
   return parsedUrl.toString();
 }
 
-function detectPlatformFromHost(host: string): SupportedPlatform {
+function detectPlatformFromUrl(parsedUrl: URL): SupportedPlatform {
+  const host = parsedUrl.host.toLowerCase();
   if (host === 'b23.tv' || host.endsWith('.bilibili.com')) {
     return 'bilibili';
   }
@@ -77,6 +93,13 @@ function detectPlatformFromHost(host: string): SupportedPlatform {
 
   if (host.endsWith('.tiktok.com')) {
     return 'tiktok';
+  }
+
+  if (
+    (host === 'xiaohongshu.com' || host.endsWith('.xiaohongshu.com')) &&
+    /^\/(?:explore|discovery\/item)\/[\da-f]+\/?$/u.test(parsedUrl.pathname)
+  ) {
+    return 'xiaohongshu';
   }
 
   throw new Error(`Unsupported download platform host: "${host}"`);

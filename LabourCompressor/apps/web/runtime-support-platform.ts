@@ -12,6 +12,7 @@ import {
 import {
   createPlatformAwareDownloaderAdapter
 } from '../../packages/adapters/downloaders/platform-aware-downloader.ts';
+import { readNetscapeCookieHeader } from '../../packages/adapters/downloaders/netscape-cookies.ts';
 import {
   extractDouyinSsrVideo,
   extractDouyinVideoId,
@@ -20,6 +21,7 @@ import {
 import {
   createDownloadRequest,
   parsePlatformCredentialConfig,
+  sanitizePlatformUrlForOutput,
   type PlatformCredentialConfig,
   type SupportedPlatform
 } from '../../packages/features/download/domain/index.ts';
@@ -41,14 +43,16 @@ const PLATFORM_HOMEPAGE_URLS: Readonly<Record<SupportedPlatform, string>> = Obje
   bilibili: 'https://www.bilibili.com/',
   youtube: 'https://www.youtube.com/',
   douyin: 'https://www.douyin.com/',
-  tiktok: 'https://www.tiktok.com/'
+  tiktok: 'https://www.tiktok.com/',
+  xiaohongshu: 'https://www.xiaohongshu.com/'
 });
 
 const PLATFORM_COOKIE_DOMAINS: Readonly<Record<SupportedPlatform, readonly string[]>> = Object.freeze({
   bilibili: ['bilibili.com'],
   youtube: ['youtube.com', 'google.com'],
   douyin: ['douyin.com', 'iesdouyin.com'],
-  tiktok: ['tiktok.com']
+  tiktok: ['tiktok.com'],
+  xiaohongshu: ['xiaohongshu.com']
 });
 
 const DEFAULT_DOUYIN_COOKIE_CANDIDATES = Object.freeze([
@@ -59,7 +63,8 @@ const SUPPORTED_PLATFORMS: readonly SupportedPlatform[] = Object.freeze([
   'bilibili',
   'youtube',
   'douyin',
-  'tiktok'
+  'tiktok',
+  'xiaohongshu'
 ]);
 
 type HomepageFetch = (
@@ -110,7 +115,7 @@ export async function probePlatformDownload(input: {
         ok: true,
         message: 'Download probe succeeded.',
         details: {
-          normalizedUrl: request.normalizedUrl,
+          normalizedUrl: sanitizePlatformUrlForOutput(request.normalizedUrl),
           platform: request.platform,
           credentialSource: resolvedCredential.source,
           usesCookiesFile: resolvedCredential.cookiesFilePath !== undefined,
@@ -126,7 +131,7 @@ export async function probePlatformDownload(input: {
         ok: false,
         message: structuredError.errorMessage,
         details: {
-          normalizedUrl: request.normalizedUrl,
+          normalizedUrl: sanitizePlatformUrlForOutput(request.normalizedUrl),
           platform: request.platform,
           credentialSource: resolvedCredential.source,
           usesCookiesFile: resolvedCredential.cookiesFilePath !== undefined,
@@ -193,6 +198,13 @@ export async function probePlatformCredentialConnectivity(input: {
         enteredMetadataProbeLayer: false
       });
     }
+  }
+
+  if (input.platform === 'xiaohongshu') {
+    return probeXiaohongshuCredentialConnectivity({
+      cookiesFilePath: credential.cookiesFilePath,
+      fetch: input.fetch
+    });
   }
 
   const sampleUrl = input.sampleUrl?.trim() || PLATFORM_PROBE_URLS[input.platform];
@@ -271,6 +283,55 @@ export async function probePlatformCredentialConnectivity(input: {
         sampleUrl,
         reason: reason.reason
       }
+    });
+  }
+}
+
+async function probeXiaohongshuCredentialConnectivity(input: {
+  readonly cookiesFilePath?: string;
+  readonly fetch?: DouyinFetch;
+}): Promise<RuntimeCheckResult> {
+  const fetchImpl = input.fetch ?? fetch;
+  const headers: Record<string, string> = {
+    referer: 'https://www.xiaohongshu.com/',
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125 Safari/537.36'
+  };
+  if (input.cookiesFilePath !== undefined) {
+    const cookieHeader = await readNetscapeCookieHeader(
+      input.cookiesFilePath,
+      ['xiaohongshu.com']
+    );
+    if (cookieHeader.length > 0) {
+      headers.cookie = cookieHeader;
+    }
+  }
+
+  try {
+    const response = await fetchImpl('https://www.xiaohongshu.com/', { headers });
+    if (!response.ok) {
+      throw createStructuredProbeError(
+        'xiaohongshu-page-unavailable',
+        `小红书首页请求失败，HTTP ${response.status}。`
+      );
+    }
+    await response.text();
+    return buildCredentialProbeResult({
+      ok: true,
+      platform: 'xiaohongshu',
+      message: 'cookies 静态检查与平台连通性测试通过。',
+      enteredMetadataProbeLayer: true,
+      extraDetails: { reason: 'xiaohongshu-homepage' }
+    });
+  } catch (error) {
+    const structuredError = extractStructuredDownloadError(error);
+    return buildCredentialProbeResult({
+      ok: false,
+      platform: 'xiaohongshu',
+      message: '小红书平台连通性测试失败，请稍后重试或更新 cookies。',
+      enteredMetadataProbeLayer: true,
+      errorCode: structuredError.errorCode,
+      errorDetail: structuredError.errorDetail,
+      extraDetails: { reason: 'xiaohongshu-homepage' }
     });
   }
 }
@@ -419,6 +480,16 @@ export async function importAndProbePlatformCredentialFile(input: {
     now: input.now
   });
   const entry = summary.find((item) => item.platform === input.platform);
+  if (input.platform === 'xiaohongshu') {
+    const probe = await (input.probe ?? probePlatformCredentialConnectivity)({
+      platform: input.platform,
+      ytDlpBinary: input.ytDlpBinary,
+      cookiesFilePath: entry?.cookiesFilePath,
+      cookiesFromBrowser: entry?.cookiesFromBrowser,
+      now: input.now
+    });
+    return Object.freeze({ summary, probe });
+  }
   const sampleUrl = await resolvePlatformHomepageSampleUrl({
     platform: input.platform,
     fetch: input.homepageFetch
@@ -645,6 +716,11 @@ function getHomepageVideoUrlPatterns(platform: SupportedPlatform): readonly RegE
         /https?:\/\/www\.tiktok\.com\/@[^/"']+\/video\/\d+/u,
         /href=["'](\/@[^/"']+\/video\/\d+[^"']*)["']/u
       ];
+    case 'xiaohongshu':
+      return [
+        /https?:\/\/www\.xiaohongshu\.com\/(?:explore|discovery\/item)\/[\da-f]+/u,
+        /href=["'](\/(?:explore|discovery\/item)\/[\da-f]+[^"']*)["']/u
+      ];
   }
 }
 
@@ -689,7 +765,7 @@ async function inspectCookiesFileForPlatform(input: {
 
   const records = content
     .split(/\r?\n/u)
-    .map((line) => line.trim())
+    .map((line) => line.trim().replace(/^#HttpOnly_/u, ''))
     .filter((line) => line.length > 0 && !line.startsWith('#'))
     .map(parseNetscapeCookieLine)
     .filter((record): record is NetscapeCookieRecord => record !== undefined);
@@ -921,7 +997,12 @@ async function normalizeImportedCookiesFileContent(filePath: string): Promise<st
   const hasNetscapeCookieRecord = content
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .some((line) => line.length > 0 && !line.startsWith('#') && parseNetscapeCookieLine(line) !== undefined);
+    .some((line) => {
+      const normalizedLine = line.replace(/^#HttpOnly_/u, '');
+      return normalizedLine.length > 0 &&
+        !normalizedLine.startsWith('#') &&
+        parseNetscapeCookieLine(normalizedLine) !== undefined;
+    });
 
   if (!hasNetscapeCookieRecord) {
     return content;
@@ -948,30 +1029,13 @@ async function buildDouyinProbeHeaders(
   };
 
   if (cookiesFilePath !== undefined) {
-    const cookieHeader = await readNetscapeCookieHeader(cookiesFilePath);
+    const cookieHeader = await readNetscapeCookieHeader(cookiesFilePath, ['douyin.com']);
     if (cookieHeader.length > 0) {
       headers.cookie = cookieHeader;
     }
   }
 
   return Object.freeze(headers);
-}
-
-async function readNetscapeCookieHeader(filePath: string): Promise<string> {
-  try {
-    return (await readFile(filePath, 'utf8'))
-      .split(/\r?\n/u)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith('#'))
-      .map((line) => line.split('\t'))
-      .filter((columns) => columns.length >= 7)
-      .filter((columns) => cookieDomainMatches(normalizeCookieDomain(columns[0] ?? ''), 'douyin.com'))
-      .map((columns) => `${columns[5] ?? ''}=${columns[6] ?? ''}`)
-      .filter((value) => !value.startsWith('='))
-      .join('; ');
-  } catch {
-    return '';
-  }
 }
 
 function createStructuredProbeError(code: string, message: string): Error {

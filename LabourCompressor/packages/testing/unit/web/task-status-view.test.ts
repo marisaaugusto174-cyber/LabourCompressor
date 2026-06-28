@@ -54,6 +54,22 @@ test('task status view displays local media source mode', () => {
   assert.equal(refs.statusPlatform.hidden, false);
 });
 
+test('task status view labels Xiaohongshu spreadsheet sources', () => {
+  const refs = createRefs();
+  initTaskStatusView({
+    refs,
+    getDefaults: () => ({ modelProfiles: [] }),
+    getFieldValue: (name) => name === 'spreadsheet'
+      ? 'https://www.xiaohongshu.com/explore/abc123'
+      : '',
+    getSelectedModelLabel: () => '测试模型'
+  });
+
+  updatePlatformLabel();
+
+  assert.equal(refs.statusPlatform.textContent, '小红书');
+});
+
 test('task status view marks problem clips as pending manual handling', () => {
   const refs = createRefs();
   initTaskStatusView({

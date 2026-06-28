@@ -97,6 +97,7 @@ In the Web UI:
 - Spreadsheet-driven workflow with `xlsx` as the complete standard format. `Numbers` files keep 读取兼容, while intermediate tables, writeback, and archive records remain `xlsx`.
 - `csv` remains available for import and 失败导出 only; formal writeback and local hyperlinks stay on `xlsx`.
 - Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
+- Xiaohongshu single-video notes use `yt-dlp` first and automatically fall back to local note-page parsing when the extractor returns no formats.
 - Automatic segmentation before tagging: scene detection, `3-30s` duration governance, and forced split when a long segment has no safe cut.
 - Effective-content coverage target is about `80%`; pure heads/tails, blank screens, posters, and small cutting loss are acceptable.
 - Original downloaded full videos remain in the download cache, but only accepted segmented clips enter tagging and archive.
@@ -119,6 +120,8 @@ In the Web UI:
 - PySceneDetect installed by `npm run setup:mac` under `.tools/`.
 - Model provider API credentials for the selected video model.
 - Platform cookies when the target platform requires login, higher quality formats, or anti-abuse verification.
+
+Xiaohongshu MVP support is limited to one video from one `/explore/<note-id>` or `/discovery/item/<note-id>` URL. Import a Netscape-format `cookies.txt` through `配置下载凭证`; image notes, profile feeds, short links, and automatic browser login are not supported. Access query parameters are used for the network request but removed from runtime summaries and persisted download metadata.
 
 Install Node dependencies only:
 
@@ -206,6 +209,7 @@ The repository includes `.gitignore` entries for these local artifacts. Always i
 - This is a local single-user workflow, not a cloud service.
 - The system does not perform automatic browser login or guarantee bypassing platform risk controls.
 - Download success depends on platform policy, account state, cookies freshness, `yt-dlp` support, and local network conditions.
+- Xiaohongshu image notes, profile feeds, short links, and multi-note collection are outside the V0.5 download scope.
 - Automatic segmentation is rule-based in V0.5; it does not yet perform full semantic story analysis.
 - `Numbers` support is compatibility-oriented and does not guarantee local file hyperlinks or automatic styling.
 - Model quality, speed, and rate limits vary by provider account, quota, and selected model.
