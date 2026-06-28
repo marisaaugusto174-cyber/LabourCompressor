@@ -93,7 +93,7 @@ export function createXiaohongshuDownloaderAdapter(
           });
         } catch (error) {
           lastError = error;
-          if (readErrorCode(error) === 'xiaohongshu-play-url-expired') {
+          if (isMediaCandidateErrorCode(readErrorCode(error))) {
             if (mediaRefreshes >= 1) {
               throw error;
             }
@@ -131,6 +131,10 @@ async function downloadSelectedCandidate(input: {
 
   for (const url of input.selected.urls) {
     throwIfAborted(input.executionOptions.signal);
+    input.executionOptions.onProgress?.({
+      percent: 0,
+      downloadedBytes: 0
+    });
     try {
       const response = await input.fetch(url, {
         headers: MEDIA_HEADERS,
@@ -191,21 +195,43 @@ async function writeMediaResponse(input: {
   readonly executionOptions: DownloadExecutionOptions;
   readonly downloadedAt: string;
 }): Promise<DownloadExecutionResult> {
-  if (input.response.body === null) {
-    throw createDownloadError(
-      'xiaohongshu-video-data-unavailable',
-      '下载失败：小红书视频响应没有媒体内容。'
-    );
-  }
-
+  validateMediaContentType(input.response.headers.get('content-type'));
   await mkdir(input.request.outputDirectory, { recursive: true });
   const fileName = `${input.request.outputFileStem}.mp4`;
   const filePath = path.join(input.request.outputDirectory, fileName);
   const partialPath = `${filePath}.part`;
-  const handle = await open(partialPath, 'w');
+  await streamMediaToFile({
+    response: input.response,
+    partialPath,
+    filePath,
+    executionOptions: input.executionOptions
+  });
+
+  return buildDownloadResult({ ...input, fileName, filePath });
+}
+
+async function streamMediaToFile(input: {
+  readonly response: Response;
+  readonly partialPath: string;
+  readonly filePath: string;
+  readonly executionOptions: DownloadExecutionOptions;
+}): Promise<void> {
+  if (input.response.body === null) {
+    throw createDownloadError(
+      'xiaohongshu-video-data-unavailable',
+      '下载失败：小红书视频响应没有媒体内容。',
+      true
+    );
+  }
+  const handle = await open(input.partialPath, 'w');
   const reader = input.response.body.getReader();
   const totalBytes = readPositiveNumber(input.response.headers.get('content-length'));
   let downloadedBytes = 0;
+  let completed = false;
+  const cancelReader = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  input.executionOptions.signal?.addEventListener('abort', cancelReader, { once: true });
 
   try {
     while (true) {
@@ -218,26 +244,42 @@ async function writeMediaResponse(input: {
       await handle.write(value);
       downloadedBytes += value.byteLength;
       input.executionOptions.onProgress?.({
-        percent: totalBytes === undefined ? undefined : downloadedBytes / totalBytes * 100,
+        percent: totalBytes === undefined
+          ? undefined
+          : Math.min(downloadedBytes / totalBytes * 100, 100),
         downloadedBytes,
         totalBytes
       });
     }
+    throwIfAborted(input.executionOptions.signal);
+    validateDownloadedLength(downloadedBytes, totalBytes);
     await handle.close();
-    await rename(partialPath, filePath);
-  } catch (error) {
-    await reader.cancel().catch(() => undefined);
-    await handle.close().catch(() => undefined);
-    await rm(partialPath, { force: true });
-    throw error;
+    await rename(input.partialPath, input.filePath);
+    completed = true;
+  } finally {
+    input.executionOptions.signal?.removeEventListener('abort', cancelReader);
+    if (!completed) {
+      await reader.cancel().catch(() => undefined);
+      await handle.close().catch(() => undefined);
+      await rm(input.partialPath, { force: true });
+    }
   }
+}
 
+function buildDownloadResult(input: {
+  readonly request: DownloadRequest;
+  readonly video: XiaohongshuVideo;
+  readonly selected: XiaohongshuVideoCandidate;
+  readonly downloadedAt: string;
+  readonly fileName: string;
+  readonly filePath: string;
+}): DownloadExecutionResult {
   return Object.freeze({
     request: input.request,
     artifacts: Object.freeze([Object.freeze({
       kind: 'muxed-video' as const,
-      filePath,
-      fileName,
+      filePath: input.filePath,
+      fileName: input.fileName,
       container: 'mp4'
     })]),
     downloadedAt: input.downloadedAt,
@@ -247,6 +289,30 @@ async function writeMediaResponse(input: {
       durationSeconds: input.video.durationSeconds
     })
   });
+}
+
+function validateMediaContentType(contentTypeHeader: string | null): void {
+  const contentType = contentTypeHeader?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  const isJson = contentType === 'application/json' ||
+    contentType === 'text/json' ||
+    contentType.endsWith('+json');
+  if (contentType === 'text/html' || isJson) {
+    throw createDownloadError(
+      'xiaohongshu-media-type-invalid',
+      '下载失败：小红书媒体地址返回了非视频内容。',
+      true
+    );
+  }
+}
+
+function validateDownloadedLength(downloadedBytes: number, totalBytes: number | undefined): void {
+  if (totalBytes !== undefined && downloadedBytes !== totalBytes) {
+    throw createDownloadError(
+      'xiaohongshu-media-truncated',
+      '下载失败：小红书视频下载内容不完整。',
+      true
+    );
+  }
 }
 
 async function buildPageHeaders(
@@ -278,6 +344,12 @@ function readErrorCode(error: unknown): string | undefined {
     : undefined;
 }
 
+function isMediaCandidateErrorCode(code: string | undefined): boolean {
+  return code === 'xiaohongshu-play-url-expired' ||
+    code === 'xiaohongshu-media-type-invalid' ||
+    code === 'xiaohongshu-media-truncated';
+}
+
 function createDownloadError(code: string, message: string, retryable?: boolean): Error {
   const error = new Error(message);
   Object.defineProperty(error, 'downloadErrorCode', { value: code, enumerable: false });
@@ -290,9 +362,7 @@ function createDownloadError(code: string, message: string, retryable?: boolean)
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) {
-    const error = new Error('Download cancelled.');
-    error.name = 'PipelineCancelledError';
-    throw error;
+    throw createCancellationError();
   }
 }
 
@@ -300,13 +370,26 @@ async function delay(milliseconds: number, signal: AbortSignal | undefined): Pro
   if (milliseconds <= 0) {
     return;
   }
+  throwIfAborted(signal);
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(resolve, milliseconds);
-    signal?.addEventListener('abort', () => {
+    const onTimeout = () => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    const onAbort = () => {
       clearTimeout(timeout);
-      reject(new Error('Download cancelled.'));
-    }, { once: true });
+      signal?.removeEventListener('abort', onAbort);
+      reject(createCancellationError());
+    };
+    const timeout = setTimeout(onTimeout, milliseconds);
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
+}
+
+function createCancellationError(): Error {
+  const error = new Error('Download cancelled.');
+  error.name = 'PipelineCancelledError';
+  return error;
 }
 
 function isObject(input: unknown): input is Record<string, unknown> {
