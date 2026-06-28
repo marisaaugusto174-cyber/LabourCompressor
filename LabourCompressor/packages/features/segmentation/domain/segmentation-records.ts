@@ -4,8 +4,7 @@ export const SEGMENTATION_PROFILES = Object.freeze({
   conservative: 'conservative'
 } as const);
 
-export type SegmentationProfileId =
-  (typeof SEGMENTATION_PROFILES)[keyof typeof SEGMENTATION_PROFILES];
+export type SegmentationProfileId = string;
 
 export type ProblemClipCategory =
   | 'duration-rule-unsatisfied'
@@ -159,15 +158,9 @@ function assertSegmentTimeRange(
 }
 
 function assertSegmentationProfileId(value: SegmentationProfileId): void {
-  if (!isSegmentationProfileId(value)) {
-    throw new Error('Segmentation profileId must be a known V0.3 profile.');
+  if (value.trim().length === 0) {
+    throw new Error('Segmentation profileId must not be empty.');
   }
-}
-
-function isSegmentationProfileId(value: string): value is SegmentationProfileId {
-  return Object.values(SEGMENTATION_PROFILES).includes(
-    value as SegmentationProfileId
-  );
 }
 
 function assertProblemClipCategory(value: ProblemClipCategory): void {

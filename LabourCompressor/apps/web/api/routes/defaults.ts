@@ -2,6 +2,10 @@ import { listVideoModelProfiles } from '../../../../packages/features/tagging/do
 import { PROJECT_ROOT } from '../../../cli/project-paths.ts';
 import { getWebPipelineDefaults } from '../../../cli/pipeline/options.ts';
 import { listTaxonomyPresets } from '../../../cli/taxonomy-presets.ts';
+import {
+  listPromptPresets,
+  listSegmentationProfileDefinitions
+} from '../../runtime-support.ts';
 import { sendJson, type WebRouteHandler } from '../http.ts';
 
 export const handleDefaultsRoutes: WebRouteHandler = async ({ response, url }) => {
@@ -9,9 +13,13 @@ export const handleDefaultsRoutes: WebRouteHandler = async ({ response, url }) =
     return false;
   }
 
+  const taxonomyPresets = listTaxonomyPresets();
+
   sendJson(response, {
     cwd: PROJECT_ROOT,
-    taxonomyPresets: listTaxonomyPresets(),
+    taxonomyPresets,
+    promptPresets: listPromptPresets({ taxonomyPresets }),
+    segmentationProfiles: await listSegmentationProfileDefinitions(),
     modelProfiles: listVideoModelProfiles(),
     defaults: getWebPipelineDefaults()
   });

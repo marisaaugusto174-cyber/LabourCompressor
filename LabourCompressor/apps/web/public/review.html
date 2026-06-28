@@ -11,13 +11,9 @@
       <header class="page-header">
         <div>
           <h1>打标结果质检</h1>
-          <p>扫描同名视频和 JSON，快速预览结果，并同步 Label Studio 审核结论。</p>
-          <p class="build-version">Review UI build: 20260611</p>
         </div>
         <div class="header-chip-list">
           <a class="chip" href="/">任务入口</a>
-          <span class="chip">Local sidecar JSON</span>
-          <span class="chip">Label Studio</span>
         </div>
       </header>
 
@@ -30,9 +26,10 @@
         <div class="panel-header">
           <div>
             <h2>检视来源</h2>
-            <p>只读取并扫描目录，不会改名、不改原始 JSON。同步 Label Studio 后只写入 <code>_tag-review-state.json</code>。</p>
           </div>
-          <div class="actions compact">
+          <div class="actions compact review-mode-toggle" role="group" aria-label="复查模式">
+            <button id="mode-tag-review" type="button" aria-pressed="true">打标结果质检</button>
+            <button id="mode-problem-review" class="secondary-button" type="button" aria-pressed="false">问题片段复查</button>
             <button id="scan-button" type="button">扫描目录</button>
             <button id="download-ls-package" class="secondary-button" type="button" disabled>下载 LS 导入包</button>
           </div>
@@ -44,7 +41,6 @@
             <div class="path-field is-filled">
               <div class="path-meta">
                 <label for="review-directory">待检文件夹</label>
-                <span>递归扫描视频与同目录同名 JSON。</span>
               </div>
               <div class="path-control">
                 <input id="review-directory" name="reviewDirectory" />
@@ -103,14 +99,13 @@
         <div class="panel-header">
           <div>
             <h2>多视频预览</h2>
-            <p>滚动时增量加载卡片，视频只在接近视口时挂载。</p>
           </div>
           <div class="actions compact">
             <button id="load-more" class="secondary-button" type="button" disabled>加载更多</button>
           </div>
         </div>
         <div id="review-grid" class="review-grid empty-state">
-          <p>请选择目录并扫描。</p>
+          <p>—</p>
         </div>
       </section>
 
@@ -123,6 +118,12 @@
             </div>
             <div class="actions compact">
               <button id="open-current-ls-task" class="secondary-button" type="button">在 LS 打开</button>
+              <span id="problem-decision-actions" class="actions compact hidden">
+                <button id="decision-discard" class="secondary-button" type="button">丢弃</button>
+                <button id="decision-keep-afteredit" type="button">保留到 AfterEdit</button>
+                <button id="decision-keep-problem" class="secondary-button" type="button">保留到 ProblemClips</button>
+                <button id="decision-manual-retry" class="secondary-button" type="button">转人工命名</button>
+              </span>
               <button id="close-detail" type="button">关闭详情</button>
             </div>
           </div>
@@ -144,11 +145,10 @@
         <div class="panel-header">
           <div>
             <h2>诊断与日志</h2>
-            <p>未配对文件和接口结果显示在这里。</p>
           </div>
         </div>
         <div id="diagnostics-list" class="task-list empty-state">
-          <p>暂无诊断信息。</p>
+          <p>—</p>
         </div>
         <pre id="review-output" class="output log"></pre>
       </section>

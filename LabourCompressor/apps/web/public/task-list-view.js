@@ -46,8 +46,9 @@ const CHECK_HINTS = {
 };
 
 export function renderPreflightChecklist(checks, targetNode) {
-  targetNode.classList.remove('empty-state');
-  targetNode.innerHTML = buildPreflightChecklistHtml(checks);
+  const html = buildPreflightChecklistHtml(checks);
+  targetNode.innerHTML = html;
+  targetNode.classList.toggle('empty-state', html.length === 0);
 }
 
 export function renderPreflightMessage(message, targetNode, state = 'running') {
@@ -64,19 +65,24 @@ export function renderPreflightMessage(message, targetNode, state = 'running') {
 
 export function renderEventTimeline(events, targetNode) {
   if (!events.length) {
-    targetNode.innerHTML = '<p>任务启动后，这里会显示每个阶段的进度。</p>';
+    targetNode.innerHTML = '';
     targetNode.classList.add('empty-state');
     return;
   }
 
+  const detailsWasOpen = targetNode.querySelector?.('details')?.open === true;
   targetNode.classList.remove('empty-state');
   targetNode.innerHTML = buildEventTimelineHtml(events.slice(-120));
+  const details = targetNode.querySelector?.('details');
+  if (details) {
+    details.open = detailsWasOpen;
+  }
   targetNode.scrollTop = targetNode.scrollHeight;
 }
 
 export function buildPreflightChecklistHtml(checks) {
   if (!checks?.length) {
-    return '<p>还没有 Preflight 检查结果。</p>';
+    return '';
   }
 
   const failedChecks = checks.filter((check) => !check.ok);
@@ -89,10 +95,6 @@ export function buildPreflightChecklistHtml(checks) {
         <span>—</span>
         <span>—</span>
       </div>
-      <details class="debug-details">
-        <summary>查看检查详情</summary>
-        ${renderRawPreflightDetails(checks, false)}
-      </details>
     `;
   }
 
@@ -113,7 +115,7 @@ export function buildPreflightChecklistHtml(checks) {
 
 export function buildEventTimelineHtml(events) {
   if (!events?.length) {
-    return '<p>任务启动后，这里会显示每个阶段的进度。</p>';
+    return '';
   }
 
   const latest = events.at(-1);
@@ -136,14 +138,27 @@ function renderCheckRow(check) {
   const state = check.ok ? 'succeeded' : 'failed';
   const status = check.ok ? '已通过' : '未通过';
   const key = String(check.key ?? '');
+  const hint = resolveCheckHint(check, key);
   return `
     <div class="task-list-row">
       <strong>${escapeHtml(CHECK_LABELS[key] ?? key)}</strong>
       <span class="stage-pill stage-${state}">${status}</span>
       <span>${escapeHtml(check.message ?? '')}</span>
-      <span>${escapeHtml(check.ok ? '无需处理' : CHECK_HINTS[key] ?? '请根据提示修正后重新运行 Preflight。')}</span>
+      <span>${escapeHtml(hint)}</span>
     </div>
   `;
+}
+
+function resolveCheckHint(check, key) {
+  if (check.ok) {
+    return '无需处理';
+  }
+
+  if (key === 'yt-dlp' && check.details?.isStale === true) {
+    return '更新 yt-dlp 到 90 天内版本，或仅处理抖音任务时确认 Douyin SSR 已启用。';
+  }
+
+  return CHECK_HINTS[key] ?? '请根据提示修正后重新运行 Preflight。';
 }
 
 function renderEventRow(event) {

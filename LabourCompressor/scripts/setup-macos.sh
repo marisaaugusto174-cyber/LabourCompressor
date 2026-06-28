@@ -78,15 +78,19 @@ install_scenedetect() {
 
   echo "Installing PySceneDetect into project-local venv..."
   rm -rf "${venv_dir}"
+  rm -f "${scenedetect_bin}"
   "${PYTHON_FOR_SCENEDETECT}" -m venv "${venv_dir}"
-  "${venv_dir}/bin/python" -m pip install --upgrade pip
-  "${venv_dir}/bin/python" -m pip install "scenedetect[opencv]"
+  "${venv_dir}/bin/python" -m ensurepip --upgrade || return 1
+  "${venv_dir}/bin/python" -m pip install "scenedetect[opencv]" || return 1
 
   ln -sf "${venv_dir}/bin/scenedetect" "${scenedetect_bin}"
   echo "Created: ${scenedetect_bin}"
 }
 
-install_scenedetect
+if ! install_scenedetect; then
+  echo "WARNING: PySceneDetect setup did not complete."
+  echo "WARNING: The Web UI can still start, but automatic segmentation preflight may fail until PySceneDetect is installed."
+fi
 
 echo "Installing Node dependencies..."
 cd "${ROOT_DIR}"

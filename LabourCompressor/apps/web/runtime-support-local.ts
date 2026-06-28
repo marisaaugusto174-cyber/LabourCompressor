@@ -21,13 +21,17 @@ export async function ensureDefaultMasterSpreadsheet(filePath: string): Promise<
 }
 
 export async function buildPostEditRecordSheet(input: {
-  readonly downloadDirectory: string;
+  readonly downloadDirectory?: string;
+  readonly videoDirectoryPath?: string;
   readonly afterEditDirectoryName?: string;
   readonly outputFilePath?: string;
   readonly batchSampleFilePath?: string;
 }): Promise<Readonly<Record<string, unknown>>> {
   const afterEditDirectoryName = input.afterEditDirectoryName ?? 'AfterEdit';
-  const afterEditDirectoryPath = path.join(input.downloadDirectory, afterEditDirectoryName);
+  const afterEditDirectoryPath =
+    input.videoDirectoryPath === undefined || input.videoDirectoryPath.trim().length === 0
+      ? path.join(requireDownloadDirectory(input.downloadDirectory), afterEditDirectoryName)
+      : path.resolve(input.videoDirectoryPath);
 
   await mkdir(afterEditDirectoryPath, { recursive: true });
   const scannedFiles = await scanAfterEditVideoFiles(afterEditDirectoryPath);
@@ -95,6 +99,14 @@ export async function buildPostEditRecordSheet(input: {
       }))
     )
   });
+}
+
+function requireDownloadDirectory(downloadDirectory: string | undefined): string {
+  if (downloadDirectory === undefined || downloadDirectory.trim().length === 0) {
+    throw new Error('downloadDirectory or videoDirectoryPath is required.');
+  }
+
+  return downloadDirectory;
 }
 
 interface ScannedAfterEditFile {

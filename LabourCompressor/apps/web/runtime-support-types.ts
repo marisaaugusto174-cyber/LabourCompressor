@@ -34,4 +34,6 @@ export interface PlatformCredentialSummaryEntry {
   readonly platform: SupportedPlatform;
   readonly cookiesFilePath?: string;
   readonly cookiesFromBrowser?: string;
+  readonly credentialStorePath?: string;
+  readonly credentialUploadedAt?: string;
 }

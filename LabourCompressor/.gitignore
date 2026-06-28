@@ -2,6 +2,8 @@
 .runtime-state
 .runtime-uploads
 .runtime-probe
+.runtime-credentials
+.superpowers
 .web-ui.log
 .web-ui.pid
 .DS_Store

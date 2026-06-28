@@ -39,6 +39,25 @@ test('creates a macos app bundle spec for the local web ui launcher', () => {
   assert.match(bundle.files[1].content, /Library\/Logs\/LabourCompressor/);
   assert.match(bundle.files[1].content, /\/usr\/bin\/open/);
   assert.match(bundle.files[1].content, /api\/defaults/);
+  assert.match(bundle.files[1].content, /SETUP_SCRIPT="\$\{PROJECT_ROOT\}\/scripts\/setup-macos\.sh"/);
+  assert.match(bundle.files[1].content, /check_manual_prerequisites\(\)/);
+  assert.match(bundle.files[1].content, /needs_setup\(\)/);
+  assert.match(bundle.files[1].content, /run_setup\(\)/);
+  assert.match(bundle.files[1].content, /node_modules\/xlsx/);
+  assert.doesNotMatch(bundle.files[1].content, /\[ ! -x "\$\{PROJECT_ROOT\}\/\.tools\/bin\/scenedetect" \]/);
+  assert.match(bundle.files[1].content, /providers\.local\.json/);
+  assert.match(bundle.files[1].content, /download-platform-credentials\.local\.json/);
+  assert.match(bundle.files[1].content, /Setup failed/);
+  assert.match(bundle.files[1].content, /stop_existing_labour_compressor\(\)/);
+  assert.match(bundle.files[1].content, /stop_pid_if_labour_compressor\(\)/);
+  assert.match(bundle.files[1].content, /LABOUR_COMPRESSOR_REUSE_RUNNING/);
+  assert.match(bundle.files[1].content, /rm -f "\$\{PID_FILE\}"/);
+  assert.match(bundle.files[1].content, /\/usr\/bin\/nohup/);
+  assert.doesNotMatch(bundle.files[1].content, /RUNNING_PORT="\$\(find_running_port\)"/);
+  assert.ok(
+    bundle.files[1].content.indexOf('stop_existing_labour_compressor\n') <
+      bundle.files[1].content.indexOf('PORT="$(find_port)"')
+  );
 
   assert.equal(
     bundle.nativeExecutable.relativePath,

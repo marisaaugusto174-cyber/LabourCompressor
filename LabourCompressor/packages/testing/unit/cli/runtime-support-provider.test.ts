@@ -6,7 +6,9 @@ import path from 'node:path';
 
 import {
   buildProviderCheckFailure,
-  checkProvider
+  checkProvider,
+  loadVideoModelProviderSummaries,
+  saveSelectedProviderApiKey
 } from '../../../../apps/web/runtime-support-provider.ts';
 import { getVideoModelProfile } from '../../../features/tagging/domain/index.ts';
 
@@ -92,13 +94,98 @@ test('provider preflight distinguishes auth or quota failures without leaking ke
   }
 });
 
-test('provider preflight keeps Gemini Flash Thinking fixed to high thinking config', () => {
-  const profile = getVideoModelProfile('gemini-3-flash-thinking');
+test('model provider summary reports API key presence per model profile without leaking keys', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-provider-summary-'));
+  const providerConfigPath = path.join(tempDir, 'providers.local.json');
 
-  assert.equal(profile.label, 'Gemini 3 Flash Thinking');
+  try {
+    writeFileSync(
+      providerConfigPath,
+      `${JSON.stringify({
+        qwen: {
+          enabled: true,
+          provider: 'qwen',
+          authMode: 'api-key',
+          modelName: 'qwen3.7-plus',
+          apiKey: 'sk-secret-test',
+          oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+        },
+        google: {
+          enabled: false,
+          provider: 'google',
+          authMode: 'api-key',
+          modelName: 'gemini-3.5-flash',
+          apiKey: '',
+          oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+        }
+      }, null, 2)}\n`
+    );
+
+    const summary = await loadVideoModelProviderSummaries({ providerConfigPath });
+    const qwenProfiles = summary.models.filter((item) => item.provider === 'qwen');
+    const gemini = summary.models.find((item) => item.profileId === 'gemini-3.5-flash');
+
+    assert.equal(qwenProfiles.length >= 2, true);
+    assert.equal(qwenProfiles.every((item) => item.apiKeyPresent === true), true);
+    assert.equal(qwenProfiles.every((item) => item.providerEnabled === true), true);
+    assert.equal(JSON.stringify(summary).includes('sk-secret-test'), false);
+    assert.equal(gemini?.apiKeyPresent, false);
+    assert.equal(gemini?.providerEnabled, false);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('saving provider API key returns structured probe failure without dropping saved key', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-provider-save-'));
+  const providerConfigPath = path.join(tempDir, 'providers.local.json');
+
+  try {
+    writeFileSync(
+      providerConfigPath,
+      `${JSON.stringify({
+        qwen: {
+          enabled: false,
+          provider: 'qwen',
+          authMode: 'api-key',
+          modelName: 'qwen3.7-plus',
+          apiKey: '',
+          oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+        }
+      }, null, 2)}\n`
+    );
+
+    const result = await saveSelectedProviderApiKey({
+      providerConfigPath,
+      selectedModelProfileId: 'qwen-3.7-plus',
+      apiKey: 'sk-secret-test',
+      probe: async () => {
+        throw new Error('API key invalid: sk-secret-test');
+      }
+    });
+
+    assert.equal(result.saved, true);
+    assert.equal(result.probe.ok, false);
+    assert.equal(result.probe.details?.reason, 'provider-probe-failed');
+    assert.equal(JSON.stringify(result).includes('sk-secret-test'), false);
+
+    const summary = await loadVideoModelProviderSummaries({ providerConfigPath });
+    const qwen = summary.models.find((item) => item.profileId === 'qwen-3.7-plus');
+
+    assert.equal(qwen?.apiKeyPresent, true);
+    assert.equal(qwen?.providerEnabled, true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('provider preflight exposes Gemini 3.5 Flash stable video profile', () => {
+  const profile = getVideoModelProfile('gemini-3.5-flash');
+
+  assert.equal(profile.label, 'Gemini 3.5 Flash');
   assert.equal(profile.provider, 'google');
-  assert.equal(profile.modelName, 'gemini-3-flash-preview');
-  assert.equal(profile.thinkingLevel, 'high');
+  assert.equal(profile.modelName, 'gemini-3.5-flash');
+  assert.equal(profile.defaultTaggingConcurrency, 4);
 });
 
 test('provider preflight distinguishes model-no-video branch', () => {
@@ -120,8 +207,8 @@ test('provider preflight distinguishes connectivity branch', () => {
     new Error('fetch failed: connect ECONNREFUSED 127.0.0.1'),
     {
       provider: 'qwen',
-      modelName: 'qwen3.6-plus',
-      label: 'Qwen 3.6 Plus'
+      modelName: 'qwen3.7-plus',
+      label: 'Qwen3.7Plus'
     }
   );
 

@@ -6,8 +6,10 @@ import { handleLocalDialogRoutes } from './local-dialogs.ts';
 import { handlePipelineRoutes } from './pipeline.ts';
 import { handlePlatformCredentialRoutes } from './platform-credentials.ts';
 import { handleProviderConfigRoutes } from './provider-config.ts';
+import { handleReviewQueueRoutes } from './review-queue.ts';
 import { handleStaticRoutes } from './static.ts';
 import { handleTagReviewRoutes } from './tag-review.ts';
+import { handleTaxonomyPresetRoutes } from './taxonomy-presets.ts';
 import { handleTaskRoutes } from './tasks.ts';
 
 const ROUTES: readonly WebRouteHandler[] = Object.freeze([
@@ -19,7 +21,9 @@ const ROUTES: readonly WebRouteHandler[] = Object.freeze([
   handleCacheRoutes,
   handleProviderConfigRoutes,
   handlePlatformCredentialRoutes,
+  handleTaxonomyPresetRoutes,
   handleDownloadProbeRoutes,
+  handleReviewQueueRoutes,
   handleTagReviewRoutes
 ]);
 

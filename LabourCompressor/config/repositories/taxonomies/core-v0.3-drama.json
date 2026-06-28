@@ -1,0 +1,12 @@
+{
+  "id": "core-v0.3-drama",
+  "label": "核心基座标签提示词 V0.3 戏核增强候选",
+  "filePath": "核心基座_标签提示词_V0.3_戏核增强候选.md",
+  "description": "外部标签库仓库中的核心基座 V0.3 戏核增强候选结构化标签提示词，默认用于新任务。",
+  "baseKind": "structured",
+  "taxonomyVersionId": "Core_Base_Prompt_V0.3_Drama_Core_Candidate",
+  "archiveDimension": "内容领域",
+  "modelResponseShape": "structured-json",
+  "taxonomyParseMode": "bullet-root",
+  "promptLibraryPath": "核心基座_标签提示词_V0.3_戏核增强候选.md"
+}

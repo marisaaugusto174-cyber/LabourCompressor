@@ -28,6 +28,10 @@ const refs = {
   detailSubtitle: document.querySelector('#detail-subtitle'),
   detailVideo: document.querySelector('#detail-video'),
   detailTags: document.querySelector('#detail-tags'),
+  acceptedPathList: document.querySelector('#accepted-path-list'),
+  acceptedPathSelect: document.querySelector('#accepted-path-select'),
+  addAcceptedPath: document.querySelector('#add-accepted-path'),
+  saveAcceptedResult: document.querySelector('#save-accepted-result'),
   detailPosition: document.querySelector('#detail-position'),
   previousDetail: document.querySelector('#previous-detail'),
   nextDetail: document.querySelector('#next-detail'),
@@ -41,7 +45,8 @@ let currentScan = null;
 let currentItems = [];
 let renderedCount = 0;
 let selectedIndex = -1;
-let videoObserver = null;
+let thumbnailObserver = null;
+let selectedAcceptedPaths = [];
 
 boot().catch((error) => {
   showDiagnostics([{ severity: 'error', message: error.message }]);
@@ -54,10 +59,7 @@ async function boot() {
   }
 
   const defaultsPayload = await apiGet('/api/defaults');
-  refs.reviewDirectory.value = [
-    defaultsPayload.defaults?.downloadDir,
-    defaultsPayload.defaults?.afterEditDirectoryName
-  ].filter(Boolean).join('/');
+  refs.reviewDirectory.value = defaultsPayload.defaults?.reviewDirectory ?? '';
   refs.labelStudioUrl.value = localStorage.getItem('tagReviewLabelStudioUrl') ?? 'http://127.0.0.1:8080';
   refs.labelStudioProjectTitle.value = 'Tag Review AfterEdit';
   bindActions();
@@ -73,6 +75,8 @@ function bindActions() {
   refs.previousDetail.addEventListener('click', () => openDetail(selectedIndex - 1));
   refs.nextDetail.addEventListener('click', () => openDetail(selectedIndex + 1));
   refs.closeDetail.addEventListener('click', closeDetail);
+  refs.addAcceptedPath.addEventListener('click', addAcceptedPath);
+  refs.saveAcceptedResult.addEventListener('click', () => wrapAction(saveAcceptedResult));
   refs.detailView.addEventListener('click', (event) => {
     if (event.target === refs.detailView) {
       closeDetail();
@@ -98,6 +102,12 @@ async function chooseReviewDirectory() {
 
   if (!payload.cancelled && typeof payload.path === 'string' && payload.path.length > 0) {
     refs.reviewDirectory.value = payload.path;
+    refs.reviewOutput.textContent = `已选择目录：${payload.path}`;
+    return;
+  }
+
+  if (payload.cancelled) {
+    refs.reviewOutput.textContent = '已取消目录选择。';
   }
 }
 
@@ -176,12 +186,12 @@ function renderDiagnostics(payload) {
 }
 
 function resetGrid() {
-  disconnectVideoObserver();
+  disconnectThumbnailObserver();
   refs.reviewGrid.classList.toggle('empty-state', currentItems.length === 0);
   refs.reviewGrid.innerHTML = currentItems.length === 0
     ? '<p>没有可质检的同名视频 / JSON 配对。</p>'
     : '';
-  videoObserver = new IntersectionObserver(handleVideoIntersection, {
+  thumbnailObserver = new IntersectionObserver(handleThumbnailIntersection, {
     rootMargin: '360px 0px'
   });
 }
@@ -206,34 +216,44 @@ function renderMoreItems(count = RENDER_BATCH_SIZE) {
 
 function buildCard(item, index) {
   const card = document.createElement('article');
+  const tags = item.tagging?.tags ?? [];
+  const visibleTags = tags.slice(0, 3);
+  const remainingTagCount = Math.max(0, tags.length - visibleTags.length);
   card.className = 'review-card';
   card.dataset.index = String(index);
   card.innerHTML = `
     <div class="review-card-video">
-      <video muted playsinline preload="none" data-src="${escapeHtml(mediaUrl(item))}"></video>
+      <img alt="" loading="lazy" data-src="${escapeHtml(thumbnailUrl(item))}" />
+      <div class="review-card-cover-bar">
+        <span>#${index + 1}</span>
+        ${renderReviewStatus(item)}
+      </div>
+      <span class="review-card-media-type">${escapeHtml(item.videoFileName.split('.').pop()?.toUpperCase() ?? 'VIDEO')}</span>
     </div>
     <div class="review-card-body">
       <div class="review-card-title">
         <strong>${escapeHtml(item.videoFileName)}</strong>
-        ${renderReviewStatus(item)}
       </div>
       <div class="review-card-meta">${escapeHtml(item.videoRelativePath)}</div>
       <div class="review-card-tags">
-        ${(item.tagging?.tags ?? []).slice(0, 3).map((tag) => `
+        ${visibleTags.map((tag) => `
           <span>${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</span>
         `).join('')}
+        ${remainingTagCount === 0 ? '' : `<span class="review-card-tag-more">+${remainingTagCount}</span>`}
+        ${tags.length === 0 ? '<span class="review-card-tag-empty">无模型标签</span>' : ''}
       </div>
     </div>
   `;
-  card.addEventListener('click', (event) => {
-    if (event.target instanceof HTMLVideoElement) {
-      return;
-    }
+  card.addEventListener('click', () => {
     openDetail(index);
   });
-  const video = card.querySelector('video');
-  if (video) {
-    videoObserver?.observe(video);
+  const thumbnail = card.querySelector('img');
+  if (thumbnail) {
+    thumbnail.addEventListener('error', () => {
+      thumbnail.classList.add('is-thumbnail-missing');
+      thumbnail.removeAttribute('src');
+    });
+    thumbnailObserver?.observe(thumbnail);
   }
   return card;
 }
@@ -252,25 +272,17 @@ function renderReviewStatus(item) {
   return `<span class="stage-pill stage-running">${escapeHtml(status)}</span>`;
 }
 
-function handleVideoIntersection(entries) {
+function handleThumbnailIntersection(entries) {
   for (const entry of entries) {
-    const video = entry.target;
+    const image = entry.target;
 
-    if (!(video instanceof HTMLVideoElement)) {
+    if (!(image instanceof HTMLImageElement)) {
       continue;
     }
 
-    if (entry.isIntersecting) {
-      if (!video.src && video.dataset.src) {
-        video.src = video.dataset.src;
-      }
-      continue;
-    }
-
-    if (video.src) {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
+    if (entry.isIntersecting && !image.src && image.dataset.src) {
+      image.src = image.dataset.src;
+      thumbnailObserver?.unobserve(image);
     }
   }
 }
@@ -304,11 +316,15 @@ function openDetail(index) {
   refs.detailTitle.textContent = item.videoFileName;
   refs.detailSubtitle.textContent = `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
   refs.detailVideo.src = mediaUrl(item);
+  selectedAcceptedPaths = [...(item.acceptedResult?.acceptedPaths ?? item.tagging?.tags?.map((tag) => (tag.labelPath ?? []).join(' > ')).filter(Boolean) ?? [])];
+  renderAcceptedPathOptions();
+  renderAcceptedPaths();
   refs.detailTags.innerHTML = renderDetailTags(item);
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
   refs.openCurrentLabelStudioTask.disabled = !canOpenLabelStudioTask(item);
+  refs.saveAcceptedResult.disabled = !(currentScan?.taxonomySnapshot?.paths?.length > 0);
   refs.closeDetail.focus();
 }
 
@@ -355,6 +371,77 @@ function renderDetailTags(item) {
       `).join('')}
     </div>
   `;
+}
+
+function renderAcceptedPathOptions() {
+  const paths = currentScan?.taxonomySnapshot?.paths ?? [];
+
+  refs.acceptedPathSelect.innerHTML = paths.length === 0
+    ? '<option value="">未找到 taxonomy 快照</option>'
+    : paths.map((pathValue) => `
+      <option value="${escapeHtml(pathValue)}">${escapeHtml(pathValue)}</option>
+    `).join('');
+  refs.acceptedPathSelect.disabled = paths.length === 0;
+  refs.addAcceptedPath.disabled = paths.length === 0;
+}
+
+function renderAcceptedPaths() {
+  if (selectedAcceptedPaths.length === 0) {
+    refs.acceptedPathList.classList.add('empty-state');
+    refs.acceptedPathList.innerHTML = '<p>未选择 accepted 路径。</p>';
+    return;
+  }
+
+  refs.acceptedPathList.classList.remove('empty-state');
+  refs.acceptedPathList.innerHTML = selectedAcceptedPaths.map((pathValue, index) => `
+    <div class="accepted-path-row">
+      <span>${escapeHtml(pathValue)}</span>
+      <button class="secondary-button" type="button" data-accepted-path-index="${index}">移除</button>
+    </div>
+  `).join('');
+  for (const button of refs.acceptedPathList.querySelectorAll('[data-accepted-path-index]')) {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.acceptedPathIndex);
+      selectedAcceptedPaths = selectedAcceptedPaths.filter((_, itemIndex) => itemIndex !== index);
+      renderAcceptedPaths();
+    });
+  }
+}
+
+function addAcceptedPath() {
+  const pathValue = refs.acceptedPathSelect.value.trim();
+
+  if (!pathValue || selectedAcceptedPaths.includes(pathValue)) {
+    return;
+  }
+
+  selectedAcceptedPaths = [...selectedAcceptedPaths, pathValue];
+  renderAcceptedPaths();
+}
+
+async function saveAcceptedResult() {
+  const item = currentItems[selectedIndex];
+
+  if (!item) {
+    throw new Error('请先打开一个片段详情。');
+  }
+
+  if (selectedAcceptedPaths.length === 0) {
+    throw new Error('请至少选择一个 accepted 路径。');
+  }
+
+  const acceptedResult = await apiPost('/api/tag-review/accepted', {
+    directoryPath: requireDirectoryPath(),
+    reviewItemId: item.reviewItemId,
+    acceptedPaths: selectedAcceptedPaths
+  });
+  currentItems[selectedIndex] = {
+    ...item,
+    reviewStatus: acceptedResult.status,
+    acceptedResult
+  };
+  renderAcceptedPaths();
+  refs.reviewOutput.textContent = buildDebugJson(acceptedResult);
 }
 
 async function downloadLabelStudioPackage() {
@@ -452,6 +539,13 @@ function mediaUrl(item) {
   return url.toString();
 }
 
+function thumbnailUrl(item) {
+  const url = new URL('/api/tag-review/thumbnail', location.origin);
+  url.searchParams.set('directoryPath', currentScan?.directoryPath ?? requireDirectoryPath());
+  url.searchParams.set('relativePath', item.videoRelativePath);
+  return url.toString();
+}
+
 function updateActionState() {
   const hasItems = currentItems.length > 0;
   const hasProjectId = refs.labelStudioProjectId.value.trim().length > 0;
@@ -480,10 +574,10 @@ function downloadText(fileName, text) {
   URL.revokeObjectURL(url);
 }
 
-function disconnectVideoObserver() {
-  if (videoObserver) {
-    videoObserver.disconnect();
-    videoObserver = null;
+function disconnectThumbnailObserver() {
+  if (thumbnailObserver) {
+    thumbnailObserver.disconnect();
+    thumbnailObserver = null;
   }
 }
 

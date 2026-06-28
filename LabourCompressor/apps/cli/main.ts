@@ -22,10 +22,12 @@ import {
 } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
 import {
   buildYtDlpArgs,
-  createYtDlpDownloaderAdapter,
   extractStructuredDownloadError,
   validateYtDlpBinary
 } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
+import {
+  createPlatformAwareDownloaderAdapter
+} from '../../packages/adapters/downloaders/platform-aware-downloader.ts';
 import {
   createDownloadRequest,
   parsePlatformCredentialConfig
@@ -139,7 +141,7 @@ try {
               )
             )
           );
-    const adapter = createYtDlpDownloaderAdapter({
+    const adapter = createPlatformAwareDownloaderAdapter({
       binaryPath: args['yt-dlp-binary'],
       cookiesFilePath: args['cookies-file'],
       cookiesFromBrowser: args['cookies-from-browser'],
@@ -295,8 +297,8 @@ function printUsage(): void {
     [
       'Usage:',
       '  node apps/cli/main.ts serve-web-ui',
-      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset core-v0.2|core-v0.1|full-v0.2|business|v0] [--prompt-library <path>] --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
-      '  V0.4 staged mode: add --pipeline-stage download|segment|compress|tag|archive|all',
+      '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset core-v0.1|full-v0.2|core-v0.3-drama] [--prompt-library <path>] --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
+      '  V0.5 staged mode: add --pipeline-stage download|segment|compress|tag|archive|all',
       '    Optional writeback: [--writeback-target user|master|both] [--master-spreadsheet <path>]',
       '  node apps/cli/main.ts list-taxonomy-presets',
       '  node apps/cli/main.ts list-model-options',
@@ -311,11 +313,11 @@ function printUsage(): void {
 
 function profileIdFromProvider(provider: string): string {
   if (provider === 'qwen') {
-    return 'qwen-3.6-flash';
+    return 'qwen-3.7-plus';
   }
 
   if (provider === 'google') {
-    return 'gemini-3-flash-thinking';
+    return 'gemini-3.5-flash';
   }
 
   throw new Error(`No default video model profile is defined for provider "${provider}".`);

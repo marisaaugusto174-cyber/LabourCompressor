@@ -5,6 +5,7 @@
   "scripts": {
     "app:mac": "node scripts/create-macos-app.ts",
     "cli": "node apps/cli/main.ts",
+    "package:migration": "node scripts/package-migration-source.ts",
     "setup:mac": "bash scripts/setup-macos.sh",
     "web": "node apps/cli/main.ts serve-web-ui",
     "test:taxonomy-domain": "node --test packages/testing/unit/archive/*.test.ts packages/testing/unit/cli/*.test.ts packages/testing/unit/core/*.test.ts packages/testing/unit/desktop/*.test.ts packages/testing/unit/download/*.test.ts packages/testing/unit/governance/*.test.ts packages/testing/unit/media/*.test.ts packages/testing/unit/retrieval/*.test.ts packages/testing/unit/segmentation/*.test.ts packages/testing/unit/spreadsheet/*.test.ts packages/testing/unit/tagging/*.test.ts packages/testing/unit/taxonomy/*.test.ts packages/testing/unit/web/*.test.ts packages/testing/integration/phase2/*.test.ts packages/testing/integration/phase3/*.test.ts packages/testing/integration/phase4/*.test.ts packages/testing/integration/phase5/*.test.ts"
@@ -12,5 +13,5 @@
   "dependencies": {
     "xlsx": "^0.18.5"
   },
-  "version": "0.3.0"
+  "version": "0.5.0"
 }

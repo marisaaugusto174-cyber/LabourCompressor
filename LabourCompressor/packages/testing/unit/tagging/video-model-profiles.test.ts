@@ -11,21 +11,30 @@ test('lists curated video model profiles in fixed default order', () => {
 
   assert.deepEqual(
     profiles.map((item) => item.id),
-    ['qwen-3.6-flash', 'qwen-3.5-plus', 'qwen-3.6-plus', 'gemini-3-flash-thinking', 'gemini-3-pro']
+    ['qwen-3.7-plus', 'qwen-3.6-flash', 'gemini-3.5-flash']
   );
-  assert.equal(profiles[3]?.thinkingLevel, 'high');
   assert.deepEqual(
     profiles.map((item) => item.defaultTaggingConcurrency),
-    [10, 10, 10, 2, 2]
+    [16, 24, 4]
   );
 });
 
-test('resolves curated Gemini thinking profile to provider and model id', () => {
-  const profile = getVideoModelProfile('gemini-3-flash-thinking');
+test('defaults to Qwen3.7Plus', () => {
+  const profile = getVideoModelProfile(undefined);
+
+  assert.equal(profile.id, 'qwen-3.7-plus');
+  assert.equal(profile.label, 'Qwen3.7Plus');
+  assert.equal(profile.provider, 'qwen');
+  assert.equal(profile.modelName, 'qwen3.7-plus');
+  assert.equal(profile.defaultTaggingConcurrency, 16);
+});
+
+test('resolves curated Gemini latest multimodal profile to provider and model id', () => {
+  const profile = getVideoModelProfile('gemini-3.5-flash');
 
   assert.equal(profile.provider, 'google');
-  assert.equal(profile.modelName, 'gemini-3-flash-preview');
-  assert.equal(profile.thinkingLevel, 'high');
+  assert.equal(profile.label, 'Gemini 3.5 Flash');
+  assert.equal(profile.modelName, 'gemini-3.5-flash');
 });
 
 test('rejects unsupported video model profile ids', () => {
@@ -33,12 +42,4 @@ test('rejects unsupported video model profile ids', () => {
     () => getVideoModelProfile('gpt-5.4'),
     /Unsupported video model profile/
   );
-});
-
-test('resolves Gemini Pro to current preview model id', () => {
-  const profile = getVideoModelProfile('gemini-3-pro');
-
-  assert.equal(profile.provider, 'google');
-  assert.equal(profile.modelName, 'gemini-3.1-pro-preview');
-  assert.equal(profile.defaultTaggingConcurrency, 2);
 });

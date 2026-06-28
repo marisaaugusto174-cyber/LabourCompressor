@@ -3,9 +3,11 @@ import path from 'node:path';
 import { type SegmentationProfileId } from '../../../packages/features/segmentation/domain/index.ts';
 import {
   DEFAULT_TAXONOMY_PRESET_ID,
+  listTaxonomyPresets,
   resolveTaxonomyInput,
   resolveTaxonomyPresetDefinition
 } from '../taxonomy-presets.ts';
+import { getVideoModelProfile } from '../../../packages/features/tagging/domain/index.ts';
 import {
   DEFAULT_MASTER_SPREADSHEET_PATH,
   DEFAULT_PROVIDER_CONFIG_PATH,
@@ -14,6 +16,7 @@ import {
 } from '../project-paths.ts';
 
 export type LocalPipelineStage = 'download' | 'segment' | 'compress' | 'tag' | 'archive';
+export type PipelineStage = LocalPipelineStage | 'all' | 'resume-cache';
 
 export interface RunLocalPipelineOptions {
   readonly spreadsheet: string;
@@ -40,10 +43,11 @@ export interface RunLocalPipelineOptions {
   readonly manualEditGate?: boolean;
   readonly afterEditDirectoryName?: string;
   readonly selectedModelProfileId?: string;
+  readonly taggingConcurrency?: number;
   readonly autoSegmentation?: boolean;
   readonly segmentationProfileId?: SegmentationProfileId;
   readonly problemClipsDirectoryName?: string;
-  readonly pipelineStage?: LocalPipelineStage | 'all';
+  readonly pipelineStage?: PipelineStage;
 }
 
 export interface WebPipelineDefaults {
@@ -65,6 +69,7 @@ export interface WebPipelineDefaults {
   readonly autoSegmentation: boolean;
   readonly segmentationProfileId: SegmentationProfileId;
   readonly selectedModelProfileId: string;
+  readonly taggingConcurrency: number;
 }
 
 export const DEFAULT_PLATFORM_CREDENTIAL_CONFIG_PATH = projectPath(
@@ -82,17 +87,17 @@ export const DEFAULT_PLATFORM_CREDENTIAL_TEMPLATE_PATH = projectPath(
 export function getWebPipelineDefaults(): WebPipelineDefaults {
   const defaultPreset = resolveTaxonomyPresetDefinition(DEFAULT_TAXONOMY_PRESET_ID);
   const legacyPromptLibrary = projectPath('config/prompts/video-data-collection-v0-prompt-library.md');
+  const promptLibraryByPreset = Object.fromEntries(
+    listTaxonomyPresets().map((preset) => [
+      preset.id,
+      preset.promptLibraryPath ?? legacyPromptLibrary
+    ])
+  );
 
   return Object.freeze({
     taxonomyPreset: DEFAULT_TAXONOMY_PRESET_ID,
     promptLibrary: defaultPreset.promptLibraryPath ?? legacyPromptLibrary,
-    promptLibraryByPreset: Object.freeze({
-      'core-v0.2': resolveTaxonomyPresetDefinition('core-v0.2').promptLibraryPath ?? legacyPromptLibrary,
-      'core-v0.1': resolveTaxonomyPresetDefinition('core-v0.1').promptLibraryPath ?? legacyPromptLibrary,
-      'full-v0.2': resolveTaxonomyPresetDefinition('full-v0.2').promptLibraryPath ?? legacyPromptLibrary,
-      business: legacyPromptLibrary,
-      v0: legacyPromptLibrary
-    }),
+    promptLibraryByPreset: Object.freeze(promptLibraryByPreset),
     providerConfigPath: DEFAULT_PROVIDER_CONFIG_PATH,
     platformCredentialConfigPath: DEFAULT_PLATFORM_CREDENTIAL_CONFIG_PATH,
     masterSpreadsheetPath: DEFAULT_MASTER_SPREADSHEET_PATH,
@@ -107,7 +112,8 @@ export function getWebPipelineDefaults(): WebPipelineDefaults {
     manualEditGate: false,
     autoSegmentation: true,
     segmentationProfileId: 'standard_ad',
-    selectedModelProfileId: 'qwen-3.6-flash'
+    selectedModelProfileId: 'qwen-3.7-plus',
+    taggingConcurrency: getVideoModelProfile('qwen-3.7-plus').defaultTaggingConcurrency
   });
 }
 
@@ -140,6 +146,7 @@ export function buildCliPipelineOptions(args: Record<string, string>): RunLocalP
     taggingMode: (args['tagging-mode'] as 'simulated' | 'qwen' | undefined) ?? 'simulated',
     providerConfigPath: args['provider-config'],
     selectedModelProfileId: args['selected-model-profile-id'],
+    taggingConcurrency: parseOptionalClampedInteger(args['tagging-concurrency'], 'tagging-concurrency'),
     ytDlpBinary: args['yt-dlp-binary'],
     cookiesFilePath: args['cookies-file'],
     cookiesFromBrowser: args['cookies-from-browser'],
@@ -159,16 +166,19 @@ export function buildWebPipelineOptions(body: Record<string, unknown>): RunLocal
   const defaults = getWebPipelineDefaults();
   const taxonomyPreset = readString(body.taxonomyPreset) || DEFAULT_TAXONOMY_PRESET_ID;
   const taxonomyPath = readString(body.taxonomyPath);
+  const resolvedTaxonomyPath = resolveTaxonomyInput({
+    taxonomyPath: taxonomyPath.length === 0 ? undefined : taxonomyPath,
+    taxonomyPreset
+  });
+  const promptLibraryPath =
+    readString(body.promptLibrary) || (taxonomyPath.length > 0 ? resolvedTaxonomyPath : '');
 
   return Object.freeze({
     spreadsheet: requireBodyString(body, 'spreadsheet'),
     downloadDir: requireBodyString(body, 'downloadDir'),
-    taxonomy: resolveTaxonomyInput({
-      taxonomyPath: taxonomyPath.length === 0 ? undefined : taxonomyPath,
-      taxonomyPreset
-    }),
+    taxonomy: resolvedTaxonomyPath,
     taxonomyPreset,
-    promptLibrary: requireBodyString(body, 'promptLibrary'),
+    promptLibrary: promptLibraryPath || requireBodyString(body, 'promptLibrary'),
     archiveRoot: requireBodyString(body, 'archiveRoot'),
     downloadFixtures: readString(body.downloadFixtures) || undefined,
     candidateFixtures: readString(body.candidateFixtures) || undefined,
@@ -194,10 +204,31 @@ export function buildWebPipelineOptions(body: Record<string, unknown>): RunLocal
       defaults.segmentationProfileId,
     problemClipsDirectoryName: readString(body.problemClipsDirectoryName) || defaults.problemClipsDirectoryName,
     selectedModelProfileId: readString(body.selectedModelProfileId) || defaults.selectedModelProfileId,
+    taggingConcurrency:
+      readClampedInteger(body.taggingConcurrency) ??
+      getVideoModelProfile(readString(body.selectedModelProfileId) || defaults.selectedModelProfileId)
+        .defaultTaggingConcurrency,
     pipelineStage:
       (readString(body.pipelineStage) as RunLocalPipelineOptions['pipelineStage']) ||
       undefined
   });
+}
+
+function parseOptionalClampedInteger(
+  value: string | undefined,
+  key: string
+): number | undefined {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid integer CLI argument: --${key}="${value}"`);
+  }
+
+  return clampTaggingConcurrency(parsed);
 }
 
 function getRequiredCliArg(args: Record<string, string>, key: string): string {
@@ -252,4 +283,21 @@ function readString(value: unknown): string {
 
 function readBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function readClampedInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clampTaggingConcurrency(value);
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : clampTaggingConcurrency(parsed);
+}
+
+function clampTaggingConcurrency(value: number): number {
+  return Math.min(64, Math.max(1, Math.trunc(value)));
 }

@@ -3,7 +3,7 @@
 ## Status
 
 - Project Name: `LabourCompressor`
-- Product Version: `v0.3`
+- Product Version: `v0.5`
 - Data Strategy: `SSOT-driven`
 - Sync Strategy: `Hybrid`
 - Push Channel: `Task State / Workflow State`
@@ -16,7 +16,7 @@
 
 本文件定义系统真相来源、核心实体、状态分区、数据流和一致性规则，防止任务状态、文件索引、标签版本、凭证配置、调用报告和 UI 状态混杂。
 
-V0.3 数据模型必须支撑 Web UI 自动分割流程：下载后把长视频拆为 `3-30s` 片段，合法片段进入 `AfterEdit`，问题片段进入 `ProblemClips`。
+V0.5 数据模型必须支撑 Web UI 自动分割流程：下载后把长视频拆为 `3-30s` 片段，合法片段进入 `AfterEdit`，问题片段进入 `ProblemClips`。
 
 ---
 
@@ -38,9 +38,9 @@ V0.3 数据模型必须支撑 Web UI 自动分割流程：下载后把长视频�
 
 ---
 
-## V0.3 Workflow State
+## V0.5 Workflow State
 
-V0.3 标准状态流：
+V0.5 标准状态流：
 
 ```text
 created
@@ -355,4 +355,4 @@ Agent 或 UI 的压缩上下文不得成为事实来源。
 
 ## Final Position
 
-V0.3 的数据纪律是：凭证只存引用，候选不当事实，自动分割后的合法片段才进入正式打标链路，问题片段必须挂起标记，唯一 `内容题材` 才驱动归档，所有关键结果都可追溯。
+V0.5 的数据纪律是：凭证只存引用，候选不当事实，自动分割后的合法片段才进入正式打标链路，问题片段必须挂起标记，唯一 `内容题材` 才驱动归档，所有关键结果都可追溯。

@@ -9,6 +9,8 @@ export type {
 } from './runtime-support-types.ts';
 
 export { runPipelinePreflight } from './runtime-support-checks.ts';
+export { listPromptPresets } from '../cli/prompt-presets.ts';
+export { listSegmentationProfileDefinitions } from '../cli/segmentation-profiles.ts';
 export {
   buildPostEditRecordSheet,
   chooseLocalPath,
@@ -24,11 +26,16 @@ export {
 export {
   getSelectedProviderConfigSummary,
   loadProviderConfigSummary,
+  loadVideoModelProviderSummaries,
   probeSelectedProvider,
   saveSelectedProviderApiKey
 } from './runtime-support-provider.ts';
 export {
+  ensureDouyinCredentialFallback,
+  importAndProbePlatformCredentialFile,
+  importPlatformCredentialFile,
   loadPlatformCredentialSummary,
+  probePlatformCredentialConnectivity,
   probePlatformDownload,
   savePlatformCredentialConfig
 } from './runtime-support-platform.ts';

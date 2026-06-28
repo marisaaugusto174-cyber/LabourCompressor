@@ -3,34 +3,35 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>打标结果质检 · Labour Compressor</title>
+    <title>TagVision V0.1 macOS · 打标结果质检</title>
     <link rel="stylesheet" href="/styles.css?v=20260515-review" />
   </head>
   <body>
     <main class="page review-page">
       <header class="page-header">
         <div>
-          <h1>打标结果质检</h1>
-          <p>扫描同名视频和 JSON，快速预览结果，并同步 Label Studio 审核结论。</p>
-          <p class="build-version">Review UI build: 20260611</p>
+          <h1>TagVision V0.1 macOS</h1>
+          <p>扫描片段视频、模型 JSON 和 taxonomy 快照，回看并写出人工确认的 accepted sidecar。</p>
+          <p class="build-version">Release: TagVision V0.1 macOS</p>
         </div>
         <div class="header-chip-list">
-          <a class="chip" href="/">任务入口</a>
+          <a class="chip" href="/">入口</a>
           <span class="chip">Local sidecar JSON</span>
+          <span class="chip">Manual accepted result</span>
           <span class="chip">Label Studio</span>
         </div>
       </header>
 
       <section id="file-protocol-warning" class="panel warning hidden">
         <h2>请通过本地服务打开</h2>
-        <p>请使用 <a href="http://127.0.0.1:4311/review.html">http://127.0.0.1:4311/review.html</a> 打开本页。</p>
+        <p>请使用 <a href="http://127.0.0.1:4312/review.html">http://127.0.0.1:4312/review.html</a> 打开本页。</p>
       </section>
 
       <section class="panel">
         <div class="panel-header">
           <div>
             <h2>检视来源</h2>
-            <p>只读取并扫描目录，不会改名、不改原始 JSON。同步 Label Studio 后只写入 <code>_tag-review-state.json</code>。</p>
+            <p>只读取并扫描目录，不会改名、不改原始 JSON。人工确认后写入同名 <code>.accepted.json</code>。</p>
           </div>
           <div class="actions compact">
             <button id="scan-button" type="button">扫描目录</button>
@@ -130,7 +131,23 @@
             <div class="review-player">
               <video id="detail-video" controls playsinline preload="metadata"></video>
             </div>
-            <div id="detail-tags" class="review-tag-panel"></div>
+            <div class="review-tag-panel">
+              <section class="review-accepted-editor">
+                <h3>人工 accepted 路径</h3>
+                <p>只能保存 taxonomy 快照中存在的路径。保存后生成同名 <code>.accepted.json</code>。</p>
+                <div id="accepted-path-list" class="accepted-path-list empty-state">
+                  <p>未选择 accepted 路径。</p>
+                </div>
+                <div class="accepted-path-control">
+                  <select id="accepted-path-select"></select>
+                  <button id="add-accepted-path" class="secondary-button" type="button">添加路径</button>
+                </div>
+                <div class="actions compact">
+                  <button id="save-accepted-result" type="button">保存 accepted result</button>
+                </div>
+              </section>
+              <div id="detail-tags"></div>
+            </div>
           </div>
           <div class="review-detail-nav">
             <button id="previous-detail" class="secondary-button" type="button">上一个</button>

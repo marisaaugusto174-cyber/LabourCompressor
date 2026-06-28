@@ -27,6 +27,10 @@ test('runtime code and active tests do not contain this checkout absolute path',
         continue;
       }
 
+      if (path.basename(filePath).endsWith('.local.json')) {
+        continue;
+      }
+
       const source = await readFile(filePath, 'utf8');
 
       if (LOCAL_PATH_PATTERN.test(source)) {

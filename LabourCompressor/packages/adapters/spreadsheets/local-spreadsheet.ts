@@ -12,6 +12,7 @@ import {
 } from '../../features/spreadsheet-tasks/domain/index.ts';
 import {
   appendSpreadsheetRows,
+  applySpreadsheetSchemaColumnLayout,
   applySpreadsheetWritebackUpdates,
   buildHyperlinkUpdatesFromMasterEntries,
   createSpreadsheetTaskRow,
@@ -20,6 +21,7 @@ import {
   detectSpreadsheetFileKind,
   displayValue,
   ensureMasterSpreadsheetTemplate,
+  ensureSpreadsheetSchemaColumns,
   loadWritableSpreadsheetSheet,
   MASTER_SPREADSHEET_HEADERS,
   POST_EDIT_ARCHIVE_RECORD_HEADERS,
@@ -128,6 +130,7 @@ export function writeTagResultsToSpreadsheet(input: {
     matrix: resolvedSheet.matrix,
     rows: input.appendRows ?? []
   });
+  const schemaMatrix = ensureSpreadsheetSchemaColumns(appendedSheet.matrix);
   const hyperlinks = Object.freeze([
     ...resolvedSheet.hyperlinks,
     ...appendedSheet.hyperlinks
@@ -135,7 +138,7 @@ export function writeTagResultsToSpreadsheet(input: {
 
   if (fileKind === 'csv') {
     writableSheet.workbook.Sheets[writableSheet.sheetName] = xlsx.utils.aoa_to_sheet(
-      appendedSheet.matrix
+      schemaMatrix
     );
     xlsx.writeFile(writableSheet.workbook, input.filePath);
     return;
@@ -143,8 +146,12 @@ export function writeTagResultsToSpreadsheet(input: {
 
   writeMatrixToWorksheetPreservingLayout({
     worksheet: writableSheet.worksheet,
-    matrix: appendedSheet.matrix,
+    matrix: schemaMatrix,
     hyperlinks
+  });
+  applySpreadsheetSchemaColumnLayout({
+    worksheet: writableSheet.worksheet,
+    headers: schemaMatrix[0]?.map((value) => String(value).trim()) ?? []
   });
   xlsx.writeFile(writableSheet.workbook, input.filePath);
 }

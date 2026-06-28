@@ -81,13 +81,13 @@ test('rejects accepted segment record with invalid index or time range', () => {
   }
 });
 
-test('rejects unknown V0.3 profile and problem category values', () => {
+test('rejects empty profile and unknown problem category values', () => {
   assert.throws(() => {
     createSegmentRecord({
       ...createValidSegmentInput(),
-      profileId: 'unknown_profile' as 'standard_ad'
+      profileId: ''
     });
-  }, /Segmentation profileId must be a known V0\.3 profile/);
+  }, /Segmentation profileId must not be empty/);
 
   assert.throws(() => {
     createProblemClipRecord({

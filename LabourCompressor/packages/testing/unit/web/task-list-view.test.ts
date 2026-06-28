@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   buildEventTimelineHtml,
-  buildPreflightChecklistHtml
+  buildPreflightChecklistHtml,
+  renderEventTimeline
 } from '../../../../apps/web/public/task-list-view.js';
 
 test('renders only failed preflight checks by default', () => {
@@ -45,6 +46,31 @@ test('renders all-green preflight as a single success message', () => {
   assert.equal(html.includes('Preflight 通过，可以启动任务'), true);
   assert.equal(html.includes('yt-dlp is available'), false);
   assert.equal(html.includes('Qwen provider is reachable'), false);
+  assert.equal((html.match(/<div class="task-list-row/gu) ?? []).length, 1);
+  assert.equal(html.includes('<details'), false);
+});
+
+test('returns no markup for empty runtime sections', () => {
+  assert.equal(buildPreflightChecklistHtml([]), '');
+  assert.equal(buildEventTimelineHtml([]), '');
+});
+
+test('renders stale yt-dlp preflight with update guidance', () => {
+  const html = buildPreflightChecklistHtml([
+    {
+      key: 'yt-dlp',
+      ok: false,
+      message: 'yt-dlp 2026.03.17 is older than 90 days; update yt-dlp before downloading Douyin videos.',
+      details: {
+        version: '2026.03.17',
+        isStale: true,
+        staleYtDlpIsNonBlocking: false
+      }
+    }
+  ]);
+
+  assert.equal(html.includes('更新 yt-dlp'), true);
+  assert.equal(html.includes('请确认 yt-dlp 已安装并可执行。'), false);
 });
 
 test('renders task events as compact phase timeline', () => {
@@ -80,4 +106,19 @@ test('renders task events as compact phase timeline', () => {
   assert.equal(html.includes('打标中'), true);
   assert.equal(html.includes('自动分割中'), true);
   assert.equal(html.includes('样本A.mp4'), true);
+});
+
+test('preserves an expanded stage timeline across live updates', () => {
+  const details = { open: true };
+  const target = {
+    innerHTML: '',
+    scrollTop: 0,
+    scrollHeight: 100,
+    classList: { add() {}, remove() {} },
+    querySelector() { return details; }
+  };
+
+  renderEventTimeline([{ phase: 'download', status: 'running', message: '下载中' }], target);
+
+  assert.equal(details.open, true);
 });

@@ -11,22 +11,22 @@
 - Runtime: `Node.js`
 - Repository Shape: `Monorepo`
 - Architecture: `Hexagonal`
-- Current Product Version: `v0.3`
+- Current Product Version: `v0.5`
 - Primary Goal: `Stability First`
 - Secondary Goal: `Safety First`
 
 ---
 
-## V0.3 Non-Negotiables
+## V0.5 Non-Negotiables
 
-V0.3 的产品化目标是 Web UI 驱动的自动分割本地工作流：
+V0.5 的产品化目标是 Web UI 驱动的自动分割本地工作流：
 
 1. 表格导入、平台凭证和模型 API 配置、Preflight、下载。
 2. 下载后自动按场景检测和时长治理分割，合法片段进入 `AfterEdit`。
 3. 问题片段进入 `ProblemClips`，表中标记 `自动分割待处理`。
 4. 对分割后片段做视频级打标、多分支回表、唯一 `内容题材` 归档和总表同步。
 
-不得用 CLI-only 流程、单阶段原片打标、只处理原下载文件等方式冒充 V0.3 完成。V0.2 人工 `AfterEdit` 闸门作为兼容模式保留，不再是 V0.3 主线。
+不得用 CLI-only 流程、单阶段原片打标、只处理原下载文件等方式冒充 V0.5 完成。V0.2 人工 `AfterEdit` 闸门作为兼容模式保留，不再是 V0.5 主线。
 
 ---
 
@@ -125,7 +125,7 @@ V0.3 的产品化目标是 Web UI 驱动的自动分割本地工作流：
 - 平台级 `cookiesFromBrowser`
 - 全局 cookies 兼容回退
 
-V0.3 下载平台边界为 `Bilibili / YouTube / 抖音 / TikTok`。系统不承诺自动浏览器登录、自动绕过风控、自动去水印或全平台稳定下载。
+V0.5 下载平台边界为 `Bilibili / YouTube / 抖音 / TikTok`。系统不承诺自动浏览器登录、自动绕过风控、自动去水印或全平台稳定下载。
 
 ---
 
@@ -329,4 +329,4 @@ V0.3 下载平台边界为 `Bilibili / YouTube / 抖音 / TikTok`。系统不承
 
 ## Final Position
 
-本项目的工程基线是出错可定位、失败可恢复、模块可替换、工作流可验证。任何破坏稳定性、安全性、凭证边界或 V0.3 自动分割主线的捷径一律禁止。
+本项目的工程基线是出错可定位、失败可恢复、模块可替换、工作流可验证。任何破坏稳定性、安全性、凭证边界或 V0.5 自动分割主线的捷径一律禁止。

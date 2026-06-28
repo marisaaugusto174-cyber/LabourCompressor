@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 export const TAG_REVIEW_STATE_FILE_NAME = '_tag-review-state.json';
+export const TAGVISION_TAXONOMY_FILE_NAME = '_tagvision-taxonomy.json';
+export const TAGVISION_THUMBNAIL_DIRECTORY_NAME = '_tagvision-thumbnails';
+
+const execFileAsync = promisify(execFile);
 
 const VIDEO_FILE_NAME_PATTERN = /\.(mp4|mov|m4v|mkv|avi|webm)$/iu;
 const JSON_FILE_NAME_PATTERN = /\.json$/iu;
 const REVIEW_STATUSES = new Set(['通过', '需修改', '跳过']);
+const ACCEPTED_REVIEW_STATUS = '通过' as const;
 
 export interface TagReviewScanResult {
   readonly directoryPath: string;
@@ -15,6 +22,7 @@ export interface TagReviewScanResult {
   readonly orphanJsonFiles: readonly TagReviewFileEntry[];
   readonly invalidJsonFiles: readonly TagReviewInvalidJsonFile[];
   readonly state: TagReviewStateFile | null;
+  readonly taxonomySnapshot: TagVisionTaxonomySnapshot | null;
 }
 
 export interface TagReviewItem {
@@ -29,6 +37,7 @@ export interface TagReviewItem {
   readonly reviewStatus?: string;
   readonly reviewNote?: string;
   readonly labelStudioTaskId?: string | number;
+  readonly acceptedResult?: AcceptedTagReviewResult;
 }
 
 export interface TagReviewFileEntry {
@@ -59,6 +68,33 @@ export interface TagReviewTagSummary {
   readonly evidenceType: string;
   readonly confidenceScore?: number;
   readonly evidenceNote: string;
+}
+
+export interface TagVisionTaxonomySnapshot {
+  readonly version: 1;
+  readonly taxonomyVersion: string;
+  readonly taxonomyChecksum: string;
+  readonly paths: readonly string[];
+}
+
+export interface AcceptedTagReviewResult {
+  readonly version: 1;
+  readonly reviewItemId: string;
+  readonly videoRelativePath: string;
+  readonly sourceJsonRelativePath: string;
+  readonly taxonomyVersion: string;
+  readonly taxonomyChecksum: string;
+  readonly status: '通过';
+  readonly acceptedPaths: readonly string[];
+  readonly source: 'manual';
+  readonly reviewedAt: string;
+}
+
+export interface WriteAcceptedTagReviewResultInput {
+  readonly directoryPath: string;
+  readonly reviewItemId: string;
+  readonly acceptedPaths: readonly string[];
+  readonly reviewedAt?: string;
 }
 
 export interface LabelStudioImportPackage {
@@ -99,7 +135,7 @@ export interface ParsedRange {
   readonly end: number;
   readonly statusCode: 200 | 206;
   readonly contentLength: number;
-  readonly contentRange?: string;
+  readonly contentRange?: string | undefined;
 }
 
 interface ScannedVideoFile extends TagReviewFileEntry {
@@ -115,17 +151,27 @@ interface ScannedJsonFile extends TagReviewFileEntry {
   readonly parsed: unknown;
 }
 
+interface ScannedAcceptedFile extends TagReviewFileEntry {
+  readonly filePath: string;
+  readonly stem: string;
+  readonly matchKey: string;
+  readonly parsed: unknown;
+}
+
 export async function scanTagReviewDirectory(input: {
   readonly directoryPath: string;
 }): Promise<TagReviewScanResult> {
   const directoryPath = path.resolve(input.directoryPath);
   const videos: ScannedVideoFile[] = [];
   const jsonFiles: ScannedJsonFile[] = [];
+  const acceptedFiles: ScannedAcceptedFile[] = [];
   const invalidJsonFiles: TagReviewInvalidJsonFile[] = [];
 
   await scanDirectory(directoryPath, directoryPath);
   const state = await readTagReviewState(directoryPath);
+  const taxonomySnapshot = await readTagVisionTaxonomySnapshot(directoryPath);
   const jsonByKey = new Map(jsonFiles.map((file) => [file.matchKey, file]));
+  const acceptedByKey = new Map(acceptedFiles.map((file) => [file.matchKey, file]));
   const videoByKey = new Map(videos.map((file) => [file.matchKey, file]));
   const pairedItems: TagReviewItem[] = [];
   const unpairedVideos: TagReviewFileEntry[] = [];
@@ -141,6 +187,14 @@ export async function scanTagReviewDirectory(input: {
 
     const reviewItemId = createReviewItemId(video.relativePath, json.relativePath);
     const stateItem = state?.items[reviewItemId];
+    const acceptedResult = normalizeAcceptedTagReviewResultForItem({
+      value: acceptedByKey.get(video.matchKey)?.parsed,
+      reviewItemId,
+      videoRelativePath: video.relativePath,
+      sourceJsonRelativePath: json.relativePath,
+      taxonomySnapshot
+    });
+    const reviewStatus = acceptedResult?.status ?? stateItem?.status;
 
     pairedJsonKeys.add(json.matchKey);
     pairedItems.push({
@@ -152,9 +206,10 @@ export async function scanTagReviewDirectory(input: {
       videoRelativePath: video.relativePath,
       jsonRelativePath: json.relativePath,
       tagging: normalizeTaggingJson(json.parsed),
-      reviewStatus: stateItem?.status,
-      reviewNote: stateItem?.note,
-      labelStudioTaskId: stateItem?.labelStudioTaskId
+      ...(reviewStatus === undefined ? {} : { reviewStatus }),
+      ...(stateItem?.note === undefined ? {} : { reviewNote: stateItem.note }),
+      ...(stateItem?.labelStudioTaskId === undefined ? {} : { labelStudioTaskId: stateItem.labelStudioTaskId }),
+      ...(acceptedResult === undefined ? {} : { acceptedResult })
     });
   }
 
@@ -168,7 +223,8 @@ export async function scanTagReviewDirectory(input: {
     unpairedVideos: Object.freeze(unpairedVideos),
     orphanJsonFiles: Object.freeze(orphanJsonFiles),
     invalidJsonFiles: Object.freeze(sortByRelativePath(invalidJsonFiles)),
-    state
+    state,
+    taxonomySnapshot
   });
 
   async function scanDirectory(rootDirectory: string, currentDirectory: string): Promise<void> {
@@ -212,6 +268,26 @@ export async function scanTagReviewDirectory(input: {
       }
 
       try {
+        const parsed = JSON.parse(await readFile(filePath, 'utf8')) as unknown;
+
+        if (entry.name.endsWith('.accepted.json')) {
+          const sourceStem = stem.slice(0, -'.accepted'.length);
+          acceptedFiles.push({
+            filePath,
+            fileName: entry.name,
+            relativePath,
+            relativeDirectory,
+            stem: sourceStem,
+            matchKey: buildMatchKey(relativeDirectory, sourceStem),
+            parsed
+          });
+          continue;
+        }
+
+        if (entry.name === TAGVISION_TAXONOMY_FILE_NAME) {
+          continue;
+        }
+
         jsonFiles.push({
           filePath,
           fileName: entry.name,
@@ -219,7 +295,7 @@ export async function scanTagReviewDirectory(input: {
           relativeDirectory,
           stem,
           matchKey,
-          parsed: JSON.parse(await readFile(filePath, 'utf8')) as unknown
+          parsed
         });
       } catch (error) {
         invalidJsonFiles.push({
@@ -231,6 +307,59 @@ export async function scanTagReviewDirectory(input: {
       }
     }
   }
+}
+
+export async function writeAcceptedTagReviewResult(
+  input: WriteAcceptedTagReviewResultInput
+): Promise<AcceptedTagReviewResult> {
+  const directoryPath = path.resolve(input.directoryPath);
+  const scan = await scanTagReviewDirectory({ directoryPath });
+  const taxonomySnapshot = scan.taxonomySnapshot;
+
+  if (taxonomySnapshot === null) {
+    throw new Error(`Missing taxonomy snapshot: ${TAGVISION_TAXONOMY_FILE_NAME}`);
+  }
+
+  const item = scan.pairedItems.find((candidate) => candidate.reviewItemId === input.reviewItemId);
+
+  if (item === undefined) {
+    throw new Error(`Unknown review item: ${input.reviewItemId}`);
+  }
+
+  const acceptedPaths = normalizeAcceptedPaths(input.acceptedPaths);
+
+  if (acceptedPaths.length === 0) {
+    throw new Error('Accepted paths must not be empty.');
+  }
+
+  for (const acceptedPath of acceptedPaths) {
+    if (!taxonomySnapshot.paths.includes(acceptedPath)) {
+      throw new Error(`Illegal accepted taxonomy path: ${acceptedPath}`);
+    }
+  }
+
+  const acceptedResult: AcceptedTagReviewResult = Object.freeze({
+    version: 1,
+    reviewItemId: item.reviewItemId,
+    videoRelativePath: item.videoRelativePath,
+    sourceJsonRelativePath: item.jsonRelativePath,
+    taxonomyVersion: taxonomySnapshot.taxonomyVersion,
+    taxonomyChecksum: taxonomySnapshot.taxonomyChecksum,
+    status: ACCEPTED_REVIEW_STATUS,
+    acceptedPaths,
+    source: 'manual',
+    reviewedAt: input.reviewedAt ?? new Date().toISOString()
+  });
+  const targetPath = path.join(
+    directoryPath,
+    item.relativeDirectory,
+    `${path.basename(item.videoFileName, path.extname(item.videoFileName))}.accepted.json`
+  );
+  const temporaryPath = `${targetPath}.tmp`;
+
+  await writeFile(temporaryPath, `${JSON.stringify(acceptedResult, null, 2)}\n`, 'utf8');
+  await rename(temporaryPath, targetPath);
+  return acceptedResult;
 }
 
 export function buildLabelStudioImportPackage(input: {
@@ -299,11 +428,12 @@ export function parseLabelStudioReviewExport(
       continue;
     }
 
+    const labelStudioTaskId = typeof task.id === 'number' || typeof task.id === 'string' ? task.id : undefined;
     items.push(Object.freeze({
       reviewItemId,
       videoRelativePath,
       jsonRelativePath,
-      labelStudioTaskId: typeof task.id === 'number' || typeof task.id === 'string' ? task.id : undefined,
+      ...(labelStudioTaskId === undefined ? {} : { labelStudioTaskId }),
       status,
       note: readReviewNote(annotation.result),
       syncedAt
@@ -433,12 +563,79 @@ export async function resolveTagReviewMediaPath(input: {
   });
 }
 
+export async function resolveTagReviewThumbnail(input: {
+  readonly directoryPath: string;
+  readonly relativePath: string;
+  readonly generateIfMissing?: boolean;
+}): Promise<{
+  readonly thumbnailPath: string;
+  readonly fileSize: number;
+  readonly contentType: 'image/jpeg';
+}> {
+  const media = await resolveTagReviewMediaPath(input);
+  const directoryPath = path.resolve(input.directoryPath);
+  const thumbnailDirectory = path.join(directoryPath, TAGVISION_THUMBNAIL_DIRECTORY_NAME);
+  const thumbnailPath = path.join(thumbnailDirectory, `${createThumbnailKey(input.relativePath)}.jpg`);
+
+  if (await pathExists(thumbnailPath)) {
+    const thumbnailStat = await stat(thumbnailPath);
+    return Object.freeze({
+      thumbnailPath,
+      fileSize: thumbnailStat.size,
+      contentType: 'image/jpeg'
+    });
+  }
+
+  if (input.generateIfMissing === false) {
+    return Object.freeze({
+      thumbnailPath,
+      fileSize: 0,
+      contentType: 'image/jpeg'
+    });
+  }
+
+  await mkdir(thumbnailDirectory, { recursive: true });
+  const temporaryPath = `${thumbnailPath}.tmp.jpg`;
+  await execFileAsync('ffmpeg', [
+    '-y',
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-ss',
+    '0',
+    '-i',
+    media.filePath,
+    '-frames:v',
+    '1',
+    '-vf',
+    'scale=480:-1',
+    '-pix_fmt',
+    'yuvj420p',
+    '-q:v',
+    '4',
+    temporaryPath
+  ]);
+  if (!(await pathExists(temporaryPath))) {
+    throw new Error(`Thumbnail generation produced no output for ${input.relativePath}`);
+  }
+  await rename(temporaryPath, thumbnailPath);
+  const thumbnailStat = await stat(thumbnailPath);
+
+  return Object.freeze({
+    thumbnailPath,
+    fileSize: thumbnailStat.size,
+    contentType: 'image/jpeg'
+  });
+}
+
 function normalizeTaggingJson(value: unknown): TagReviewTaggingSummary {
   const record = isRecord(value) ? value : {};
   const tags = Array.isArray(record.tags)
     ? record.tags
       .filter(isRecord)
-      .map((tag) => Object.freeze({
+      .map((tag) => {
+        const confidenceScore = typeof tag.confidence_score === 'number' ? tag.confidence_score : undefined;
+        return Object.freeze({
         dimension: readString(tag.dimension),
         labelPath: Object.freeze(Array.isArray(tag.label_path)
           ? tag.label_path.map(readString).filter((item) => item.length > 0)
@@ -448,9 +645,10 @@ function normalizeTaggingJson(value: unknown): TagReviewTaggingSummary {
         entityId: readString(tag.entity_id),
         targetEntityId: readString(tag.target_entity_id),
         evidenceType: readString(tag.evidence_type),
-        confidenceScore: typeof tag.confidence_score === 'number' ? tag.confidence_score : undefined,
+        ...(confidenceScore === undefined ? {} : { confidenceScore }),
         evidenceNote: readString(tag.evidence_note)
-      }))
+      });
+      })
     : [];
 
   return Object.freeze({
@@ -574,13 +772,15 @@ async function readTagReviewState(directoryPath: string): Promise<TagReviewState
         continue;
       }
 
+      const labelStudioTaskId = typeof value.labelStudioTaskId === 'number' || typeof value.labelStudioTaskId === 'string'
+        ? value.labelStudioTaskId
+        : undefined;
+
       items[key] = Object.freeze({
         reviewItemId,
         videoRelativePath: readString(value.videoRelativePath),
         jsonRelativePath: readString(value.jsonRelativePath),
-        labelStudioTaskId: typeof value.labelStudioTaskId === 'number' || typeof value.labelStudioTaskId === 'string'
-          ? value.labelStudioTaskId
-          : undefined,
+        ...(labelStudioTaskId === undefined ? {} : { labelStudioTaskId }),
         status,
         note: readString(value.note),
         syncedAt: readString(value.syncedAt)
@@ -598,6 +798,108 @@ async function readTagReviewState(directoryPath: string): Promise<TagReviewState
   }
 }
 
+async function readTagVisionTaxonomySnapshot(directoryPath: string): Promise<TagVisionTaxonomySnapshot | null> {
+  try {
+    const parsed = JSON.parse(
+      await readFile(path.join(directoryPath, TAGVISION_TAXONOMY_FILE_NAME), 'utf8')
+    ) as unknown;
+
+    if (!isRecord(parsed) || parsed.version !== 1) {
+      return null;
+    }
+
+    const taxonomyVersion = readString(parsed.taxonomyVersion);
+    const taxonomyChecksum = readString(parsed.taxonomyChecksum);
+    const paths = Array.isArray(parsed.paths)
+      ? normalizeAcceptedPaths(parsed.paths.map(readString))
+      : [];
+
+    if (taxonomyVersion.length === 0 || taxonomyChecksum.length === 0 || paths.length === 0) {
+      return null;
+    }
+
+    return Object.freeze({
+      version: 1,
+      taxonomyVersion,
+      taxonomyChecksum,
+      paths
+    });
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAcceptedTagReviewResult(value: unknown): AcceptedTagReviewResult | undefined {
+  if (!isRecord(value) || value.version !== 1 || readString(value.status) !== ACCEPTED_REVIEW_STATUS) {
+    return undefined;
+  }
+
+  const reviewItemId = readString(value.reviewItemId);
+  const videoRelativePath = readString(value.videoRelativePath);
+  const sourceJsonRelativePath = readString(value.sourceJsonRelativePath);
+  const taxonomyVersion = readString(value.taxonomyVersion);
+  const taxonomyChecksum = readString(value.taxonomyChecksum);
+  const acceptedPaths = Array.isArray(value.acceptedPaths)
+    ? normalizeAcceptedPaths(value.acceptedPaths.map(readString))
+    : [];
+  const reviewedAt = readString(value.reviewedAt);
+
+  if (
+    reviewItemId.length === 0 ||
+    videoRelativePath.length === 0 ||
+    sourceJsonRelativePath.length === 0 ||
+    taxonomyVersion.length === 0 ||
+    taxonomyChecksum.length === 0 ||
+    acceptedPaths.length === 0 ||
+    reviewedAt.length === 0
+  ) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    version: 1,
+    reviewItemId,
+    videoRelativePath,
+    sourceJsonRelativePath,
+    taxonomyVersion,
+    taxonomyChecksum,
+    status: ACCEPTED_REVIEW_STATUS,
+    acceptedPaths,
+    source: 'manual',
+    reviewedAt
+  });
+}
+
+function normalizeAcceptedTagReviewResultForItem(input: {
+  readonly value: unknown;
+  readonly reviewItemId: string;
+  readonly videoRelativePath: string;
+  readonly sourceJsonRelativePath: string;
+  readonly taxonomySnapshot: TagVisionTaxonomySnapshot | null;
+}): AcceptedTagReviewResult | undefined {
+  const acceptedResult = normalizeAcceptedTagReviewResult(input.value);
+  const taxonomySnapshot = input.taxonomySnapshot;
+
+  if (
+    acceptedResult === undefined ||
+    taxonomySnapshot === null ||
+    acceptedResult.reviewItemId !== input.reviewItemId ||
+    acceptedResult.videoRelativePath !== input.videoRelativePath ||
+    acceptedResult.sourceJsonRelativePath !== input.sourceJsonRelativePath ||
+    acceptedResult.taxonomyVersion !== taxonomySnapshot.taxonomyVersion ||
+    acceptedResult.taxonomyChecksum !== taxonomySnapshot.taxonomyChecksum ||
+    acceptedResult.acceptedPaths.some((acceptedPath) => !taxonomySnapshot.paths.includes(acceptedPath))
+  ) {
+    return undefined;
+  }
+
+  return acceptedResult;
+}
+
+function normalizeAcceptedPaths(paths: readonly string[]): readonly string[] {
+  return Object.freeze([...new Set(paths.map((item) => item.trim()).filter((item) => item.length > 0))]);
+}
+
 function createReviewItemId(videoRelativePath: string, jsonRelativePath: string): string {
   return `review-${createHash('sha1')
     .update(videoRelativePath)
@@ -605,6 +907,22 @@ function createReviewItemId(videoRelativePath: string, jsonRelativePath: string)
     .update(jsonRelativePath)
     .digest('hex')
     .slice(0, 16)}`;
+}
+
+function createThumbnailKey(relativePath: string): string {
+  return createHash('sha1')
+    .update(relativePath)
+    .digest('hex')
+    .slice(0, 24);
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildMatchKey(relativeDirectory: string, stem: string): string {

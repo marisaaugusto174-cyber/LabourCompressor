@@ -18,6 +18,10 @@ import {
   type PipelineRowState
 } from './local-pipeline-helpers.ts';
 import { resolveSegmentationDependencies } from './local-pipeline-segmentation-dependencies.ts';
+import {
+  resolveSegmentationProfileRules,
+  type SegmentationProfileRules
+} from './segmentation-profiles.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 
@@ -50,33 +54,6 @@ export interface AutoSegmentationStageResult {
   readonly postEditEntries: readonly PostEditArchiveRecordFileEntry[];
   readonly failures: readonly RunLocalPipelineFailure[];
 }
-interface SegmentationProfileRules {
-  readonly detector: 'adaptive' | 'content';
-  readonly minimumSeconds: number;
-  readonly preferredMinimumSeconds: number;
-  readonly maximumSeconds: number;
-}
-const PROFILE_RULES: Readonly<Record<SegmentationProfileId, SegmentationProfileRules>> = Object.freeze({
-  standard_ad: Object.freeze({
-    detector: 'adaptive',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 5,
-    maximumSeconds: 30
-  }),
-  fast_cut: Object.freeze({
-    detector: 'content',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 5,
-    maximumSeconds: 30
-  }),
-  conservative: Object.freeze({
-    detector: 'adaptive',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 8,
-    maximumSeconds: 30
-  })
-});
-
 export async function runAutoSegmentationStage(input: {
   readonly downloadedAssets: readonly DownloadedMediaAsset[];
   readonly rowByTaskId: ReadonlyMap<string, SpreadsheetTaskRow>;
@@ -93,7 +70,7 @@ export async function runAutoSegmentationStage(input: {
   readonly dependencies?: AutoSegmentationDependencies;
 }): Promise<AutoSegmentationStageResult> {
   const dependencies = resolveSegmentationDependencies(input.dependencies);
-  const rules = resolveProfileRules(input.profileId);
+  const rules = await resolveSegmentationProfileRules(input.profileId);
   const state = createSegmentationState();
 
   await mkdir(input.afterEditDirectoryPath, { recursive: true });
@@ -382,14 +359,6 @@ function createSegmentedRow(input: {
       文件名: input.outputFileName
     })
   });
-}
-
-function resolveProfileRules(profileId: SegmentationProfileId): SegmentationProfileRules {
-  const rules = PROFILE_RULES[profileId];
-  if (rules === undefined) {
-    throw new Error(`Unknown segmentation profile: ${profileId}`);
-  }
-  return rules;
 }
 
 function createSegmentationState(): {

@@ -3,22 +3,22 @@
 ## Planning Status
 
 - Project Name: `LabourCompressor`
-- Product Version: `v0.3`
+- Product Version: `v0.5`
 - Planning Mode: `Auto Segmentation Productization Plan`
-- Primary Workflow: `Download -> Auto Segmentation -> Clip Tagging`
+- Primary Workflow: `Import Spreadsheet -> Preflight -> Download -> Auto Segmentation -> Clip Tagging -> Writeback and Archive`
 - Verification Standard: `Relevant tests + document line-count check`
 
 ---
 
-## V0.3 Target
+## V0.5 Target
 
-V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少人工剪辑前置步骤。
+V0.5 的目标是把下载后的长视频自动切分为可入库片段，减少人工剪辑前置步骤。
 
 用户应能完成：
 
 1. 配置模型 API 和平台下载凭证。
 2. 导入用户表并运行 Preflight。
-3. 启动第一阶段下载。
+3. 启动一键全流程。
 4. 下载后自动分割为 `3-30s` 片段。
 5. 合法片段进入 `AfterEdit`，问题片段进入 `ProblemClips`。
 6. 对片段进行视频级打标、回表、归档。
@@ -30,7 +30,7 @@ V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少
 
 ### Product Proof Rule
 
-不得用以下结果冒充 V0.3 完成：
+不得用以下结果冒充 V0.5 完成：
 
 - CLI-only 流程
 - 单阶段下载后直接打完整原片
@@ -52,7 +52,7 @@ V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少
 
 ## Milestone 1: Documentation and Governance Sync
 
-目标：让核心文档统一 V0.3 口径。
+目标：让核心文档统一 V0.5 口径。
 
 范围：
 
@@ -65,7 +65,7 @@ V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少
 
 交付：
 
-- V0.3 目标明确。
+- V0.5 目标明确。
 - 自动分割主线和 V0.2 人工兼容路径明确。
 - 视频级打标、不默认抽帧明确。
 - 平台凭证和多平台下载边界明确。
@@ -228,18 +228,13 @@ V0.3 的目标是把下载后的长视频自动切分为可入库片段，减少
 验收链路：
 
 ```text
-Web UI 配置
+一键启动
+-> 导入表格
 -> Preflight
 -> 下载
--> 暂停等待人工剪辑
--> AfterEdit 表生成
--> 第二阶段校验
--> 视频压缩缓存
--> 视频级打标
--> 标签合法化
--> 多分支回表
--> 唯一内容题材归档
--> 总表同步
+-> 自动分割
+-> 片段级打标
+-> 回表归档
 -> 失败导出
 ```
 
@@ -249,13 +244,14 @@ Web UI 配置
 - 关键失败原因对用户可读。
 - 所有关键自动结果可追溯。
 - 凭证不泄露。
+- V0.2 手动 `AfterEdit` 只作为高级兼容路径保留。
 - 目标文档和新增文件遵守 500 行规则。
 
 ---
 
 ## Deferred Scope
 
-V0.3 延后：
+V0.5 延后：
 
 - 云端账号系统
 - 多人协作权限
@@ -272,4 +268,4 @@ V0.3 延后：
 
 ## Current Conclusion
 
-V0.3 的执行顺序是先同步文档和治理口径，再产品化自动分割、问题片段和 Web UI 默认主线，最后做端到端验收。所有实现都必须围绕 `下载 -> 自动分割 -> 片段级打标 -> 归档`、凭证安全和 500 行规则收敛。
+V0.5 的执行顺序是先同步文档和治理口径，再产品化自动分割、问题片段和 Web UI 默认主线，最后做端到端验收。所有实现都必须围绕 `一键启动 -> 导入表格 -> Preflight -> 下载 -> 自动分割 -> 片段级打标 -> 回表归档 -> 失败导出`、凭证安全和 500 行规则收敛。

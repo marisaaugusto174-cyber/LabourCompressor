@@ -83,6 +83,7 @@ export async function runTagStage(input: StageContext): Promise<void> {
     startedAt: input.startedAt,
     taggingMode: input.input.options.taggingMode,
     selectedModelProfileId: input.input.options.selectedModelProfileId,
+    taggingConcurrency: input.input.options.taggingConcurrency,
     selectedVideoModelProfile,
     realModelProviderConfig,
     candidateFixtures,

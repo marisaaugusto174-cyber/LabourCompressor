@@ -1,6 +1,7 @@
 import {
   getSelectedProviderConfigSummary,
   loadProviderConfigSummary,
+  loadVideoModelProviderSummaries,
   probeSelectedProvider,
   saveSelectedProviderApiKey
 } from '../../runtime-support.ts';
@@ -26,7 +27,7 @@ export const handleProviderConfigRoutes: WebRouteHandler = async ({ request, res
       response,
       await probeSelectedProvider({
         providerConfigPath: body.providerConfigPath ?? context.defaultProviderConfig,
-        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.6-flash'
+        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.7-plus'
       })
     );
     return true;
@@ -38,7 +39,18 @@ export const handleProviderConfigRoutes: WebRouteHandler = async ({ request, res
       response,
       await getSelectedProviderConfigSummary({
         providerConfigPath: readString(body.providerConfigPath) || context.defaultProviderConfig,
-        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.6-flash'
+        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.7-plus'
+      })
+    );
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/provider-config/model-summary') {
+    const body = await readJsonBody(request);
+    sendJson(
+      response,
+      await loadVideoModelProviderSummaries({
+        providerConfigPath: readString(body.providerConfigPath) || context.defaultProviderConfig
       })
     );
     return true;
@@ -50,7 +62,7 @@ export const handleProviderConfigRoutes: WebRouteHandler = async ({ request, res
       response,
       await saveSelectedProviderApiKey({
         providerConfigPath: readString(body.providerConfigPath) || context.defaultProviderConfig,
-        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.6-flash',
+        selectedModelProfileId: readString(body.selectedModelProfileId) || 'qwen-3.7-plus',
         apiKey: requireBodyString(body, 'apiKey')
       })
     );

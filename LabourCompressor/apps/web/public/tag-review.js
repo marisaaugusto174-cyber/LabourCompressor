@@ -6,6 +6,8 @@ const RENDER_BATCH_SIZE = 24;
 
 const refs = {
   fileProtocolWarning: document.querySelector('#file-protocol-warning'),
+  modeTagReview: document.querySelector('#mode-tag-review'),
+  modeProblemReview: document.querySelector('#mode-problem-review'),
   reviewDirectory: document.querySelector('#review-directory'),
   chooseReviewDirectory: document.querySelector('#choose-review-directory'),
   scanButton: document.querySelector('#scan-button'),
@@ -33,10 +35,16 @@ const refs = {
   nextDetail: document.querySelector('#next-detail'),
   closeDetail: document.querySelector('#close-detail'),
   openCurrentLabelStudioTask: document.querySelector('#open-current-ls-task'),
+  problemDecisionActions: document.querySelector('#problem-decision-actions'),
+  decisionDiscard: document.querySelector('#decision-discard'),
+  decisionKeepAfterEdit: document.querySelector('#decision-keep-afteredit'),
+  decisionKeepProblem: document.querySelector('#decision-keep-problem'),
+  decisionManualRetry: document.querySelector('#decision-manual-retry'),
   diagnosticsList: document.querySelector('#diagnostics-list'),
   reviewOutput: document.querySelector('#review-output')
 };
 
+let currentMode = 'tag-review';
 let currentScan = null;
 let currentItems = [];
 let renderedCount = 0;
@@ -64,6 +72,8 @@ async function boot() {
 }
 
 function bindActions() {
+  refs.modeTagReview.addEventListener('click', () => setReviewMode('tag-review'));
+  refs.modeProblemReview.addEventListener('click', () => setReviewMode('problem-review'));
   refs.chooseReviewDirectory.addEventListener('click', () => wrapAction(chooseReviewDirectory));
   refs.scanButton.addEventListener('click', () => wrapAction(scanDirectory));
   refs.downloadLabelStudioPackage.addEventListener('click', () => wrapAction(downloadLabelStudioPackage));
@@ -79,6 +89,10 @@ function bindActions() {
     }
   });
   refs.openCurrentLabelStudioTask.addEventListener('click', openCurrentLabelStudioTask);
+  refs.decisionDiscard.addEventListener('click', () => wrapAction(() => applyProblemDecision('discard')));
+  refs.decisionKeepAfterEdit.addEventListener('click', () => wrapAction(() => applyProblemDecision('keep-afteredit')));
+  refs.decisionKeepProblem.addEventListener('click', () => wrapAction(() => applyProblemDecision('keep-problem')));
+  refs.decisionManualRetry.addEventListener('click', () => wrapAction(() => applyProblemDecision('manual-retry')));
   refs.labelStudioProjectId.addEventListener('input', updateActionState);
   refs.labelStudioUrl.addEventListener('input', updateActionState);
   refs.labelStudioToken.addEventListener('input', updateActionState);
@@ -88,6 +102,34 @@ function bindActions() {
     }
   });
   window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
+  updateModeState();
+}
+
+function setReviewMode(mode) {
+  if (currentMode === mode) {
+    return;
+  }
+
+  currentMode = mode;
+  currentScan = null;
+  currentItems = [];
+  renderedCount = 0;
+  selectedIndex = -1;
+  closeDetail();
+  resetGrid();
+  renderSummary({});
+  renderDiagnostics({});
+  refs.reviewOutput.textContent = '';
+  updateModeState();
+}
+
+function updateModeState() {
+  const isProblemMode = currentMode === 'problem-review';
+  refs.modeTagReview.classList.toggle('secondary-button', isProblemMode);
+  refs.modeProblemReview.classList.toggle('secondary-button', !isProblemMode);
+  refs.modeTagReview.setAttribute('aria-pressed', String(!isProblemMode));
+  refs.modeProblemReview.setAttribute('aria-pressed', String(isProblemMode));
+  updateActionState();
 }
 
 async function chooseReviewDirectory() {
@@ -105,9 +147,14 @@ async function scanDirectory() {
   const directoryPath = requireDirectoryPath();
 
   refs.reviewOutput.textContent = '正在扫描...';
-  const payload = await apiPost('/api/tag-review/scan', { directoryPath });
+  const payload = await apiPost(
+    currentMode === 'problem-review' ? '/api/review-queue/scan' : '/api/tag-review/scan',
+    { directoryPath }
+  );
   currentScan = payload;
-  currentItems = payload.pairedItems ?? [];
+  currentItems = currentMode === 'problem-review'
+    ? payload.items ?? []
+    : payload.pairedItems ?? [];
   renderedCount = 0;
   selectedIndex = -1;
 
@@ -116,17 +163,19 @@ async function scanDirectory() {
   resetGrid();
   renderMoreItems(INITIAL_RENDER_COUNT);
   updateActionState();
-  refs.reviewOutput.textContent = buildDebugJson({
-    directoryPath: payload.directoryPath,
-    pairedItems: payload.pairedItems?.length ?? 0,
-    unpairedVideos: payload.unpairedVideos?.length ?? 0,
-    orphanJsonFiles: payload.orphanJsonFiles?.length ?? 0,
-    invalidJsonFiles: payload.invalidJsonFiles?.length ?? 0,
-    stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
-  });
+  refs.reviewOutput.textContent = buildDebugJson(buildScanDebugPayload(payload));
 }
 
 function renderSummary(payload) {
+  if (currentMode === 'problem-review') {
+    const items = payload.items ?? [];
+    refs.summaryPaired.textContent = String(items.length);
+    refs.summaryUnpairedVideos.textContent = String(items.filter((item) => item.decision === 'discard').length);
+    refs.summaryOrphanJson.textContent = String(items.filter((item) => item.decision === 'keep-afteredit').length);
+    refs.summaryInvalidJson.textContent = String(items.filter((item) => item.decision === 'manual-retry' || item.decision === 'keep-problem').length);
+    return;
+  }
+
   refs.summaryPaired.textContent = String(payload.pairedItems?.length ?? 0);
   refs.summaryUnpairedVideos.textContent = String(payload.unpairedVideos?.length ?? 0);
   refs.summaryOrphanJson.textContent = String(payload.orphanJsonFiles?.length ?? 0);
@@ -134,11 +183,22 @@ function renderSummary(payload) {
 }
 
 function renderDiagnostics(payload) {
+  if (currentMode === 'problem-review') {
+    const rows = (payload.items ?? []).map((item) => ({
+      kind: item.errorCode ?? 'problem-clip',
+      path: item.relativePath ?? item.fileName ?? '—',
+      detail: item.decision ?? item.reason ?? '—'
+    }));
+
+    renderDiagnosticsRows(rows);
+    return;
+  }
+
   const rows = [
     ...(payload.unpairedVideos ?? []).map((item) => ({
       kind: '无 JSON 视频',
       path: item.relativePath,
-      detail: '当前不会进入 Label Studio 质检任务'
+      detail: '跳过'
     })),
     ...(payload.orphanJsonFiles ?? []).map((item) => ({
       kind: '孤儿 JSON',
@@ -152,9 +212,13 @@ function renderDiagnostics(payload) {
     }))
   ];
 
+  renderDiagnosticsRows(rows);
+}
+
+function renderDiagnosticsRows(rows) {
   if (rows.length === 0) {
     refs.diagnosticsList.classList.add('empty-state');
-    refs.diagnosticsList.innerHTML = '<p>未发现未配对或无效文件。</p>';
+    refs.diagnosticsList.innerHTML = '<p>—</p>';
     return;
   }
 
@@ -163,7 +227,7 @@ function renderDiagnostics(payload) {
     <div class="task-list-header review-diagnostics-header">
       <span>类型</span>
       <span>文件</span>
-      <span>说明</span>
+      <span>详情</span>
     </div>
     ${rows.map((row) => `
       <div class="task-list-row review-diagnostics-row">
@@ -175,11 +239,30 @@ function renderDiagnostics(payload) {
   `;
 }
 
+function buildScanDebugPayload(payload) {
+  if (currentMode === 'problem-review') {
+    return {
+      directoryPath: payload.directoryPath,
+      reviewQueueItems: payload.items?.length ?? 0,
+      stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
+    };
+  }
+
+  return {
+    directoryPath: payload.directoryPath,
+    pairedItems: payload.pairedItems?.length ?? 0,
+    unpairedVideos: payload.unpairedVideos?.length ?? 0,
+    orphanJsonFiles: payload.orphanJsonFiles?.length ?? 0,
+    invalidJsonFiles: payload.invalidJsonFiles?.length ?? 0,
+    stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
+  };
+}
+
 function resetGrid() {
   disconnectVideoObserver();
   refs.reviewGrid.classList.toggle('empty-state', currentItems.length === 0);
   refs.reviewGrid.innerHTML = currentItems.length === 0
-    ? '<p>没有可质检的同名视频 / JSON 配对。</p>'
+    ? '<p>—</p>'
     : '';
   videoObserver = new IntersectionObserver(handleVideoIntersection, {
     rootMargin: '360px 0px'
@@ -214,14 +297,12 @@ function buildCard(item, index) {
     </div>
     <div class="review-card-body">
       <div class="review-card-title">
-        <strong>${escapeHtml(item.videoFileName)}</strong>
+        <strong>${escapeHtml(getItemTitle(item))}</strong>
         ${renderReviewStatus(item)}
       </div>
-      <div class="review-card-meta">${escapeHtml(item.videoRelativePath)}</div>
+      <div class="review-card-meta">${escapeHtml(getItemRelativePath(item))}</div>
       <div class="review-card-tags">
-        ${(item.tagging?.tags ?? []).slice(0, 3).map((tag) => `
-          <span>${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</span>
-        `).join('')}
+        ${renderCardTags(item)}
       </div>
     </div>
   `;
@@ -239,6 +320,19 @@ function buildCard(item, index) {
 }
 
 function renderReviewStatus(item) {
+  if (currentMode === 'problem-review') {
+    if (item.decision === 'discard') {
+      return '<span class="stage-pill stage-failed">丢弃</span>';
+    }
+    if (item.decision === 'keep-afteredit') {
+      return '<span class="stage-pill stage-succeeded">AfterEdit</span>';
+    }
+    if (item.decision) {
+      return `<span class="stage-pill stage-running">${escapeHtml(renderDecisionLabel(item.decision))}</span>`;
+    }
+    return '<span class="stage-pill stage-running">待复查</span>';
+  }
+
   const status = item.reviewStatus;
   if (!status) {
     return '<span class="stage-pill stage-running">未同步</span>';
@@ -250,6 +344,20 @@ function renderReviewStatus(item) {
     return '<span class="stage-pill stage-failed">需修改</span>';
   }
   return `<span class="stage-pill stage-running">${escapeHtml(status)}</span>`;
+}
+
+function renderCardTags(item) {
+  if (currentMode === 'problem-review') {
+    return [
+      item.phase,
+      item.errorCode,
+      item.nextStage
+    ].filter(Boolean).map((value) => `<span>${escapeHtml(value)}</span>`).join('');
+  }
+
+  return (item.tagging?.tags ?? []).slice(0, 3).map((tag) => `
+    <span>${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</span>
+  `).join('');
 }
 
 function handleVideoIntersection(entries) {
@@ -301,14 +409,19 @@ function openDetail(index) {
 
   document.body.classList.add('is-review-modal-open');
   refs.detailView.classList.remove('hidden');
-  refs.detailTitle.textContent = item.videoFileName;
-  refs.detailSubtitle.textContent = `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
+  refs.detailTitle.textContent = getItemTitle(item);
+  refs.detailSubtitle.textContent = currentMode === 'problem-review'
+    ? `${getItemRelativePath(item)} · ${item.errorCode ?? 'problem-clip'}`
+    : `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
   refs.detailVideo.src = mediaUrl(item);
   refs.detailTags.innerHTML = renderDetailTags(item);
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
-  refs.openCurrentLabelStudioTask.disabled = !canOpenLabelStudioTask(item);
+  refs.openCurrentLabelStudioTask.classList.toggle('hidden', currentMode === 'problem-review');
+  refs.problemDecisionActions.classList.toggle('hidden', currentMode !== 'problem-review');
+  refs.openCurrentLabelStudioTask.disabled = currentMode === 'problem-review' || !canOpenLabelStudioTask(item);
+  updateActionState();
   refs.closeDetail.focus();
 }
 
@@ -325,6 +438,10 @@ function isDetailOpen() {
 }
 
 function renderDetailTags(item) {
+  if (currentMode === 'problem-review') {
+    return renderProblemDetail(item);
+  }
+
   const tagging = item.tagging ?? {};
   const tags = tagging.tags ?? [];
   return `
@@ -357,6 +474,26 @@ function renderDetailTags(item) {
   `;
 }
 
+function renderProblemDetail(item) {
+  return `
+    <div class="review-state-box">
+      <div><span class="status-label">阶段</span><strong>${escapeHtml(item.phase ?? '—')}</strong></div>
+      <div><span class="status-label">错误码</span><strong>${escapeHtml(item.errorCode ?? '—')}</strong></div>
+      <div><span class="status-label">原因</span><p>${escapeHtml(item.reason ?? '—')}</p></div>
+    </div>
+    <div class="review-state-box">
+      <div><span class="status-label">决策</span><strong>${escapeHtml(renderDecisionLabel(item.decision))}</strong></div>
+      <div><span class="status-label">目标池</span><strong>${escapeHtml(item.targetPool ?? '—')}</strong></div>
+      <div><span class="status-label">下一环节</span><strong>${escapeHtml(item.nextStage ?? '—')}</strong></div>
+      <div><span class="status-label">复查时间</span><p>${escapeHtml(item.reviewedAt ?? '—')}</p></div>
+    </div>
+    <div class="review-state-box">
+      <div><span class="status-label">源路径</span><p>${escapeHtml(item.sourcePath ?? '—')}</p></div>
+      <div><span class="status-label">当前路径</span><p>${escapeHtml(item.currentPath ?? '—')}</p></div>
+    </div>
+  `;
+}
+
 async function downloadLabelStudioPackage() {
   const payload = await buildLabelStudioPackage();
   downloadText('label-studio-tag-review-tasks.json', JSON.stringify(payload.tasks, null, 2));
@@ -385,6 +522,30 @@ async function syncLabelStudio() {
   refs.reviewOutput.textContent = '正在同步 Label Studio 审核结论...';
   const payload = await apiPost('/api/tag-review/label-studio/sync', body);
   refs.reviewOutput.textContent = buildDebugJson(payload);
+  await scanDirectory();
+}
+
+async function applyProblemDecision(decision) {
+  if (currentMode !== 'problem-review') {
+    return;
+  }
+
+  const item = currentItems[selectedIndex];
+  if (!item?.id) {
+    throw new Error('请先选择一个问题片段。');
+  }
+
+  refs.reviewOutput.textContent = '正在写入复查结论...';
+  const payload = await apiPost('/api/review-queue/decision', {
+    directoryPath: requireDirectoryPath(),
+    reviewItemId: item.id,
+    decision
+  });
+  refs.reviewOutput.textContent = buildDebugJson({
+    item: payload.item,
+    afterEditSpreadsheetPath: payload.afterEditSpreadsheetPath
+  });
+  closeDetail();
   await scanDirectory();
 }
 
@@ -448,17 +609,55 @@ function renderLabelStudioLink(projectUrl) {
 function mediaUrl(item) {
   const url = new URL('/api/tag-review/media', location.origin);
   url.searchParams.set('directoryPath', currentScan?.directoryPath ?? requireDirectoryPath());
-  url.searchParams.set('relativePath', item.videoRelativePath);
+  url.searchParams.set('relativePath', getItemRelativePath(item));
   return url.toString();
 }
 
 function updateActionState() {
   const hasItems = currentItems.length > 0;
   const hasProjectId = refs.labelStudioProjectId.value.trim().length > 0;
-  refs.downloadLabelStudioPackage.disabled = !hasItems;
-  refs.importLabelStudio.disabled = !hasItems;
-  refs.syncLabelStudio.disabled = !hasItems || !hasProjectId;
+  const isProblemMode = currentMode === 'problem-review';
+  const hasSelectedProblem = isProblemMode && selectedIndex >= 0 && selectedIndex < currentItems.length;
+  refs.downloadLabelStudioPackage.disabled = isProblemMode || !hasItems;
+  refs.importLabelStudio.disabled = isProblemMode || !hasItems;
+  refs.syncLabelStudio.disabled = isProblemMode || !hasItems || !hasProjectId;
   refs.loadMore.disabled = renderedCount >= currentItems.length;
+  refs.decisionDiscard.disabled = !hasSelectedProblem;
+  refs.decisionKeepAfterEdit.disabled = !hasSelectedProblem;
+  refs.decisionKeepProblem.disabled = !hasSelectedProblem;
+  refs.decisionManualRetry.disabled = !hasSelectedProblem;
+}
+
+function getItemTitle(item) {
+  return currentMode === 'problem-review'
+    ? item.fileName ?? pathBaseName(item.relativePath ?? '问题片段')
+    : item.videoFileName;
+}
+
+function getItemRelativePath(item) {
+  return currentMode === 'problem-review'
+    ? item.relativePath
+    : item.videoRelativePath;
+}
+
+function renderDecisionLabel(decision) {
+  if (decision === 'discard') {
+    return '丢弃';
+  }
+  if (decision === 'keep-afteredit') {
+    return '保留到 AfterEdit';
+  }
+  if (decision === 'keep-problem') {
+    return '保留到 ProblemClips';
+  }
+  if (decision === 'manual-retry') {
+    return '转人工命名';
+  }
+  return '待复查';
+}
+
+function pathBaseName(value) {
+  return String(value).split(/[\\/]/u).filter(Boolean).pop() ?? String(value);
 }
 
 function requireDirectoryPath() {

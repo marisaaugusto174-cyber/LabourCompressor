@@ -41,10 +41,10 @@ test('lists model options and builds oauth link through cli', () => {
 
   assert.equal(listResult.status, 0);
   assert.equal(listResult.stdout.includes('"provider": "openai"'), true);
-  assert.equal(listResult.stdout.includes('"id": "gemini-3-flash-preview"'), true);
-  assert.equal(listResult.stdout.includes('"id": "gemini-3.1-pro-preview"'), true);
+  assert.equal(listResult.stdout.includes('"id": "gemini-3.5-flash"'), true);
+  assert.equal(listResult.stdout.includes('"id": "qwen3.7-plus"'), true);
   assert.equal(listResult.stdout.includes('"id": "qwen3.6-flash"'), true);
-  assert.equal(listResult.stdout.includes('"id": "qwen3.5-plus"'), true);
+  assert.equal(listResult.stdout.includes('"id": "qwen3.5-plus"'), false);
   assert.equal(oauthResult.status, 0);
   assert.equal(oauthResult.stdout.includes('response_type=code'), true);
 });

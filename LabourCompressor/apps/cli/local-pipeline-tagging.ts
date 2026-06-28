@@ -58,6 +58,7 @@ export async function runTaggingBatch(input: {
   readonly startedAt: string;
   readonly taggingMode?: 'simulated' | 'qwen';
   readonly selectedModelProfileId?: string;
+  readonly taggingConcurrency?: number;
   readonly selectedVideoModelProfile?: VideoModelProfile;
   readonly realModelProviderConfig?: LocalProviderConfig;
   readonly candidateFixtures?: Record<string, readonly string[]>;
@@ -78,7 +79,10 @@ export async function runTaggingBatch(input: {
   const totalAssets = input.assets.length;
   const concurrency =
     input.taggingMode === 'qwen'
-      ? input.selectedVideoModelProfile?.defaultTaggingConcurrency ?? 1
+      ? resolveTaggingConcurrency({
+          explicitConcurrency: input.taggingConcurrency,
+          profileDefaultConcurrency: input.selectedVideoModelProfile?.defaultTaggingConcurrency
+        })
       : 1;
 
   await runConcurrentInOrder(input.assets, concurrency, async (asset, index) => {
@@ -240,6 +244,24 @@ export async function runTaggingBatch(input: {
       completedCount += 1;
     }
   });
+}
+
+export function resolveTaggingConcurrency(input: {
+  readonly explicitConcurrency?: number;
+  readonly profileDefaultConcurrency?: number;
+  readonly itemCount?: number;
+}): number {
+  const rawConcurrency =
+    input.explicitConcurrency ??
+    input.profileDefaultConcurrency ??
+    1;
+  const clamped = Math.min(64, Math.max(1, Math.trunc(rawConcurrency)));
+
+  if (input.itemCount === undefined) {
+    return clamped;
+  }
+
+  return Math.min(clamped, Math.max(1, input.itemCount));
 }
 
 export async function resolveRequiredContentTopic(input: {

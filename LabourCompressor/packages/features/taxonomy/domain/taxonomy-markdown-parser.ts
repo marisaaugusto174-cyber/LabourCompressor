@@ -47,6 +47,7 @@ export function parseTaxonomyMarkdown(
   const rootNodeIds: TaxonomyNodeId[] = [];
   const stack: StackEntry[] = [];
   const rootMode = options?.rootMode ?? 'heading';
+  let indentUnit: number | undefined;
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
@@ -73,7 +74,7 @@ export function parseTaxonomyMarkdown(
       continue;
     }
 
-    const bulletMatch = /^(\s*)-\s+(.+)$/u.exec(line);
+    const bulletMatch = /^(\s*)[-*]\s+(.+)$/u.exec(line);
 
     if (bulletMatch === null) {
       continue;
@@ -92,13 +93,22 @@ export function parseTaxonomyMarkdown(
 
     const indentWidth = indent.length;
 
-    if (indentWidth % 2 !== 0) {
+    if (indentWidth > 0 && indentUnit === undefined) {
+      indentUnit = indentWidth;
+    }
+
+    const effectiveIndentUnit = indentUnit ?? 2;
+
+    if (indentWidth % effectiveIndentUnit !== 0) {
       throw new Error(
-        `Taxonomy markdown bullet indent must use multiples of 2 spaces: "${line}"`
+        `Taxonomy markdown bullet indent must use multiples of ${effectiveIndentUnit} spaces: "${line}"`
       );
     }
 
-    const depth = rootMode === 'heading' ? indentWidth / 2 + 1 : indentWidth / 2;
+    const depth =
+      rootMode === 'heading'
+        ? indentWidth / effectiveIndentUnit + 1
+        : indentWidth / effectiveIndentUnit;
 
     if (rootMode === 'bullet-root') {
       if (depth === 0 && !PROMPT_BASE_ROOT_LABELS.has(bulletLabel)) {

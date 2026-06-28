@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   resolveRequiredContentTopic,
+  resolveTaggingConcurrency,
   runConcurrentInOrder,
   withRateLimitRetry,
   type RequiredContentTopicResolution
@@ -97,4 +98,22 @@ test('runs concurrent workers while returning results in input order', async () 
       '内容题材 > 分支 > 3'
     ]
   );
+});
+
+test('resolves explicit tagging concurrency before profile default', () => {
+  assert.equal(resolveTaggingConcurrency({
+    explicitConcurrency: 31,
+    profileDefaultConcurrency: 16,
+    itemCount: 100
+  }), 31);
+  assert.equal(resolveTaggingConcurrency({
+    explicitConcurrency: undefined,
+    profileDefaultConcurrency: 24,
+    itemCount: 100
+  }), 24);
+  assert.equal(resolveTaggingConcurrency({
+    explicitConcurrency: 99,
+    profileDefaultConcurrency: 24,
+    itemCount: 100
+  }), 64);
 });

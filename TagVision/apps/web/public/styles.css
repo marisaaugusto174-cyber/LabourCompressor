@@ -63,6 +63,19 @@ code { font-family: "SF Mono", Menlo, Consolas, monospace; }
   text-decoration: none;
 }
 
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .panel,
 .subpanel {
   background: rgba(255, 255, 255, 0.92);
@@ -520,8 +533,8 @@ button:disabled {
 
 .review-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
   max-height: none;
   overflow: visible;
   border: none;
@@ -539,22 +552,27 @@ button:disabled {
 .review-card {
   overflow: hidden;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
   cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .review-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.09);
+  border-color: #cbd5e1;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
 }
 
 .review-card-video {
+  position: relative;
   aspect-ratio: 16 / 9;
-  background: #111827;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a, #334155);
 }
 
+.review-card-video img,
 .review-card-video video,
 .review-player video {
   width: 100%;
@@ -564,47 +582,124 @@ button:disabled {
   object-fit: contain;
 }
 
+.review-card-video img {
+  object-fit: cover;
+}
+
+.review-card-video img.is-thumbnail-missing {
+  opacity: 0;
+}
+
+.review-card-video::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 58%;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.62));
+  pointer-events: none;
+}
+
+.review-card-cover-bar {
+  position: absolute;
+  inset: 10px 10px auto;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.review-card-cover-bar > span:first-child,
+.review-card-media-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  backdrop-filter: blur(8px);
+}
+
+.review-card-cover-bar .stage-pill {
+  min-height: 24px;
+  padding: 0 8px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+}
+
+.review-card-media-type {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1;
+}
+
 .review-card-body {
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 9px;
+  padding: 12px 13px 14px;
 }
 
 .review-card-title {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
+  min-width: 0;
 }
 
 .review-card-title strong {
+  display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-card-meta {
   color: #64748b;
   font-size: 12px;
-  overflow-wrap: anywhere;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-card-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-height: 28px;
+  align-items: center;
 }
 
 .review-card-tags span {
   max-width: 100%;
   padding: 5px 8px;
-  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   background: #f1f5f9;
   color: #334155;
   font-size: 12px;
+  line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.review-card-tags .review-card-tag-more {
+  background: #ecfeff;
+  border-color: #bae6fd;
+  color: #0369a1;
+  font-weight: 800;
+}
+
+.review-card-tags .review-card-tag-empty {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
 }
 
 .is-review-modal-open {
@@ -660,6 +755,47 @@ button:disabled {
   max-height: 100%;
   overflow: auto;
   padding-right: 4px;
+}
+
+.review-accepted-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.review-accepted-editor h3,
+.review-accepted-editor p {
+  margin: 0;
+}
+
+.accepted-path-list {
+  display: grid;
+  gap: 8px;
+}
+
+.accepted-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.accepted-path-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.accepted-path-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .review-state-box,

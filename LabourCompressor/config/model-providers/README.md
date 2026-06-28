@@ -15,11 +15,9 @@ Rules:
 - Web UI displays curated video model choices and maps them internally to provider/model ids.
 
 Current curated video model choices:
-- `Qwen 3.6 Flash` → `qwen3.6-flash`
-- `Qwen 3.6 Plus` → `qwen3.6-plus`
-- `Qwen 3.5 Plus` → `qwen3.5-plus`
-- `Gemini 3 Flash Thinking` → `gemini-3-flash-preview` with fixed thinking config
-- `Gemini 3.1 Pro` → `gemini-3.1-pro-preview`
+- `Qwen3.7Plus` → `qwen3.7-plus`
+- `Qwen3.6Flash` → `qwen3.6-flash`
+- `Gemini 3.5 Flash` → `gemini-3.5-flash`
 
 Current supported providers:
 - `openai`
@@ -39,7 +37,7 @@ Validation examples:
 node apps/cli/main.ts validate-model-config \
   --provider qwen \
   --auth-mode api-key \
-  --model-name qwen3.6-flash \
+  --model-name qwen3.7-plus \
   --api-key 'paste-your-key'
 ```
 

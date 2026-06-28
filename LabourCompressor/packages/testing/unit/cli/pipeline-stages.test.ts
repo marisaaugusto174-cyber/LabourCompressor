@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
@@ -228,7 +228,7 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
         spreadsheet: spreadsheetPath,
         downloadDir,
         taxonomy: taxonomyPath,
-        taxonomyPreset: 'core-v0.2',
+        taxonomyPreset: 'core-v0.1',
         promptLibrary: promptLibraryPath,
         archiveRoot,
         writebackTarget: 'user',
@@ -281,6 +281,76 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
     assert.equal(records.every((record) => record.归档状态 === '已归档'), true);
     assert.equal(records.every((record) => record.一级标签 === '内容领域: 商业营销'), true);
     assert.equal(records.every((record) => String(record.压缩缓存路径 ?? '').length > 0), true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('resume-cache pipeline runs compress, tag, and archive from an AfterEdit sheet', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-resume-cache-'));
+  const afterEditDirectory = path.join(tempDir, 'AfterEdit');
+  const mediaPath = path.join(afterEditDirectory, 'clips', '样本A_720P_260614_000001_01.mp4');
+  const spreadsheetPath = path.join(afterEditDirectory, 'AfterEdit_归档记录表.xlsx');
+  const taxonomyPath = path.join(tempDir, 'taxonomy.md');
+  const promptLibraryPath = path.join(tempDir, 'prompt.md');
+  const candidateFixturesPath = path.join(tempDir, 'candidate-fixtures.json');
+  const archiveRoot = path.join(tempDir, 'archive-root');
+
+  try {
+    await mkdir(path.dirname(mediaPath), { recursive: true });
+    writeTinyVideo(mediaPath);
+    writeFileSync(
+      taxonomyPath,
+      '- 内容领域\n  - 商业营销\n    - 产品广告\n'
+    );
+    writeFileSync(promptLibraryPath, '# 标注提示词库\n\n## 规则\n- 只能输出标签库中的标签\n');
+    writeFileSync(candidateFixturesPath, JSON.stringify({
+      '样本A_720P_260614_000001_01.mp4': ['内容领域 > 商业营销 > 产品广告']
+    }));
+
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([
+      ['文件名', '相对路径', '原始文件名', '来源URL', '归档状态', '源文件路径', '当前文件路径', '压缩缓存路径'],
+      ['样本A_720P_260614_000001_01.mp4', 'clips/样本A_720P_260614_000001_01.mp4', 'source.mp4', '', '待压缩', '', '', '']
+    ]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    xlsx.writeFile(workbook, spreadsheetPath);
+
+    const result = await runLocalPipelineCommand({
+      options: {
+        spreadsheet: spreadsheetPath,
+        downloadDir: path.join(tempDir, 'runtime'),
+        taxonomy: taxonomyPath,
+        taxonomyPreset: 'core-v0.1',
+        promptLibrary: promptLibraryPath,
+        archiveRoot,
+        writebackTarget: 'user',
+        pipelineStage: 'resume-cache',
+        taggingMode: 'simulated',
+        candidateFixtures: candidateFixturesPath
+      },
+      report: () => undefined
+    });
+
+    const updatedWorkbook = xlsx.readFile(spreadsheetPath);
+    const records = xlsx.utils.sheet_to_json<Record<string, string>>(
+      updatedWorkbook.Sheets.Sheet1,
+      { defval: '' }
+    );
+
+    assert.equal(result.failedRows, 0);
+    assert.equal(records[0]?.归档状态, '已归档');
+    assert.equal(String(records[0]?.压缩缓存路径 ?? '').endsWith('tagging-360p-a64.mp4'), true);
+    assert.equal(records[0]?.一级标签, '内容领域: 商业营销');
+    assert.equal(records[0]?.归档路径, '视频数据归档库/内容领域/商业营销/产品广告');
+    await access(path.join(
+      archiveRoot,
+      '视频数据归档库',
+      '内容领域',
+      '商业营销',
+      '产品广告',
+      '样本A_720P_260614_000001_01.mp4'
+    ));
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

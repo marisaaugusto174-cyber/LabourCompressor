@@ -58,7 +58,18 @@ export async function runLocalPipelineStageCommand(input: {
         }
       }
     }
-    return requireValue(result, 'V0.4 staged pipeline did not run any stage.');
+    return requireValue(result, 'V0.5 staged pipeline did not run any stage.');
+  }
+
+  if (pipelineStage === 'resume-cache') {
+    let result: RunLocalPipelineResult | undefined;
+    for (const stage of ['compress', 'tag', 'archive'] as const) {
+      result = await runSingleStage({
+        ...input,
+        options: { ...input.options, pipelineStage: stage }
+      });
+    }
+    return requireValue(result, 'Cache resume pipeline did not run any stage.');
   }
 
   return runSingleStage(input as {

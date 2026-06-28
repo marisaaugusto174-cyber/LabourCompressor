@@ -8,9 +8,18 @@ export function initFormState(options) {
 
 export function collectFormData() {
   const payload = {};
+  const collectedRadioNames = new Set();
 
-  for (const field of form.querySelectorAll('[name]')) {
+  for (const field of form.elements) {
     if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement)) {
+      continue;
+    }
+
+    if (field instanceof HTMLInputElement && field.type === 'radio') {
+      if (!collectedRadioNames.has(field.name)) {
+        payload[field.name] = fieldValue(field.name);
+        collectedRadioNames.add(field.name);
+      }
       continue;
     }
 
@@ -26,6 +35,13 @@ export function collectFormData() {
 export function setField(name, value) {
   const field = findNamedField(name);
 
+  if (field instanceof RadioNodeList) {
+    field.value = value ?? '';
+    updateFilledState();
+    onFieldChange(name);
+    return;
+  }
+
   if (field) {
     if (field instanceof HTMLInputElement && field.type === 'checkbox') {
       field.checked = value === true || value === 'true';
@@ -39,6 +55,9 @@ export function setField(name, value) {
 
 export function fieldValue(name) {
   const field = findNamedField(name);
+  if (field instanceof RadioNodeList) {
+    return field.value ?? '';
+  }
   if (field instanceof HTMLInputElement && field.type === 'checkbox') {
     return String(field.checked);
   }
@@ -88,10 +107,26 @@ export function validateRequiredFields() {
 }
 
 export function findNamedField(name) {
-  const field = form.querySelector(`[name="${CSS.escape(name)}"]`);
+  const field = form?.elements?.namedItem(name);
+
+  if (field instanceof RadioNodeList) {
+    return field;
+  }
 
   if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement) {
     return field;
+  }
+
+  const elementById = document.getElementById(name);
+
+  if (elementById instanceof HTMLInputElement || elementById instanceof HTMLSelectElement) {
+    return elementById;
+  }
+
+  const [elementByName] = document.getElementsByName(name);
+
+  if (elementByName instanceof HTMLInputElement || elementByName instanceof HTMLSelectElement) {
+    return elementByName;
   }
 
   return null;

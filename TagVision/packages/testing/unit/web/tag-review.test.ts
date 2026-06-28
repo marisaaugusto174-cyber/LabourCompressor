@@ -9,7 +9,9 @@ import {
   parseLabelStudioReviewExport,
   parseRangeHeader,
   resolveTagReviewMediaPath,
+  resolveTagReviewThumbnail,
   scanTagReviewDirectory,
+  writeAcceptedTagReviewResult,
   writeTagReviewState
 } from '../../../../apps/web/tag-review.ts';
 
@@ -211,6 +213,169 @@ test('resolveTagReviewMediaPath resolves videos inside the selected directory on
       }),
       /escapes the selected directory/u
     );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('resolveTagReviewThumbnail returns cached jpeg and rejects escaped paths', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-thumbnail-'));
+
+  try {
+    mkdirSync(path.join(tempDir, '_tagvision-thumbnails'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
+
+    const cached = await resolveTagReviewThumbnail({
+      directoryPath: tempDir,
+      relativePath: 'clip.mp4',
+      generateIfMissing: false
+    });
+    writeFileSync(cached.thumbnailPath, 'jpeg');
+
+    const thumbnail = await resolveTagReviewThumbnail({
+      directoryPath: tempDir,
+      relativePath: 'clip.mp4',
+      generateIfMissing: false
+    });
+
+    assert.equal(thumbnail.contentType, 'image/jpeg');
+    assert.equal(thumbnail.fileSize, 4);
+    assert.equal(thumbnail.thumbnailPath, cached.thumbnailPath);
+    assert.equal(thumbnail.thumbnailPath.startsWith(path.join(tempDir, '_tagvision-thumbnails')), true);
+    await assert.rejects(
+      () => resolveTagReviewThumbnail({
+        directoryPath: path.join(tempDir, 'nested'),
+        relativePath: '../clip.mp4',
+        generateIfMissing: false
+      }),
+      /escapes the selected directory/u
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('scanTagReviewDirectory loads taxonomy snapshot and existing accepted result', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-taxonomy-'));
+
+  try {
+    writeFileSync(path.join(tempDir, '_tagvision-taxonomy.json'), JSON.stringify({
+      version: 1,
+      taxonomyVersion: 'Core_Prompt_V0.1',
+      taxonomyChecksum: 'sha256:test-taxonomy',
+      paths: [
+        '表现形式 > 社媒直播 > 个人创作',
+        '内容领域 > 商业营销 > 产品广告'
+      ]
+    }, null, 2));
+    writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
+    writeFileSync(path.join(tempDir, 'clip.json'), JSON.stringify(buildStructuredTaggingJson('clip')));
+    const firstScan = await scanTagReviewDirectory({ directoryPath: tempDir });
+    const reviewItemId = firstScan.pairedItems[0]?.reviewItemId;
+    assert.ok(reviewItemId);
+    writeFileSync(path.join(tempDir, 'clip.accepted.json'), JSON.stringify({
+      version: 1,
+      reviewItemId,
+      videoRelativePath: 'clip.mp4',
+      sourceJsonRelativePath: 'clip.json',
+      taxonomyVersion: 'Core_Prompt_V0.1',
+      taxonomyChecksum: 'sha256:test-taxonomy',
+      status: '通过',
+      acceptedPaths: ['内容领域 > 商业营销 > 产品广告'],
+      source: 'manual',
+      reviewedAt: '2026-06-15T00:00:00.000Z'
+    }));
+
+    const result = await scanTagReviewDirectory({ directoryPath: tempDir });
+
+    assert.equal(result.taxonomySnapshot?.taxonomyVersion, 'Core_Prompt_V0.1');
+    assert.equal(result.taxonomySnapshot?.taxonomyChecksum, 'sha256:test-taxonomy');
+    assert.deepEqual(result.taxonomySnapshot?.paths, [
+      '表现形式 > 社媒直播 > 个人创作',
+      '内容领域 > 商业营销 > 产品广告'
+    ]);
+    assert.deepEqual(result.pairedItems[0]?.acceptedResult?.acceptedPaths, [
+      '内容领域 > 商业营销 > 产品广告'
+    ]);
+    assert.equal(result.pairedItems[0]?.reviewStatus, '通过');
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('scanTagReviewDirectory ignores accepted sidecars for another item or taxonomy', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-stale-accepted-'));
+
+  try {
+    writeFileSync(path.join(tempDir, '_tagvision-taxonomy.json'), JSON.stringify({
+      version: 1,
+      taxonomyVersion: 'Core_Prompt_V0.1',
+      taxonomyChecksum: 'sha256:current-taxonomy',
+      paths: ['表现形式 > 社媒直播 > 个人创作']
+    }, null, 2));
+    writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
+    writeFileSync(path.join(tempDir, 'clip.json'), JSON.stringify(buildStructuredTaggingJson('clip')));
+    writeFileSync(path.join(tempDir, 'clip.accepted.json'), JSON.stringify({
+      version: 1,
+      reviewItemId: 'review-for-another-item',
+      videoRelativePath: 'other.mp4',
+      sourceJsonRelativePath: 'other.json',
+      taxonomyVersion: 'Core_Prompt_V0.1',
+      taxonomyChecksum: 'sha256:old-taxonomy',
+      status: '通过',
+      acceptedPaths: ['表现形式 > 社媒直播 > 个人创作'],
+      source: 'manual',
+      reviewedAt: '2026-06-15T00:00:00.000Z'
+    }));
+
+    const result = await scanTagReviewDirectory({ directoryPath: tempDir });
+
+    assert.equal(result.pairedItems[0]?.acceptedResult, undefined);
+    assert.equal(result.pairedItems[0]?.reviewStatus, undefined);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('writeAcceptedTagReviewResult rejects illegal paths and does not overwrite model json', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-accepted-'));
+
+  try {
+    writeFileSync(path.join(tempDir, '_tagvision-taxonomy.json'), JSON.stringify({
+      version: 1,
+      taxonomyVersion: 'Core_Prompt_V0.1',
+      taxonomyChecksum: 'sha256:test-taxonomy',
+      paths: ['表现形式 > 社媒直播 > 个人创作']
+    }, null, 2));
+    writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
+    writeFileSync(path.join(tempDir, 'clip.json'), JSON.stringify(buildStructuredTaggingJson('clip')));
+
+    const scan = await scanTagReviewDirectory({ directoryPath: tempDir });
+    const item = scan.pairedItems[0];
+    assert.ok(item);
+
+    await assert.rejects(
+      () => writeAcceptedTagReviewResult({
+        directoryPath: tempDir,
+        reviewItemId: item.reviewItemId,
+        acceptedPaths: ['不存在 > 非法路径'],
+        reviewedAt: '2026-06-15T00:00:00.000Z'
+      }),
+      /Illegal accepted taxonomy path/u
+    );
+
+    const accepted = await writeAcceptedTagReviewResult({
+      directoryPath: tempDir,
+      reviewItemId: item.reviewItemId,
+      acceptedPaths: ['表现形式 > 社媒直播 > 个人创作'],
+      reviewedAt: '2026-06-15T00:00:00.000Z'
+    });
+
+    assert.equal(accepted.status, '通过');
+    assert.equal(accepted.source, 'manual');
+    assert.equal(accepted.sourceJsonRelativePath, 'clip.json');
+    assert.equal(readFileSync(path.join(tempDir, 'clip.json'), 'utf8'), JSON.stringify(buildStructuredTaggingJson('clip')));
+    assert.match(readFileSync(path.join(tempDir, 'clip.accepted.json'), 'utf8'), /"source": "manual"/u);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

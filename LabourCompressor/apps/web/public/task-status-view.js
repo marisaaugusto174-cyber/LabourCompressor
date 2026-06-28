@@ -2,63 +2,162 @@ let refs = {};
 let getDefaults = () => null;
 let getFieldValue = () => '';
 let getSelectedModelLabel = () => '—';
+let contextState = {
+  model: '—',
+  source: '平台自动识别',
+  platform: '—',
+  nextAction: '运行 Preflight 或启动任务'
+};
 
 export function initTaskStatusView(options) {
   refs = options.refs;
   getDefaults = options.getDefaults;
   getFieldValue = options.getFieldValue;
   getSelectedModelLabel = options.getSelectedModelLabel;
+  contextState = {
+    model: '—',
+    source: '平台自动识别',
+    platform: '—',
+    nextAction: '运行 Preflight 或启动任务'
+  };
+  renderStatusContext();
+}
+
+export function deriveTaskControlState(task) {
+  const status = task?.status;
+  const hasTask = Boolean(task?.id);
+
+  return {
+    pause: hasTask && (status === 'queued' || status === 'running'),
+    resume: hasTask && (status === 'paused' || status === 'pausing'),
+    stop: hasTask && ['queued', 'running', 'pausing', 'paused', 'cancelling'].includes(status)
+  };
+}
+
+export function deriveActionVisibility(visible) {
+  return {
+    hidden: !visible,
+    disabled: !visible
+  };
+}
+
+export function applyTaskControlState(buttonRefs, task) {
+  const controls = deriveTaskControlState(task);
+
+  applyActionVisibility(buttonRefs.pause, controls.pause);
+  applyActionVisibility(buttonRefs.resume, controls.resume);
+  applyActionVisibility(buttonRefs.stop, controls.stop);
+  buttonRefs.container.hidden = !controls.pause && !controls.resume && !controls.stop;
+}
+
+export function bindTaskControlActions(buttonRefs, handlers) {
+  for (const action of ['pause', 'resume', 'stop', 'exportFailures', 'partialWriteback']) {
+    buttonRefs[action].addEventListener('click', handlers[action]);
+  }
+}
+
+function applyActionVisibility(button, visible) {
+  const state = deriveActionVisibility(visible);
+  button.hidden = state.hidden;
+  button.disabled = state.disabled;
 }
 
 export function updateSourceModeLabel() {
+  if (getFieldValue('sourceMode') === 'local') {
+    contextState.source = '本地素材导入';
+    renderStatusContext();
+    return;
+  }
+
   const spreadsheetPath = getFieldValue('spreadsheet');
 
   if (spreadsheetPath.includes('AfterEdit')) {
-    refs.statusSource.textContent = 'AfterEdit 二阶段继续处理';
+    contextState.source = 'AfterEdit 二阶段继续处理';
+    renderStatusContext();
     return;
   }
 
   if (getFieldValue('autoSegmentation') === 'true') {
-    refs.statusSource.textContent = '下载后自动分割';
+    contextState.source = '下载后自动分割';
+    renderStatusContext();
     return;
   }
 
-  refs.statusSource.textContent = getFieldValue('manualEditGate') === 'true' ? '下载后进入人工剪辑' : '平台自动识别';
+  contextState.source = getFieldValue('manualEditGate') === 'true' ? '下载后进入人工剪辑' : '平台自动识别';
+  renderStatusContext();
 }
 
 export function updatePlatformLabel() {
-  refs.statusPlatform.textContent = derivePlatformLabelFromText(getFieldValue('spreadsheet'));
+  if (getFieldValue('sourceMode') === 'local') {
+    contextState.platform = '本地文件';
+    renderStatusContext();
+    return;
+  }
+
+  contextState.platform = derivePlatformLabelFromText(getFieldValue('spreadsheet'));
+  renderStatusContext();
 }
 
 export function updateNextActionLabel(task) {
-  refs.statusNextAction.textContent = inferNextAction(task);
+  contextState.nextAction = inferNextAction(task);
+  renderStatusContext();
 }
 
 export function renderLiveEvent(event) {
+  showActiveStatus();
   refs.statusOverall.textContent = deriveOverallStatusFromEvent(event);
   refs.statusPhase.textContent = humanizePhase(event.phase ?? event.stage, event.status);
-  refs.statusItem.textContent = event.currentItem || '—';
-  refs.statusProgress.textContent = formatProgress(event);
+  setCurrentItem(event.currentItem);
+  renderProgress(event);
+}
+
+export function renderStatusMessage({ overall, phase, currentItem = '' }) {
+  showActiveStatus();
+  refs.statusOverall.textContent = String(overall ?? '');
+  refs.statusPhase.textContent = String(phase ?? '');
+  setCurrentItem(currentItem);
+  clearProgress();
 }
 
 export function renderTaskStatus(task) {
-  refs.statusModel.textContent = resolveTaskModelLabel(task);
-  refs.statusSource.textContent = inferTaskSourceLabel(task);
-  refs.statusPlatform.textContent = inferTaskPlatformLabel(task);
-  refs.statusNextAction.textContent = inferNextAction(task);
+  contextState = {
+    model: resolveTaskModelLabel(task),
+    source: inferTaskSourceLabel(task),
+    platform: inferTaskPlatformLabel(task),
+    nextAction: inferNextAction(task)
+  };
+  showActiveStatus();
+  renderStatusContext();
   if (task.latestEvent) {
     renderLiveEvent(task.latestEvent);
+  } else {
+    refs.statusPhase.textContent = mapTaskStatus(task?.status) ?? '';
+    setCurrentItem('');
+    clearProgress();
   }
 
   refs.statusOverall.textContent = deriveOverallStatusFromTask(task);
 }
 
 export function resetStatusShell() {
-  refs.statusPhase.textContent = '待机';
-  refs.statusItem.textContent = '—';
-  refs.statusProgress.textContent = '—';
-  refs.statusOverall.textContent = '未开始';
-  refs.statusModel.textContent = getSelectedModelLabel();
+  refs.taskIdleState.hidden = false;
+  refs.taskActiveState.hidden = true;
+  if (refs.runtimeDetailsPanel) {
+    refs.runtimeDetailsPanel.hidden = true;
+  }
+  if (refs.debugRecoveryPanel) {
+    refs.debugRecoveryPanel.hidden = true;
+  }
+  refs.statusPhase.textContent = '';
+  refs.statusItem.textContent = '';
+  refs.statusItem.title = '';
+  refs.statusCurrent.hidden = true;
+  refs.statusProgress.textContent = '';
+  refs.statusProgressTrack.hidden = true;
+  refs.statusProgressBar.style.width = '0%';
+  refs.statusProgressTrack.setAttribute('aria-valuenow', '0');
+  refs.statusOverall.textContent = '';
+  contextState.model = getSelectedModelLabel();
   updateSourceModeLabel();
   updatePlatformLabel();
   updateNextActionLabel();
@@ -70,7 +169,59 @@ export function resolveTaskModelLabel(task) {
   return profile?.label ?? getSelectedModelLabel();
 }
 
+function renderStatusContext() {
+  if (!refs.statusContext || !refs.statusModel) {
+    return;
+  }
+
+  setOptionalText(refs.statusModel, contextState.model, '—');
+  setOptionalText(refs.statusSource, contextState.source);
+  setOptionalText(refs.statusPlatform, contextState.platform, '—');
+  const nextAction = isActionableNextAction(contextState.nextAction) ? contextState.nextAction : '';
+  setOptionalText(refs.statusNextAction, nextAction);
+  refs.statusContext.hidden = refs.statusModel.hidden && refs.statusSource.hidden && refs.statusPlatform.hidden;
+}
+
+function setOptionalText(node, value, emptyValue = '') {
+  const text = String(value ?? '').trim();
+  node.textContent = text;
+  node.hidden = text.length === 0 || text === emptyValue;
+}
+
+function isActionableNextAction(value) {
+  return ![
+    '',
+    '无',
+    '等待当前任务完成',
+    '等待当前处理项完成后暂停',
+    '正在取消任务',
+    '运行 Preflight 或启动任务'
+  ].includes(String(value ?? '').trim());
+}
+
+function showActiveStatus() {
+  refs.taskIdleState.hidden = true;
+  refs.taskActiveState.hidden = false;
+  if (refs.runtimeDetailsPanel) {
+    refs.runtimeDetailsPanel.hidden = false;
+  }
+  if (refs.debugRecoveryPanel) {
+    refs.debugRecoveryPanel.hidden = false;
+  }
+}
+
+function setCurrentItem(currentItem) {
+  const item = String(currentItem ?? '').trim();
+  refs.statusItem.textContent = item;
+  refs.statusItem.title = item;
+  refs.statusCurrent.hidden = item.length === 0;
+}
+
 function inferTaskSourceLabel(task) {
+  if (task?.options?.sourceMode === 'local') {
+    return '本地素材导入';
+  }
+
   const spreadsheetPath = task?.options?.spreadsheet ?? '';
   if (spreadsheetPath.includes('AfterEdit')) {
     return 'AfterEdit 二阶段继续处理';
@@ -82,6 +233,10 @@ function inferTaskSourceLabel(task) {
 }
 
 function inferTaskPlatformLabel(task) {
+  if (task?.options?.sourceMode === 'local') {
+    return '本地文件';
+  }
+
   const results = task?.result?.results ?? [];
 
   for (const item of results) {
@@ -117,8 +272,20 @@ function inferNextAction(task) {
     return '更新 Cookies';
   }
 
+  if (results.some((item) => [
+    'douyin-detail-api-blocked',
+    'douyin-ssr-unavailable',
+    'douyin-play-url-expired'
+  ].includes(item.failure?.errorCode))) {
+    return '刷新抖音链接或凭证';
+  }
+
   if (results.some((item) => item.failure)) {
     return '处理失败项后重试';
+  }
+
+  if (results.some(isPendingResult)) {
+    return '处理待处理项';
   }
 
   if (task?.status === 'running' || task?.status === 'queued') {
@@ -193,6 +360,7 @@ function humanizePhase(phase, status) {
 function mapTaskStatus(status) {
   return {
     pending: '等待中',
+    queued: '等待中',
     running: '运行中',
     pausing: '暂停中',
     paused: '已暂停',
@@ -240,6 +408,10 @@ function deriveOverallStatusFromTask(task) {
     return '失败';
   }
 
+  if (task?.status === 'succeeded' && results.some(isPendingResult)) {
+    return '存在待处理项';
+  }
+
   if (task?.status === 'cancelled') {
     return '已取消';
   }
@@ -261,21 +433,28 @@ function deriveOverallStatusFromTask(task) {
   }
 
   if (task?.status === 'running' || task?.status === 'queued') {
-    return deriveOverallStatusFromEvent(task?.latestEvent);
+    return task?.latestEvent
+      ? deriveOverallStatusFromEvent(task.latestEvent)
+      : mapTaskStatus(task.status);
   }
 
   return '未开始';
 }
 
-function formatProgress(event) {
-  if (!event.progress) {
-    return '—';
-  }
+function isPendingResult(item) {
+  return !item?.failure && ![
+    '已归档',
+    '已跳过：视频过短'
+  ].includes(item?.archiveState);
+}
 
-  const current = event.progress.current;
-  const total = event.progress.total;
-  const percent = Math.round((current / Math.max(1, total)) * 100);
-  const parts = [`${current}/${total} (${percent}%)`];
+function renderProgress(event) {
+  const current = Number(event.progress?.current ?? 0);
+  const total = Number(event.progress?.total ?? 0);
+  const percent = total > 0
+    ? Math.max(0, Math.min(100, Math.round((current / total) * 100)))
+    : 0;
+  const parts = [total > 0 ? `${current} / ${total} · ${percent}%` : '处理中'];
   const speed = event.details?.downloadSpeed;
   const eta = event.details?.downloadEta;
 
@@ -287,5 +466,15 @@ function formatProgress(event) {
     parts.push(`ETA ${eta}`);
   }
 
-  return parts.join(' · ');
+  refs.statusProgress.textContent = parts.join(' · ');
+  refs.statusProgressTrack.hidden = total <= 0;
+  refs.statusProgressBar.style.width = `${percent}%`;
+  refs.statusProgressTrack.setAttribute('aria-valuenow', String(percent));
+}
+
+function clearProgress() {
+  refs.statusProgress.textContent = '';
+  refs.statusProgressTrack.hidden = true;
+  refs.statusProgressBar.style.width = '0%';
+  refs.statusProgressTrack.setAttribute('aria-valuenow', '0');
 }

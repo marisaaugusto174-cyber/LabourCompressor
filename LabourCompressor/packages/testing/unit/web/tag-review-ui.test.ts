@@ -22,6 +22,8 @@ const indexHtml = readFileSync(
 
 test('review ui exposes directory scan and Label Studio controls', () => {
   for (const id of [
+    'mode-tag-review',
+    'mode-problem-review',
     'review-directory',
     'scan-button',
     'download-ls-package',
@@ -39,9 +41,41 @@ test('review ui exposes directory scan and Label Studio controls', () => {
   assert.equal(reviewHtml.includes('src="/tag-review.js'), true);
 });
 
+test('review ui exposes problem review queue actions', () => {
+  for (const id of [
+    'decision-discard',
+    'decision-keep-afteredit',
+    'decision-keep-problem',
+    'decision-manual-retry'
+  ]) {
+    assert.equal(reviewHtml.includes(`id="${id}"`), true, `missing #${id}`);
+  }
+
+  assert.equal(reviewJs.includes('/api/review-queue/scan'), true);
+  assert.equal(reviewJs.includes('/api/review-queue/decision'), true);
+  assert.equal(reviewJs.includes('keep-afteredit'), true);
+  assert.equal(reviewJs.includes('manual-retry'), true);
+});
+
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
   assert.equal(indexHtml.includes('打标质检'), true);
+});
+
+test('review ui avoids introductory and explanatory copy', () => {
+  for (const text of [
+    '扫描同名视频和 JSON',
+    'Review UI build:',
+    'Local sidecar JSON',
+    '只读取并扫描目录',
+    '递归扫描视频与同目录同名 JSON。',
+    '滚动时增量加载卡片',
+    '请选择目录并扫描。',
+    '未配对文件和接口结果显示在这里。',
+    '暂无诊断信息。'
+  ]) {
+    assert.equal(reviewHtml.includes(text), false, `unexpected explanatory copy: ${text}`);
+  }
 });
 
 test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {

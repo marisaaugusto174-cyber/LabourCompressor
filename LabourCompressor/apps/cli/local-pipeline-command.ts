@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdir, readFile } from 'node:fs/promises';
 
 import { createSimulatedDownloaderAdapter } from '../../packages/adapters/downloaders/simulated-downloader.ts';
-import { createYtDlpDownloaderAdapter } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
+import { createPlatformAwareDownloaderAdapter } from '../../packages/adapters/downloaders/platform-aware-downloader.ts';
 import { createFfmpegMergeOperator } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
 import { mergeDownloadedStreams } from '../../packages/adapters/media/local-merge-operator.ts';
 import { createPostEditArchiveRecordSpreadsheet, readSpreadsheetTaskSheet } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
@@ -29,6 +29,7 @@ import { runAutoSegmentationStage, type AutoSegmentationDependencies } from './l
 import { runLocalPipelineStageCommand } from './local-pipeline-stages.ts';
 import {
   getDefaultTaxonomyPreset,
+  getLegacyTaxonomyRuntimePreset,
   resolveTaxonomyPresetDefinition,
   type TaxonomyPresetDefinition
 } from './taxonomy-presets.ts';
@@ -137,7 +138,7 @@ export async function runLocalPipelineCommand(input: {
       outputDirectory: input.options.downloadDir,
       downloader:
         input.options.downloaderMode === 'yt-dlp'
-          ? createYtDlpDownloaderAdapter({
+          ? createPlatformAwareDownloaderAdapter({
               binaryPath: input.options.ytDlpBinary,
               cookiesFilePath: input.options.cookiesFilePath,
               cookiesFromBrowser: input.options.cookiesFromBrowser,
@@ -311,6 +312,7 @@ export async function runLocalPipelineCommand(input: {
     startedAt,
     taggingMode: input.options.taggingMode,
     selectedModelProfileId: input.options.selectedModelProfileId,
+    taggingConcurrency: input.options.taggingConcurrency,
     selectedVideoModelProfile,
     realModelProviderConfig,
     candidateFixtures,
@@ -460,7 +462,7 @@ export async function loadTaxonomyRuntime(options: RunLocalPipelineOptions): Pro
       ? resolveTaxonomyPresetDefinition(options.taxonomyPreset)
       : options.taxonomy === defaultPreset.filePath
         ? defaultPreset
-        : resolveTaxonomyPresetDefinition('v0');
+        : getLegacyTaxonomyRuntimePreset();
 
   return Object.freeze({
     preset,

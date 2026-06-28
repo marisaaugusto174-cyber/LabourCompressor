@@ -41,12 +41,22 @@ export function detectSupportedPlatformUrl(
 }
 
 function normalizePlatformUrl(parsedUrl: URL): string {
+  const host = parsedUrl.host.toLowerCase();
+
   if (
-    parsedUrl.host.toLowerCase().endsWith('.douyin.com') &&
+    isDouyinHost(host) &&
     parsedUrl.pathname.startsWith('/shipin/')
   ) {
     const videoId = parsedUrl.pathname.slice('/shipin/'.length).replace(/\/+$/u, '');
-    return new URL(`/video/${videoId}`, parsedUrl.origin).toString();
+    return buildDouyinVideoUrl(videoId);
+  }
+
+  if (
+    isDouyinHost(host) &&
+    parsedUrl.pathname.startsWith('/share/video/')
+  ) {
+    const videoId = parsedUrl.pathname.slice('/share/video/'.length).replace(/\/+$/u, '');
+    return buildDouyinVideoUrl(videoId);
   }
 
   return parsedUrl.toString();
@@ -61,7 +71,7 @@ function detectPlatformFromHost(host: string): SupportedPlatform {
     return 'youtube';
   }
 
-  if (host.endsWith('.douyin.com')) {
+  if (isDouyinHost(host)) {
     return 'douyin';
   }
 
@@ -70,4 +80,12 @@ function detectPlatformFromHost(host: string): SupportedPlatform {
   }
 
   throw new Error(`Unsupported download platform host: "${host}"`);
+}
+
+function isDouyinHost(host: string): boolean {
+  return host.endsWith('.douyin.com') || host.endsWith('.iesdouyin.com');
+}
+
+function buildDouyinVideoUrl(videoId: string): string {
+  return new URL(`/video/${videoId}`, 'https://www.douyin.com').toString();
 }

@@ -11,6 +11,7 @@ import { projectPath } from '../cli/project-paths.ts';
 import { dispatchWebRoute } from './api/routes/index.ts';
 import { createRuntimeTaskService } from './task-service.ts';
 import {
+  ensureDouyinCredentialFallback,
   ensureDefaultMasterSpreadsheet,
   ensureFirstRunLocalState
 } from './runtime-support.ts';
@@ -39,6 +40,9 @@ await ensureFirstRunLocalState({
     path.dirname(RUNTIME_TASK_STATE_FILE),
     DEFAULT_CACHE_ROOT
   ]
+});
+await ensureDouyinCredentialFallback({
+  platformCredentialConfigPath: DEFAULT_PLATFORM_CREDENTIAL_CONFIG
 });
 await ensureDefaultMasterSpreadsheet(DEFAULT_MASTER_SPREADSHEET);
 

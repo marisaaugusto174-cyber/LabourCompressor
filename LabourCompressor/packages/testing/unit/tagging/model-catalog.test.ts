@@ -29,7 +29,7 @@ test('returns provider catalog entry and validates model selection', () => {
   assert.doesNotThrow(() =>
     validateProviderModelSelection({
       provider: 'google',
-      modelId: 'gemini-3-flash-preview',
+      modelId: 'gemini-3.5-flash',
       authMode: 'api-key'
     })
   );

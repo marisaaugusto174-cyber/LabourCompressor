@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 
 import {
   type MasterSpreadsheetWritebackEntry,
+  SPREADSHEET_SCHEMA_COLUMNS,
   type SpreadsheetAppendRow,
   type SpreadsheetCellValue,
   type SpreadsheetTaskRow,
@@ -26,6 +27,12 @@ export interface SpreadsheetHyperlinkUpdate {
   readonly label: string;
   readonly target: string;
 }
+
+const MACHINE_TRACE_HEADERS = new Set(
+  SPREADSHEET_SCHEMA_COLUMNS
+    .filter((column) => column.role === 'machine-trace')
+    .map((column) => column.header)
+);
 
 export const MASTER_SPREADSHEET_HEADERS = Object.freeze([
   'URL',
@@ -115,15 +122,6 @@ export function resolveSourceColumn(input: {
   readonly kind: 'url' | 'local-file';
   readonly index: number;
 }> {
-  const fileNameColumnIndex = input.headers.findIndex((header) => header === '文件名');
-
-  if (fileNameColumnIndex !== -1) {
-    return Object.freeze({
-      kind: 'local-file',
-      index: fileNameColumnIndex
-    });
-  }
-
   if (input.urlColumnName !== undefined) {
     const index = input.headers.findIndex(
       (header) => header === input.urlColumnName
@@ -138,6 +136,26 @@ export function resolveSourceColumn(input: {
     return Object.freeze({
       kind: 'url',
       index
+    });
+  }
+
+  const explicitUrlColumnIndex = input.headers.findIndex((header) =>
+    header === 'URL' || header.toLowerCase() === 'url'
+  );
+
+  if (explicitUrlColumnIndex !== -1) {
+    return Object.freeze({
+      kind: 'url',
+      index: explicitUrlColumnIndex
+    });
+  }
+
+  const fileNameColumnIndex = input.headers.findIndex((header) => header === '文件名');
+
+  if (fileNameColumnIndex !== -1) {
+    return Object.freeze({
+      kind: 'local-file',
+      index: fileNameColumnIndex
     });
   }
 
@@ -387,6 +405,40 @@ export function appendSpreadsheetRows(input: {
   return { matrix, hyperlinks: Object.freeze(hyperlinks) };
 }
 
+export function ensureSpreadsheetSchemaColumns(
+  matrix: (string | number)[][]
+): (string | number)[][] {
+  const nextMatrix = matrix.map((row) => [...row]);
+
+  if (nextMatrix.length === 0) {
+    nextMatrix.push([]);
+  }
+
+  const hasHeaderRow = detectHasHeaderRow(nextMatrix);
+
+  if (!hasHeaderRow) {
+    nextMatrix.unshift([...createSyntheticHeaders(nextMatrix[0]?.length ?? 0)]);
+  }
+
+  const headers = nextMatrix[0]!.map((value) => String(value).trim());
+  const isLocalFileSheet =
+    headers.includes('文件名') &&
+    !headers.some((header) => header === 'URL' || header.toLowerCase() === 'url');
+
+  for (const column of SPREADSHEET_SCHEMA_COLUMNS) {
+    if (isLocalFileSheet && column.header === 'URL') {
+      continue;
+    }
+
+    if (!headers.includes(column.header)) {
+      nextMatrix[0]!.push(column.header);
+      headers.push(column.header);
+    }
+  }
+
+  return nextMatrix;
+}
+
 export function writeMatrixToWorksheetPreservingLayout(input: {
   readonly worksheet: XLSX.WorkSheet;
   readonly matrix: readonly (readonly (string | number)[])[];
@@ -459,6 +511,27 @@ export function writeMatrixToWorksheetPreservingLayout(input: {
   }
 
   input.worksheet['!ref'] = xlsx.utils.encode_range(nextRange);
+}
+
+export function applySpreadsheetSchemaColumnLayout(input: {
+  readonly worksheet: XLSX.WorkSheet;
+  readonly headers: readonly string[];
+}): void {
+  const existingColumns = input.worksheet['!cols'] ?? [];
+  const nextColumns = [...existingColumns];
+
+  for (const [columnIndex, header] of input.headers.entries()) {
+    if (!MACHINE_TRACE_HEADERS.has(header)) {
+      continue;
+    }
+
+    nextColumns[columnIndex] = {
+      ...(nextColumns[columnIndex] ?? {}),
+      hidden: true
+    };
+  }
+
+  input.worksheet['!cols'] = nextColumns;
 }
 
 export function ensureMasterSpreadsheetTemplate(

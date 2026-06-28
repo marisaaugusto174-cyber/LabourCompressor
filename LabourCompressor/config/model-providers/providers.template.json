@@ -16,7 +16,7 @@
     "enabled": false,
     "provider": "google",
     "authMode": "api-key",
-    "modelName": "gemini-3-flash-preview",
+    "modelName": "gemini-3.5-flash",
     "apiKey": "",
     "oauth": {
       "authorizeUrl": "https://accounts.google.com/o/oauth2/v2/auth",
@@ -46,7 +46,7 @@
     "enabled": false,
     "provider": "qwen",
     "authMode": "api-key",
-    "modelName": "qwen3.6-flash",
+    "modelName": "qwen3.7-plus",
     "apiKey": "",
     "oauth": {
       "authorizeUrl": "",

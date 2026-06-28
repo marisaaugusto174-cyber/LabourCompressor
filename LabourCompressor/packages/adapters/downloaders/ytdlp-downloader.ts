@@ -38,6 +38,10 @@ export type DownloadProbeStatus =
   | 'missing-credentials'
   | 'cookies-expired'
   | 'blocked-by-bilibili-412'
+  | 'douyin-extractor-challenge'
+  | 'douyin-ssr-unavailable'
+  | 'douyin-play-url-expired'
+  | 'douyin-detail-api-blocked'
   | 'platform-rate-limited'
   | 'rename-failed'
   | 'output-not-detected'
@@ -61,6 +65,12 @@ export interface ResolvedYtDlpCredential {
     | 'config-global-cookies-file'
     | 'config-global-browser-cookies'
     | 'none';
+}
+
+export interface YtDlpBinaryInspection {
+  readonly available: boolean;
+  readonly version?: string;
+  readonly isStale?: boolean;
 }
 
 export function createYtDlpDownloaderAdapter(
@@ -242,11 +252,27 @@ export function resolveYtDlpCredential(
 export async function validateYtDlpBinary(
   binaryPath = 'yt-dlp'
 ): Promise<boolean> {
+  return (await inspectYtDlpBinary(binaryPath)).available;
+}
+
+export async function inspectYtDlpBinary(
+  binaryPath = 'yt-dlp',
+  now = new Date()
+): Promise<YtDlpBinaryInspection> {
   try {
-    await execFileAsync(resolveYtDlpBinaryPath(binaryPath), ['--version']);
-    return true;
+    const { stdout } = await execFileAsync(resolveYtDlpBinaryPath(binaryPath), ['--version']);
+    const version = stdout.trim().split(/\r?\n/u)[0]?.trim();
+    return Object.freeze({
+      available: true,
+      version,
+      isStale: version === undefined || version.length === 0
+        ? undefined
+        : isDateBasedYtDlpVersionStale(version, now)
+    });
   } catch {
-    return false;
+    return Object.freeze({
+      available: false
+    });
   }
 }
 
@@ -378,6 +404,16 @@ export function classifyYtDlpErrorMessage(
   message: string
 ): DownloadProbeResult {
   const summarizedMessage = summarizeYtDlpErrorMessage(message);
+
+  if (
+    message.includes('[Douyin]') &&
+    message.includes('Fresh cookies')
+  ) {
+    return Object.freeze({
+      status: 'douyin-detail-api-blocked',
+      message: summarizedMessage
+    });
+  }
 
   if (
     message.includes('Login required') ||
@@ -597,6 +633,14 @@ function buildUserFacingDownloadMessage(
       return '下载失败：当前平台 Cookies 已过期或失效。';
     case 'blocked-by-bilibili-412':
       return '下载失败：Bilibili 当前触发了 412 风控。';
+    case 'douyin-extractor-challenge':
+      return '下载失败：抖音当前触发了解析/风控挑战，请更新 yt-dlp 后重试；若仍失败，请换用有效 cookies 或稍后再试。';
+    case 'douyin-ssr-unavailable':
+      return '下载失败：抖音页面 SSR 中没有可用的视频播放信息。';
+    case 'douyin-play-url-expired':
+      return '下载失败：抖音播放地址不可用或已过期，请刷新链接后重试。';
+    case 'douyin-detail-api-blocked':
+      return '下载失败：抖音详情接口返回空数据，当前 yt-dlp 路径被平台风控阻断。';
     case 'platform-rate-limited':
       return '下载失败：平台当前限制请求频率。';
     case 'rename-failed':
@@ -612,4 +656,20 @@ function buildUserFacingDownloadMessage(
     default:
       return detail;
   }
+}
+
+function isDateBasedYtDlpVersionStale(version: string, now: Date): boolean | undefined {
+  const match = /^(\d{4})\.(\d{2})\.(\d{2})$/u.exec(version);
+  if (match === null) {
+    return undefined;
+  }
+
+  const [, yearRaw, monthRaw, dayRaw] = match;
+  const releaseDate = Date.UTC(
+    Number(yearRaw),
+    Number(monthRaw) - 1,
+    Number(dayRaw)
+  );
+  const ageDays = Math.floor((now.getTime() - releaseDate) / 86_400_000);
+  return ageDays > 90;
 }

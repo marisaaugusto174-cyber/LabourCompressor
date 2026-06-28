@@ -73,7 +73,9 @@ export async function writePartialTaggingResultsFromSidecars(input: {
       continue;
     }
 
-    const jsonPath = replaceExtension(mediaFilePath, '.json');
+    const modelJsonPath = replaceExtension(mediaFilePath, '.json');
+    const acceptedJsonPath = replaceExtension(mediaFilePath, '.accepted.json');
+    const jsonPath = await pathExists(acceptedJsonPath) ? acceptedJsonPath : modelJsonPath;
 
     try {
       await access(jsonPath);
@@ -172,6 +174,14 @@ export async function writePartialTaggingResultsFromSidecars(input: {
 }
 
 function extractCandidatePathsFromSidecar(payload: unknown): readonly string[] {
+  if (isRecord(payload) && Array.isArray(payload.acceptedPaths)) {
+    return Object.freeze(
+      payload.acceptedPaths
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+    );
+  }
+
   if (isRecord(payload) && Array.isArray(payload.accepted_paths)) {
     return Object.freeze(
       payload.accepted_paths
@@ -181,6 +191,15 @@ function extractCandidatePathsFromSidecar(payload: unknown): readonly string[] {
   }
 
   return parseModelTaggingResponse(JSON.stringify(payload)).candidatePaths;
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function mergeFallbackContentTopicPath(input: {

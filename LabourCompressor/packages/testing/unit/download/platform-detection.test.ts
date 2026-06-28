@@ -27,6 +27,18 @@ test('normalizes douyin shipin url to video url', () => {
   );
 });
 
+test('normalizes douyin share landing url to canonical video url', () => {
+  const detected = detectSupportedPlatformUrl(
+    'https://www.iesdouyin.com/share/video/7636717753054891300/?region=CN&from=web_code_link'
+  );
+
+  assert.equal(detected.platform, 'douyin');
+  assert.equal(
+    detected.normalizedUrl,
+    'https://www.douyin.com/video/7636717753054891300'
+  );
+});
+
 test('rejects unsupported platform host', () => {
   assert.throws(
     () => detectSupportedPlatformUrl('https://example.com/video'),

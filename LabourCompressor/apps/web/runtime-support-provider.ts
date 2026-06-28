@@ -5,6 +5,7 @@ import { createQwenCompatibleClient } from '../../packages/adapters/models/qwen-
 import {
   getEnabledProviderConfig,
   getVideoModelProfile,
+  listVideoModelProfiles,
   loadLocalProviderConfigFile,
   sanitizeLocalProviderConfig
 } from '../../packages/features/tagging/domain/index.ts';
@@ -78,6 +79,40 @@ export async function loadProviderConfigSummary(
   );
 }
 
+export async function loadVideoModelProviderSummaries(input: {
+  readonly providerConfigPath: string;
+}): Promise<Readonly<{
+  readonly models: readonly Readonly<{
+    readonly profileId: string;
+    readonly modelName: string;
+    readonly provider: string;
+    readonly modelId: string;
+    readonly providerEnabled: boolean;
+    readonly apiKeyPresent: boolean;
+    readonly lastProbe: null;
+  }>[];
+}>> {
+  const configMap = await loadLocalProviderConfigFile(input.providerConfigPath);
+
+  return Object.freeze({
+    models: Object.freeze(
+      listVideoModelProfiles().map((profile) => {
+        const providerConfig = configMap[profile.provider];
+
+        return Object.freeze({
+          profileId: profile.id,
+          modelName: profile.label,
+          provider: profile.provider,
+          modelId: profile.modelName,
+          providerEnabled: providerConfig?.enabled === true,
+          apiKeyPresent: (providerConfig?.apiKey.trim().length ?? 0) > 0,
+          lastProbe: null
+        });
+      })
+    )
+  });
+}
+
 export async function getSelectedProviderConfigSummary(input: {
   readonly providerConfigPath: string;
   readonly selectedModelProfileId: string;
@@ -106,6 +141,7 @@ export async function saveSelectedProviderApiKey(input: {
   readonly providerConfigPath: string;
   readonly selectedModelProfileId: string;
   readonly apiKey: string;
+  readonly probe?: typeof probeSelectedProvider;
 }): Promise<Readonly<Record<string, unknown>>> {
   const profile = getVideoModelProfile(input.selectedModelProfileId);
   const raw = JSON.parse(await readFile(input.providerConfigPath, 'utf8')) as Record<
@@ -129,14 +165,43 @@ export async function saveSelectedProviderApiKey(input: {
 
   await writeFile(input.providerConfigPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
 
-  return Object.freeze({
-    saved: true,
-    profile,
-    probe: await probeSelectedProvider({
-      providerConfigPath: input.providerConfigPath,
-      selectedModelProfileId: input.selectedModelProfileId
-    })
+  const profileSummary = Object.freeze({
+    id: profile.id,
+    label: profile.label,
+    provider: profile.provider,
+    modelName: profile.modelName
   });
+
+  try {
+    return Object.freeze({
+      saved: true,
+      profile: profileSummary,
+      probe: await (input.probe ?? probeSelectedProvider)({
+        providerConfigPath: input.providerConfigPath,
+        selectedModelProfileId: input.selectedModelProfileId
+      })
+    });
+  } catch (error) {
+    return Object.freeze({
+      saved: true,
+      profile: profileSummary,
+      probe: Object.freeze({
+        key: 'provider-probe',
+        ok: false,
+        message: sanitizeSavedProviderProbeErrorMessage(error, input.apiKey),
+        details: {
+          provider: profile.provider,
+          model: profile.modelName,
+          reason: 'provider-probe-failed'
+        }
+      })
+    });
+  }
+}
+
+function sanitizeSavedProviderProbeErrorMessage(error: unknown, apiKey: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return sanitizeProviderErrorMessage(message.replaceAll(apiKey, '[REDACTED]'));
 }
 
 export async function checkProvider(

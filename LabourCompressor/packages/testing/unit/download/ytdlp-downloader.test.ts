@@ -10,6 +10,7 @@ import {
   classifyYtDlpErrorMessage,
   createYtDlpDownloaderAdapter,
   extractStructuredDownloadError,
+  inspectYtDlpBinary,
   parseYtDlpProgressLine,
   resolveYtDlpBinaryPath,
   resolveYtDlpCredential,
@@ -102,6 +103,33 @@ test('falls back to config global cookies after platform and request-level crede
 
 test('validates that yt-dlp binary is available', async () => {
   assert.equal(await validateYtDlpBinary(), true);
+});
+
+test('reports stale yt-dlp binary versions from date-based release tags', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'labour-compressor-ytdlp-'));
+  const fakeBinaryPath = path.join(tempDir, 'fake-yt-dlp.sh');
+
+  try {
+    writeFileSync(
+      fakeBinaryPath,
+      `#!/bin/sh
+echo '2026.03.17'
+`,
+      'utf8'
+    );
+    chmodSync(fakeBinaryPath, 0o755);
+
+    const result = await inspectYtDlpBinary(
+      fakeBinaryPath,
+      new Date('2026-06-24T00:00:00.000Z')
+    );
+
+    assert.equal(result.available, true);
+    assert.equal(result.version, '2026.03.17');
+    assert.equal(result.isStale, true);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('creates output directory before invoking downloader binary', async () => {
@@ -198,6 +226,25 @@ test('classifies fresh cookies and bilibili 412 errors', () => {
     classifyYtDlpErrorMessage('spawn yt-dlp ENOENT').status,
     'runtime-error'
   );
+});
+
+test('classifies douyin json challenge separately from stale cookies', () => {
+  const result = classifyYtDlpErrorMessage(
+    [
+      "WARNING: [Douyin] 7636717753054891300: Failed to parse JSON: Expecting value in '': line 1 column 1 (char 0)",
+      'ERROR: [Douyin] 7636717753054891300: Fresh cookies (not necessarily logged in) are needed'
+    ].join('\n')
+  );
+
+  assert.equal(result.status, 'douyin-detail-api-blocked');
+});
+
+test('classifies douyin fresh-cookie extractor failures without warnings as protection challenges', () => {
+  const result = classifyYtDlpErrorMessage(
+    'ERROR: [Douyin] 7636717753054891300: Fresh cookies (not necessarily logged in) are needed'
+  );
+
+  assert.equal(result.status, 'douyin-detail-api-blocked');
 });
 
 test('extracts structured short download error without leaking yt-dlp long logs', () => {

@@ -2,51 +2,90 @@ import { escapeHtml } from './form-state.js';
 
 export function renderAfterEditFiles(files, resultsList) {
   if (!files.length) {
-    return;
-  }
-
-  resultsList.classList.remove('empty-state');
-  resultsList.innerHTML = files
-    .map((file) => `
-      <div class="task-list-row">
-        <strong>${escapeHtml(file.fileName ?? '剪辑文件')}</strong>
-        <span class="stage-pill stage-running">等待打标</span>
-        <span>${escapeHtml(file.relativePath ?? '—')}</span>
-        <span>${file.renamed ? '文件名已修正' : '无需修正'}</span>
-      </div>
-    `)
-    .join('');
-}
-
-export function renderResultCards(results, resultsList, currentRunSpreadsheetPath = '') {
-  if (!results.length) {
-    resultsList.innerHTML = '<p>当前没有可显示的结果。</p>';
+    resultsList.innerHTML = '';
     resultsList.classList.add('empty-state');
     return;
   }
 
   resultsList.classList.remove('empty-state');
+  const renamed = files.filter((file) => file.renamed);
   resultsList.innerHTML = `
-    <div class="result-summary">${renderResultSummary(results, currentRunSpreadsheetPath)}</div>
-    <div class="task-list-header">
-      <span>文件</span>
-      <span>当前环节</span>
-      <span>归档路径</span>
-      <span>失败 / 下一步</span>
-    </div>
-    ${results.map((item) => renderResultRow(item)).join('')}
+    <div class="result-summary">已载入 ${files.length} 个剪辑文件 · 文件名修正 ${renamed.length}</div>
+    ${renamed.length > 0 ? `
+      <details class="result-problems" open>
+        <summary>需要留意 (${renamed.length})</summary>
+        <div class="result-table">${renamed.map((file) => renderAfterEditRow(file)).join('')}</div>
+      </details>
+    ` : ''}
+    <details class="result-all">
+      <summary>完整文件 (${files.length})</summary>
+      <div class="result-table">${files.map((file) => renderAfterEditRow(file)).join('')}</div>
+    </details>
   `;
+}
+
+export function renderResultCards(results, resultsList, currentRunSpreadsheetPath = '') {
+  if (!results.length) {
+    resultsList.innerHTML = '';
+    resultsList.classList.add('empty-state');
+    return;
+  }
+
+  resultsList.classList.remove('empty-state');
+  resultsList.innerHTML = buildResultWorkbenchHtml(results, currentRunSpreadsheetPath);
   resultsList.scrollTop = 0;
 }
 
-function renderResultSummary(results, currentRunSpreadsheetPath) {
-  const succeeded = results.filter((item) => item.archiveState === '已归档').length;
-  const failed = results.filter((item) => item.failure).length;
-  const waitingEdit = results.filter((item) => item.archiveState === '已下载待剪辑').length;
-  const sheetText = currentRunSpreadsheetPath
-    ? ` · 本次结果表：${currentRunSpreadsheetPath}`
-    : '';
-  return `共 ${results.length} 条 · 归档成功 ${succeeded} · 失败 ${failed} · 等待剪辑 ${waitingEdit}${sheetText}`;
+export function classifyResult(item) {
+  if (item.failure || item.archiveState === '下载失败') {
+    return 'failed';
+  }
+  if (item.archiveState === '已归档' || item.archiveState === '已跳过：视频过短') {
+    return 'succeeded';
+  }
+  return 'pending';
+}
+
+export function buildResultWorkbenchHtml(results, currentRunSpreadsheetPath = '') {
+  if (!results?.length) {
+    return '';
+  }
+
+  const groups = {
+    succeeded: results.filter((item) => classifyResult(item) === 'succeeded'),
+    failed: results.filter((item) => classifyResult(item) === 'failed'),
+    pending: results.filter((item) => classifyResult(item) === 'pending')
+  };
+  const problems = [...groups.failed, ...groups.pending];
+
+  return `
+    <div class="result-summary">
+      <span>总数 ${results.length}</span>
+      <span>成功 ${groups.succeeded.length}</span>
+      <span>失败 ${groups.failed.length}</span>
+      <span>待处理 ${groups.pending.length}</span>
+    </div>
+    ${problems.length > 0 ? `
+      <details class="result-problems" open>
+        <summary>异常与人工处理 (${problems.length})</summary>
+        <div class="result-table">${renderResultTable(problems)}</div>
+      </details>
+    ` : ''}
+    <details class="result-all">
+      <summary>完整结果 (${results.length})</summary>
+      ${currentRunSpreadsheetPath ? `<p class="result-sheet-path">本次结果表：${escapeHtml(currentRunSpreadsheetPath)}</p>` : ''}
+      <div class="result-table">${renderResultTable(results)}</div>
+    </details>
+  `;
+}
+
+function renderResultTable(results) {
+  return `
+    <div class="task-list-header">
+      <span>文件</span><span>当前环节</span><span>归档路径</span><span>失败 / 下一步</span>
+    </div>
+    ${results.map((item) => renderResultRow(item)).join('')}
+  `;
 }
 
 function renderResultRow(item) {
@@ -59,7 +98,7 @@ function renderResultRow(item) {
     <div class="task-list-row">
       <strong>${escapeHtml(deriveResultFileName(item))}</strong>
       <span class="stage-pill stage-${stageClassName(item)}">${escapeHtml(phaseLabel)}</span>
-      <span>${escapeHtml(item.archivePath || '—')}</span>
+      <span>${escapeHtml(item.archivePath || '')}</span>
       <span>${escapeHtml(failureText)}</span>
     </div>
   `;
@@ -70,12 +109,23 @@ function deriveNextStepText(item) {
     return '等待你把剪辑后的导出文件放进 AfterEdit 目录。';
   }
   if (item.archiveState === '已归档') {
-    return '无';
+    return '';
   }
   if (item.archiveState === '已下载未归档') {
     return '等待人工确认归档类目。';
   }
   return '继续等待当前任务处理。';
+}
+
+function renderAfterEditRow(file) {
+  return `
+    <div class="task-list-row">
+      <strong>${escapeHtml(file.fileName ?? '剪辑文件')}</strong>
+      <span class="stage-pill stage-running">等待打标</span>
+      <span>${escapeHtml(file.relativePath ?? '')}</span>
+      <span>${file.renamed ? '文件名已修正' : ''}</span>
+    </div>
+  `;
 }
 
 function deriveResultStage(item) {
@@ -142,6 +192,9 @@ function humanizeFailureCode(errorCode, phase) {
     'needs-fresh-cookies': 'Cookies 需要重新获取',
     'cookies-expired': 'Cookies 已过期',
     'blocked-by-bilibili-412': '平台风控拦截',
+    'douyin-detail-api-blocked': '抖音详情接口被阻断',
+    'douyin-ssr-unavailable': '抖音页面解析失败',
+    'douyin-play-url-expired': '抖音播放地址失效',
     'platform-rate-limited': '平台请求过频',
     'rename-failed': '下载文件重命名失败',
     'output-not-detected': '未识别到下载产物',
@@ -161,10 +214,13 @@ function humanizeFailureCode(errorCode, phase) {
 function humanizeFailureHint(errorCode, phase) {
   if (phase === 'download') {
     const mapping = {
-      'missing-credentials': '请打开“配置下载凭证”，为当前平台补充 cookies.txt 或 cookies-from-browser。',
+      'missing-credentials': '请打开“配置下载凭证”，为当前平台重新导入 cookies.txt。',
       'needs-fresh-cookies': '当前 cookies 不够新鲜，请重新导出后再运行。',
       'cookies-expired': '当前 cookies 已失效，请重新登录并更新凭证。',
       'blocked-by-bilibili-412': '平台当前触发了风控。优先检查该平台的登录态，必要时稍后重试。',
+      'douyin-detail-api-blocked': '抖音详情接口返回空数据。程序会优先尝试页面 SSR 解析；若仍失败，请刷新 URL 或更新 cookies。',
+      'douyin-ssr-unavailable': '抖音页面中没有可用视频信息。请确认链接当前可访问，必要时重新导出 cookies。',
+      'douyin-play-url-expired': '抖音播放地址已失效。请刷新测试 URL 或重新运行任务获取新的播放地址。',
       'platform-rate-limited': '平台当前限制请求频率。请稍后重试，避免短时间批量重跑。',
       'rename-failed': '下载阶段已产生临时文件，但落盘重命名失败。请检查下载目录权限与磁盘状态。',
       'output-not-detected': '下载器运行结束，但程序未确认最终产物。建议重试一次；若持续出现，再检查平台凭证。',

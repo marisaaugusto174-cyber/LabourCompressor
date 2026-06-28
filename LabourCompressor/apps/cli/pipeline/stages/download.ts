@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { createSimulatedDownloaderAdapter } from '../../../../packages/adapters/downloaders/simulated-downloader.ts';
-import { createYtDlpDownloaderAdapter } from '../../../../packages/adapters/downloaders/ytdlp-downloader.ts';
+import { createPlatformAwareDownloaderAdapter } from '../../../../packages/adapters/downloaders/platform-aware-downloader.ts';
 import { createFfmpegMergeOperator } from '../../../../packages/adapters/media/ffmpeg-merge-operator.ts';
 import { mergeDownloadedStreams } from '../../../../packages/adapters/media/local-merge-operator.ts';
 import { runSpreadsheetDownloadBatch } from '../../../../packages/features/download/domain/index.ts';
@@ -59,7 +59,7 @@ export async function runDownloadStage(input: StageContext & {
     outputDirectory: input.input.options.downloadDir,
     downloader:
       input.input.options.downloaderMode === 'yt-dlp'
-        ? createYtDlpDownloaderAdapter({
+        ? createPlatformAwareDownloaderAdapter({
             binaryPath: input.input.options.ytDlpBinary,
             cookiesFilePath: input.input.options.cookiesFilePath,
             cookiesFromBrowser: input.input.options.cookiesFromBrowser,
