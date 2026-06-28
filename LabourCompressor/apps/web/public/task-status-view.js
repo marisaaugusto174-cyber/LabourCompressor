@@ -280,6 +280,17 @@ function inferNextAction(task) {
     return '刷新抖音链接或凭证';
   }
 
+  if (results.some((item) => [
+    'xiaohongshu-no-formats',
+    'xiaohongshu-page-unavailable',
+    'xiaohongshu-video-data-unavailable',
+    'xiaohongshu-play-url-expired',
+    'xiaohongshu-media-type-invalid',
+    'xiaohongshu-media-truncated'
+  ].includes(item.failure?.errorCode))) {
+    return '重试小红书下载或更新凭证';
+  }
+
   if (results.some((item) => item.failure)) {
     return '处理失败项后重试';
   }

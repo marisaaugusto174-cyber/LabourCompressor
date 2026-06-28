@@ -73,8 +73,24 @@ test('renders actionable Xiaohongshu download failures', () => {
       phase: 'download',
       errorCode: 'xiaohongshu-play-url-expired'
     }
+  }, {
+    rowNumber: 7,
+    archiveState: '下载失败',
+    failure: {
+      phase: 'download',
+      errorCode: 'xiaohongshu-media-type-invalid'
+    }
+  }, {
+    rowNumber: 8,
+    archiveState: '下载失败',
+    failure: {
+      phase: 'download',
+      errorCode: 'xiaohongshu-media-truncated'
+    }
   }]);
 
   assert.equal(html.includes('小红书笔记不是视频'), true);
   assert.equal(html.includes('重新运行任务获取新的播放地址'), true);
+  assert.equal(html.includes('小红书媒体类型异常'), true);
+  assert.equal(html.includes('小红书视频内容不完整'), true);
 });

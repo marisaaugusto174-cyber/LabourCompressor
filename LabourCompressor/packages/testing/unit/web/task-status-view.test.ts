@@ -70,6 +70,24 @@ test('task status view labels Xiaohongshu spreadsheet sources', () => {
   assert.equal(refs.statusPlatform.textContent, '小红书');
 });
 
+test('task status view gives a Xiaohongshu-specific action for media integrity failures', () => {
+  const refs = createRefs();
+  initTaskStatusView(createOptions(refs));
+
+  renderTaskStatus({
+    status: 'failed',
+    options: {},
+    result: {
+      results: [{
+        archiveState: '下载失败',
+        failure: { errorCode: 'xiaohongshu-media-truncated' }
+      }]
+    }
+  });
+
+  assert.equal(refs.statusNextAction.textContent, '重试小红书下载或更新凭证');
+});
+
 test('task status view marks problem clips as pending manual handling', () => {
   const refs = createRefs();
   initTaskStatusView({

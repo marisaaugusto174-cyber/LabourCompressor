@@ -47,6 +47,8 @@ export type DownloadProbeStatus =
   | 'xiaohongshu-page-unavailable'
   | 'xiaohongshu-video-data-unavailable'
   | 'xiaohongshu-play-url-expired'
+  | 'xiaohongshu-media-type-invalid'
+  | 'xiaohongshu-media-truncated'
   | 'platform-rate-limited'
   | 'rename-failed'
   | 'output-not-detected'
@@ -672,6 +674,10 @@ function buildUserFacingDownloadMessage(
       return '下载失败：小红书笔记页面中没有可用的视频播放信息。';
     case 'xiaohongshu-play-url-expired':
       return '下载失败：小红书播放地址不可用或已过期。';
+    case 'xiaohongshu-media-type-invalid':
+      return '下载失败：小红书媒体地址返回了非视频内容。';
+    case 'xiaohongshu-media-truncated':
+      return '下载失败：小红书视频下载内容不完整。';
     case 'platform-rate-limited':
       return '下载失败：平台当前限制请求频率。';
     case 'rename-failed':

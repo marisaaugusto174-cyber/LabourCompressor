@@ -12,4 +12,12 @@ test('humanizes Xiaohongshu page and note failures', () => {
     humanizeDownloadFailure('xiaohongshu-page-unavailable', 'raw'),
     /页面暂时不可用/u
   );
+  assert.match(
+    humanizeDownloadFailure('xiaohongshu-media-type-invalid', 'raw'),
+    /非视频内容/u
+  );
+  assert.match(
+    humanizeDownloadFailure('xiaohongshu-media-truncated', 'raw'),
+    /内容不完整/u
+  );
 });

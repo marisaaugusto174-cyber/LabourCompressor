@@ -314,6 +314,10 @@ export function humanizeDownloadFailure(
       return '下载失败：小红书笔记页面中没有可用的视频播放信息。';
     case 'xiaohongshu-play-url-expired':
       return '下载失败：小红书播放地址已失效，请重新运行任务。';
+    case 'xiaohongshu-media-type-invalid':
+      return '下载失败：小红书媒体地址返回了非视频内容，请更新凭证或稍后重试。';
+    case 'xiaohongshu-media-truncated':
+      return '下载失败：小红书视频内容不完整，请检查网络后重试。';
     case 'platform-rate-limited':
       return '下载失败：平台触发频率限制。请稍后重试。';
     case 'rename-failed':
