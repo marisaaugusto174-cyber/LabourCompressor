@@ -9,7 +9,7 @@ import { sanitizePlatformUrlForOutput } from '../../packages/features/download/d
 import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
-import { type PipelineItemTimings } from './local-pipeline-tagging.ts';
+import { type PipelineItemTimings } from './local-pipeline-tagging-contracts.ts';
 import { DEFAULT_MASTER_SPREADSHEET_PATH } from './project-paths.ts';
 
 export const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
