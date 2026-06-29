@@ -90,9 +90,15 @@ export async function resolveRequiredArchivePath(input: {
   }
 
   const repair = await input.requestRepair();
+  const repairResponse = requireRepairResponse(repair.structuredResponse);
+  selectArchivePathFromStructuredTags({
+    structuredResponse: repairResponse,
+    policy: input.policy,
+    taxonomyTree: input.taxonomyTree
+  });
   const repairedResponse = mergeStructuredResponses(
     initialResponse,
-    requireRepairResponse(repair.structuredResponse),
+    repairResponse,
     input.policy
   );
   const acceptedPaths = mergeAcceptedPaths(

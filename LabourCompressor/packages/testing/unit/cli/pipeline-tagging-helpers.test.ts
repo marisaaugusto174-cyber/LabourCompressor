@@ -197,6 +197,29 @@ test('repairs duplicate primary actions only once and propagates the classified 
   assert.equal(repairs, 1);
 });
 
+test('rejects duplicate identical primary actions returned by the single repair', async () => {
+  let repairs = 0;
+  await assert.rejects(
+    resolveRequiredArchivePath({
+      acceptedPaths: [contentTag.labelPath.join(' > ')],
+      structuredResponse: response([contentTag]),
+      modelJson: { tags: [] },
+      policy: archivePolicy,
+      taxonomyTree: archiveTaxonomy,
+      requestRepair: async () => {
+        repairs += 1;
+        return {
+          structuredResponse: response([mainAction, mainAction]),
+          modelJson: { tags: [] }
+        };
+      }
+    }),
+    (error: unknown) => error instanceof ArchivePrimaryTagError &&
+      error.code === 'archive-primary-tag-conflict'
+  );
+  assert.equal(repairs, 1);
+});
+
 test('does not synthesize a real structured response before its single repair', async () => {
   let repairs = 0;
   const result = await resolveRequiredArchivePath({
