@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -99,6 +100,7 @@ test('does not overwrite an existing working copy', async () => {
     taskId: TASK_ID,
     createdAt: CREATED_AT
   });
+  const cachePath = buildUserSheetTaskCachePath({ sourcePath: source, taskId: TASK_ID });
   try {
     await writeFile(source, 'source');
     await writeFile(target, 'existing');
@@ -112,6 +114,31 @@ test('does not overwrite an existing working copy', async () => {
       WorkingCopyNameConflictError
     );
     assert.equal(await readFile(target, 'utf8'), 'existing');
+    await assert.rejects(stat(cachePath), { code: 'ENOENT' });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('does not reuse or delete an existing task cache directory', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'spreadsheet-cache-conflict-'));
+  const source = path.join(tempDir, 'tasks.xlsx');
+  const cachePath = buildUserSheetTaskCachePath({ sourcePath: source, taskId: TASK_ID });
+  const markerPath = path.join(cachePath, 'existing.mp4');
+  try {
+    await writeFile(source, 'source');
+    await mkdir(cachePath);
+    await writeFile(markerPath, 'existing');
+
+    await assert.rejects(
+      prepareUserSpreadsheetWorkingCopy({
+        taskId: TASK_ID,
+        createdAt: CREATED_AT,
+        options: createOptions(source)
+      }),
+      WorkingCopyNameConflictError
+    );
+    assert.equal(await readFile(markerPath, 'utf8'), 'existing');
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
