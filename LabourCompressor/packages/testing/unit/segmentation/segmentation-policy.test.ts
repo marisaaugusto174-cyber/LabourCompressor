@@ -57,33 +57,35 @@ test('rounds assembled segment ranges to 3 decimals', () => {
   ]);
 });
 
-test('forces long segment under 30 seconds', () => {
+test('accepts a continuous segment inside the 5-60 second hard range', () => {
   const governed = enforceSegmentDurations({
     segments: [{ startSeconds: 0, endSeconds: 45 }],
-    minimumSeconds: 3,
+    minimumSeconds: 5,
     preferredMinimumSeconds: 5,
-    maximumSeconds: 30
+    preferredMaximumSeconds: 30,
+    maximumSeconds: 60
   });
 
   assert.deepEqual(governed.accepted, [
-    { startSeconds: 0, endSeconds: 22.5, forced: true },
-    { startSeconds: 22.5, endSeconds: 45, forced: true }
+    { startSeconds: 0, endSeconds: 45 }
   ]);
   assert.deepEqual(governed.problems, []);
 });
 
-test('accepts 3-5 second segment without forced marking', () => {
+test('rejects a segment below the 5 second hard minimum', () => {
   const governed = enforceSegmentDurations({
     segments: [{ startSeconds: 10, endSeconds: 14 }],
-    minimumSeconds: 3,
+    minimumSeconds: 5,
     preferredMinimumSeconds: 5,
-    maximumSeconds: 30
+    preferredMaximumSeconds: 30,
+    maximumSeconds: 60
   });
 
-  assert.deepEqual(governed.accepted, [
-    { startSeconds: 10, endSeconds: 14 }
-  ]);
-  assert.deepEqual(governed.problems, []);
+  assert.deepEqual(governed.accepted, []);
+  assert.deepEqual(governed.problems, [{
+    segment: { startSeconds: 10, endSeconds: 14 },
+    problemCategory: 'duration-rule-unsatisfied'
+  }]);
 });
 
 test('marks isolated sub-minimum segment as duration problem', () => {

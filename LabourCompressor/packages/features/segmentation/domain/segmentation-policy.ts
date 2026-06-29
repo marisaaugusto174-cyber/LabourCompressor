@@ -35,6 +35,7 @@ export interface EnforceSegmentDurationsInput {
   readonly segments: readonly SegmentTimeRange[];
   readonly minimumSeconds: number;
   readonly preferredMinimumSeconds: number;
+  readonly preferredMaximumSeconds?: number | undefined;
   readonly maximumSeconds: number;
 }
 
@@ -369,6 +370,8 @@ function isContinuityReasonCode(
 function validateDurationRules(input: EnforceSegmentDurationsInput): void {
   assertPositiveFinite(input.minimumSeconds, 'minimumSeconds');
   assertPositiveFinite(input.preferredMinimumSeconds, 'preferredMinimumSeconds');
+  const preferredMaximumSeconds = input.preferredMaximumSeconds ?? input.maximumSeconds;
+  assertPositiveFinite(preferredMaximumSeconds, 'preferredMaximumSeconds');
   assertPositiveFinite(input.maximumSeconds, 'maximumSeconds');
 
   if (input.minimumSeconds > input.preferredMinimumSeconds) {
@@ -380,6 +383,16 @@ function validateDurationRules(input: EnforceSegmentDurationsInput): void {
   if (input.preferredMinimumSeconds > input.maximumSeconds) {
     throw new Error(
       'preferredMinimumSeconds must be less than or equal to maximumSeconds.'
+    );
+  }
+  if (input.preferredMinimumSeconds > preferredMaximumSeconds) {
+    throw new Error(
+      'preferredMinimumSeconds must be less than or equal to preferredMaximumSeconds.'
+    );
+  }
+  if (preferredMaximumSeconds > input.maximumSeconds) {
+    throw new Error(
+      'preferredMaximumSeconds must be less than or equal to maximumSeconds.'
     );
   }
 }

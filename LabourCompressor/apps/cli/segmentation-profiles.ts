@@ -11,6 +11,7 @@ export interface SegmentationProfileDefinition {
   readonly detector: SegmentationDetector;
   readonly minimumSeconds: number;
   readonly preferredMinimumSeconds: number;
+  readonly preferredMaximumSeconds: number;
   readonly maximumSeconds: number;
   readonly source: 'builtin' | 'repository';
   readonly manifestPath?: string | undefined;
@@ -18,8 +19,19 @@ export interface SegmentationProfileDefinition {
 
 export type SegmentationProfileRules = Pick<
   SegmentationProfileDefinition,
-  'detector' | 'minimumSeconds' | 'preferredMinimumSeconds' | 'maximumSeconds'
+  | 'detector'
+  | 'minimumSeconds'
+  | 'preferredMinimumSeconds'
+  | 'preferredMaximumSeconds'
+  | 'maximumSeconds'
 >;
+
+export const DEFAULT_SEGMENTATION_DURATION_POLICY = Object.freeze({
+  minimumSeconds: 5,
+  preferredMinimumSeconds: 5,
+  preferredMaximumSeconds: 30,
+  maximumSeconds: 60
+});
 
 export const SEGMENTATION_PROFILE_REPOSITORY_DIR = projectPath(
   'config/repositories/segmentation-profiles'
@@ -30,27 +42,21 @@ export const BUILTIN_SEGMENTATION_PROFILE_DEFINITIONS: readonly SegmentationProf
     id: 'standard_ad',
     label: 'standard_ad',
     detector: 'adaptive',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 5,
-    maximumSeconds: 30,
+    ...DEFAULT_SEGMENTATION_DURATION_POLICY,
     source: 'builtin'
   }),
   Object.freeze({
     id: 'fast_cut',
     label: 'fast_cut',
     detector: 'content',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 5,
-    maximumSeconds: 30,
+    ...DEFAULT_SEGMENTATION_DURATION_POLICY,
     source: 'builtin'
   }),
   Object.freeze({
     id: 'conservative',
     label: 'conservative',
     detector: 'adaptive',
-    minimumSeconds: 3,
-    preferredMinimumSeconds: 8,
-    maximumSeconds: 30,
+    ...DEFAULT_SEGMENTATION_DURATION_POLICY,
     source: 'builtin'
   })
 ]);
@@ -84,6 +90,7 @@ export async function resolveSegmentationProfileRules(profileId: string): Promis
     detector: profile.detector,
     minimumSeconds: profile.minimumSeconds,
     preferredMinimumSeconds: profile.preferredMinimumSeconds,
+    preferredMaximumSeconds: profile.preferredMaximumSeconds,
     maximumSeconds: profile.maximumSeconds
   });
 }
@@ -135,13 +142,23 @@ function readSegmentationProfileManifest(
     'preferredMinimumSeconds',
     manifestPath
   );
+  const preferredMaximumSeconds = readRequiredPositiveNumber(
+    value.preferredMaximumSeconds,
+    'preferredMaximumSeconds',
+    manifestPath
+  );
   const maximumSeconds = readRequiredPositiveNumber(value.maximumSeconds, 'maximumSeconds', manifestPath);
 
   if (detector !== 'adaptive' && detector !== 'content') {
     throw new Error(`Invalid detector in segmentation profile manifest: ${manifestPath}`);
   }
-  if (minimumSeconds > preferredMinimumSeconds || preferredMinimumSeconds > maximumSeconds) {
-    throw new Error(`Invalid duration order in segmentation profile manifest: ${manifestPath}`);
+  if (!matchesUnifiedDurationPolicy({
+    minimumSeconds,
+    preferredMinimumSeconds,
+    preferredMaximumSeconds,
+    maximumSeconds
+  })) {
+    throw new Error(`Segmentation profiles must use the unified 5-30-60 duration policy: ${manifestPath}`);
   }
 
   return Object.freeze({
@@ -150,10 +167,25 @@ function readSegmentationProfileManifest(
     detector,
     minimumSeconds,
     preferredMinimumSeconds,
+    preferredMaximumSeconds,
     maximumSeconds,
     source: 'repository',
     manifestPath
   });
+}
+
+function matchesUnifiedDurationPolicy(
+  value: {
+    readonly minimumSeconds: number;
+    readonly preferredMinimumSeconds: number;
+    readonly preferredMaximumSeconds: number;
+    readonly maximumSeconds: number;
+  }
+): boolean {
+  return value.minimumSeconds === DEFAULT_SEGMENTATION_DURATION_POLICY.minimumSeconds &&
+    value.preferredMinimumSeconds === DEFAULT_SEGMENTATION_DURATION_POLICY.preferredMinimumSeconds &&
+    value.preferredMaximumSeconds === DEFAULT_SEGMENTATION_DURATION_POLICY.preferredMaximumSeconds &&
+    value.maximumSeconds === DEFAULT_SEGMENTATION_DURATION_POLICY.maximumSeconds;
 }
 
 function readRequiredString(value: unknown, key: string, manifestPath: string): string {
