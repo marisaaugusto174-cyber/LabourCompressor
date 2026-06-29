@@ -14,24 +14,56 @@ export interface StructuredTaggingResponse {
   readonly tags: readonly StructuredTagCandidate[];
 }
 
+const TAG_COLLECTION_KEYS = [
+  'tags',
+  'fact_tags',
+  'metadata_tags',
+  'production_tags'
+] as const;
+
 export function parseStructuredTaggingResponse(
   value: Readonly<Record<string, unknown>>
 ): StructuredTaggingResponse {
-  const tagArrays = [
-    value.tags,
-    value.fact_tags,
-    value.metadata_tags,
-    value.production_tags
-  ].filter(Array.isArray) as readonly unknown[][];
-  const tags = tagArrays.flatMap((tagArray) =>
-    tagArray.filter(isRecord).map(parseStructuredTagCandidate)
-  );
+  const tags: StructuredTagCandidate[] = [];
+
+  for (const key of TAG_COLLECTION_KEYS) {
+    if (!(key in value)) {
+      continue;
+    }
+
+    const tagCollection = value[key];
+    if (!Array.isArray(tagCollection)) {
+      throw new Error(`Structured tag field ${key} must be an array.`);
+    }
+
+    for (const tag of tagCollection) {
+      if (!isRecord(tag)) {
+        throw new Error(`Structured tag field ${key} must contain only objects.`);
+      }
+
+      tags.push(parseStructuredTagCandidate(tag));
+    }
+  }
 
   return Object.freeze({
-    reviewRequired: value.review_required === true,
+    reviewRequired: readReviewRequired(value),
     reviewReason: readString(value.review_reason),
     tags: Object.freeze(tags)
   });
+}
+
+function readReviewRequired(
+  value: Readonly<Record<string, unknown>>
+): boolean {
+  if (!('review_required' in value)) {
+    return false;
+  }
+
+  if (typeof value.review_required !== 'boolean') {
+    throw new Error('Structured tag field review_required must be a boolean.');
+  }
+
+  return value.review_required;
 }
 
 function parseStructuredTagCandidate(

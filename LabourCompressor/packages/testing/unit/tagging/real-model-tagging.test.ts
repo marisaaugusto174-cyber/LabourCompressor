@@ -35,21 +35,21 @@ test('parses candidate path json array from model response', () => {
 
 test('parses core v0.1 structured tagging json response into taxonomy paths', () => {
   const parsed = parseModelTaggingResponse(JSON.stringify({
-      taxonomy_version: 'Core_Prompt_V0.1',
-      segment_id: 'seg-1',
-      review_required: false,
-      review_reason: '',
-      tags: [
-        {
-          dimension: '表现形式',
-          label_path: ['表现形式', '商业传播', '产品转化']
-        },
-        {
-          dimension: '内容领域',
-          label_path: ['内容领域', '商业营销', '产品广告']
-        }
-      ]
-    }));
+    taxonomy_version: 'Core_Prompt_V0.1',
+    segment_id: 'seg-1',
+    review_required: false,
+    review_reason: '',
+    tags: [
+      {
+        dimension: '表现形式',
+        label_path: ['表现形式', '商业传播', '产品转化']
+      },
+      {
+        dimension: '内容领域',
+        label_path: ['内容领域', '商业营销', '产品广告']
+      }
+    ]
+  }));
 
   assert.deepEqual(
     parsed.candidatePaths,
@@ -105,7 +105,7 @@ test('preserves normalized core-action tag roles and label paths', () => {
       {
         dimension: '核心动作',
         label_path: ['核心动作', '身体动作', '位移动作', '跑动'],
-        selected_level: '四级',
+        selected_level: 'l4',
         tag_role: '主动作',
         entity_id: '',
         target_entity_id: 'ent-1',
@@ -114,7 +114,7 @@ test('preserves normalized core-action tag roles and label paths', () => {
       {
         dimension: '核心动作',
         label_path: ['核心动作', '身体动作', '姿态动作', '转身'],
-        selected_level: '四级',
+        selected_level: 'l4',
         tag_role: '次动作',
         entity_id: '',
         target_entity_id: 'ent-1'
@@ -126,11 +126,12 @@ test('preserves normalized core-action tag roles and label paths', () => {
     '核心动作 > 身体动作 > 位移动作 > 跑动',
     '核心动作 > 身体动作 > 姿态动作 > 转身'
   ]);
-  assert.deepEqual(parsed.structuredResponse?.tags, [
+  assert.ok(parsed.structuredResponse);
+  assert.deepEqual(parsed.structuredResponse.tags, [
     {
       dimension: '核心动作',
       labelPath: ['核心动作', '身体动作', '位移动作', '跑动'],
-      selectedLevel: '四级',
+      selectedLevel: 'l4',
       tagRole: '主动作',
       entityId: '',
       targetEntityId: 'ent-1',
@@ -139,13 +140,17 @@ test('preserves normalized core-action tag roles and label paths', () => {
     {
       dimension: '核心动作',
       labelPath: ['核心动作', '身体动作', '姿态动作', '转身'],
-      selectedLevel: '四级',
+      selectedLevel: 'l4',
       tagRole: '次动作',
       entityId: '',
       targetEntityId: 'ent-1',
       confidenceScore: undefined
     }
   ]);
+  assert.equal(Object.isFrozen(parsed.structuredResponse), true);
+  assert.equal(Object.isFrozen(parsed.structuredResponse.tags), true);
+  assert.equal(Object.isFrozen(parsed.structuredResponse.tags[0]), true);
+  assert.equal(Object.isFrozen(parsed.structuredResponse.tags[0]?.labelPath), true);
 });
 
 test('keeps structured response undefined for legacy path arrays', () => {
@@ -169,6 +174,49 @@ test('rejects malformed structured tag selection fields', () => {
     assert.throws(
       () => parseModelTaggingResponse(JSON.stringify({ tags: [malformedTag] })),
       /must be (?:a string|an array of strings)/u
+    );
+  }
+});
+
+test('rejects non-boolean review_required when present', () => {
+  assert.throws(
+    () => parseModelTaggingResponse(JSON.stringify({
+      review_required: 'false',
+      tags: [{ dimension: '核心动作', label_path: ['核心动作'] }]
+    })),
+    /review_required must be a boolean/u
+  );
+});
+
+test('defaults review_required to false when absent', () => {
+  const parsed = parseModelTaggingResponse(JSON.stringify({
+    tags: [{ dimension: '核心动作', label_path: ['核心动作'] }]
+  }));
+
+  assert.equal(parsed.structuredResponse?.reviewRequired, false);
+});
+
+test('rejects a present structured tag collection that is not an array', () => {
+  for (const key of ['tags', 'fact_tags', 'metadata_tags', 'production_tags']) {
+    assert.throws(
+      () => parseModelTaggingResponse(JSON.stringify({
+        [key]: { dimension: '核心动作', label_path: ['核心动作'] }
+      })),
+      new RegExp(`${key} must be an array`, 'u')
+    );
+  }
+});
+
+test('rejects primitive members in structured tag collections', () => {
+  for (const key of ['tags', 'fact_tags', 'metadata_tags', 'production_tags']) {
+    assert.throws(
+      () => parseModelTaggingResponse(JSON.stringify({
+        [key]: [
+          { dimension: '核心动作', label_path: ['核心动作'] },
+          'malformed'
+        ]
+      })),
+      new RegExp(`${key} must contain only objects`, 'u')
     );
   }
 });
