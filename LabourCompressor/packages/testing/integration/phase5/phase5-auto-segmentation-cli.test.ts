@@ -8,6 +8,8 @@ import * as XLSX from 'xlsx';
 
 import { runLocalPipelineCommand } from '../../../../apps/cli/local-pipeline-command.ts';
 import { runTaggingBatch } from '../../../../apps/cli/local-pipeline-tagging.ts';
+import { createStageEmitter } from '../../../../apps/cli/local-pipeline-helpers.ts';
+import { runArchiveStage } from '../../../../apps/cli/pipeline/stages/archive.ts';
 import { buildArchivePlacementPlans } from '../../../features/archive/domain/index.ts';
 import {
   parsePromptLibraryMarkdown,
@@ -17,6 +19,7 @@ import {
 } from '../../../features/tagging/domain/index.ts';
 import { parseTaxonomyMarkdown } from '../../../features/taxonomy/domain/index.ts';
 import { archiveFileByPlans } from '../../../adapters/storage/filesystem/archive-file-operator.ts';
+import { readSpreadsheetTaskSheet } from '../../../adapters/spreadsheets/local-spreadsheet.ts';
 
 const xlsx = XLSX.default ?? XLSX;
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
@@ -162,6 +165,8 @@ test('V0.3 archives by the unique main action and preserves secondary and unrela
 test('V0.3 stops after one failed primary-action repair and keeps the review sidecar', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase5-main-action-failure-'));
   const mediaPath = path.join(tempDir, 'sample.mp4');
+  const spreadsheetPath = path.join(tempDir, 'failed-review.xlsx');
+  const archiveRoot = path.join(tempDir, 'archive-output');
   const resultsByRow = new Map();
   const failures: Array<{ readonly errorCode: string }> = [];
   let modelCalls = 0;
@@ -192,8 +197,40 @@ test('V0.3 stops after one failed primary-action repair and keeps the review sid
     assert.equal(row?.archivePath, '');
     assert.equal(row?.archiveFileName, '');
     assert.equal(row?.taggingJsonArchivePath, '');
-    assert.deepEqual(JSON.parse(await readFile(path.join(tempDir, 'sample.json'), 'utf8')), row?.taggingJsonPayload);
-    assert.equal(existsSync(path.join(tempDir, '视频数据归档库')), false);
+    assert.equal(row?.archiveState, '待复核：核心动作主动作缺失');
+
+    writeFailedReviewWorkbook(spreadsheetPath, mediaPath);
+    await runArchiveStage({
+      input: {
+        options: {
+          spreadsheet: spreadsheetPath,
+          downloadDir: tempDir,
+          taxonomy: V03_TAXONOMY_PATH,
+          promptLibrary: V03_TAXONOMY_PATH,
+          archiveRoot,
+          writebackTarget: 'user'
+        }
+      },
+      sheet: readSpreadsheetTaskSheet({ filePath: spreadsheetPath }),
+      emit: createStageEmitter(() => undefined),
+      startedAt: '2026-06-29T00:00:00.000Z',
+      resultsByRow,
+      failures
+    });
+
+    const resultAfterArchive = resultsByRow.get(2);
+    assert.equal(resultAfterArchive, row);
+    assert.equal(resultAfterArchive?.archiveState, '待复核：核心动作主动作缺失');
+    assert.equal(resultAfterArchive?.archivePath, '');
+    assert.equal(resultAfterArchive?.archiveFileName, '');
+    assert.equal(existsSync(path.join(archiveRoot, '视频数据归档库')), false);
+
+    const diskSidecar = JSON.parse(await readFile(path.join(tempDir, 'sample.json'), 'utf8'));
+    assert.equal(diskSidecar.review_required, true);
+    assert.match(diskSidecar.review_reason, /核心动作/u);
+    assert.equal(diskSidecar.attempt, 2);
+    assert.deepEqual(diskSidecar.tags, []);
+    assert.deepEqual(resultAfterArchive?.taggingJsonPayload, diskSidecar);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -204,6 +241,22 @@ function writeWorkbook(filePath: string): void {
   const worksheet = xlsx.utils.aoa_to_sheet([
     ['URL', '采集人', 'title'],
     ['https://www.youtube.com/watch?v=auto-seg', '测试用户', 'Sample A']
+  ]);
+  xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+  xlsx.writeFile(workbook, filePath);
+}
+
+function writeFailedReviewWorkbook(filePath: string, mediaPath: string): void {
+  const workbook = xlsx.utils.book_new();
+  const worksheet = xlsx.utils.aoa_to_sheet([
+    ['URL', '归档状态', '当前文件路径', '归档路径', '归档文件名'],
+    [
+      'https://example.com/video',
+      '等待归档',
+      mediaPath,
+      '视频数据归档库/核心动作/身体动作/位移动作/跑动',
+      ''
+    ]
   ]);
   xlsx.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
   xlsx.writeFile(workbook, filePath);
