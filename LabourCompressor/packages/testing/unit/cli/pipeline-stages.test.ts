@@ -8,6 +8,7 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 import { runLocalPipelineCommand } from '../../../../apps/cli/local-pipeline-command.ts';
+import { shouldSkipArchiveRow } from '../../../../apps/cli/pipeline/stages/archive.ts';
 import {
   resolveSelectedArchivePath,
   resolveSelectedContentTopicPath,
@@ -391,6 +392,18 @@ test('archive path resolver leaves empty and root-only paths waiting for tagging
 
 test('archive stage row filter leaves archived rows unchanged', () => {
   assert.equal(shouldProcessMediaRow(createArchiveRow('', '已归档')), false);
+});
+
+test('archive stage preserves classified failures and persisted review rows', () => {
+  assert.equal(shouldSkipArchiveRow(
+    createArchiveRow('', '等待归档'),
+    { failure: { errorCode: 'archive-primary-tag-missing' } }
+  ), true);
+  assert.equal(shouldSkipArchiveRow(
+    createArchiveRow('', '待复核：核心动作主动作缺失'),
+    undefined
+  ), true);
+  assert.equal(shouldSkipArchiveRow(createArchiveRow(''), undefined), false);
 });
 
 test('legacy content topic resolver remains an alias of the generic resolver', () => {

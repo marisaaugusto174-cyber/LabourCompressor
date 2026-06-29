@@ -3,6 +3,7 @@ import path from 'node:path';
 import { archiveFileByPlans } from '../../../../packages/adapters/storage/filesystem/archive-file-operator.ts';
 import { buildArchivePlacementPlans } from '../../../../packages/features/archive/domain/index.ts';
 import { buildContentTopicArchiveRoot } from '../../../../packages/features/tagging/domain/index.ts';
+import { type SpreadsheetTaskRow } from '../../../../packages/features/spreadsheet-tasks/domain/index.ts';
 import { waitForPipelineCheckpoint } from '../../pipeline-control.ts';
 import { pushStageFailure } from '../stage-failures.ts';
 import {
@@ -25,6 +26,9 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
   const spreadsheetDirectory = path.dirname(input.input.options.spreadsheet);
 
   for (const row of rows) {
+    if (shouldSkipArchiveRow(row, input.resultsByRow.get(row.rowNumber))) {
+      continue;
+    }
     await waitForPipelineCheckpoint(input.input.control);
     const filePath = resolveRowFilePath(row, spreadsheetDirectory);
     const selectedArchivePath = resolveSelectedArchivePath(row);
@@ -97,4 +101,12 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
     }
   }
   input.emit('archive', 'succeeded', 'Archive stage completed');
+}
+
+export function shouldSkipArchiveRow(
+  row: SpreadsheetTaskRow,
+  existingResult: Readonly<{ readonly failure?: unknown }> | undefined
+): boolean {
+  return existingResult?.failure !== undefined ||
+    (row.values['归档状态']?.trim() ?? '').startsWith('待复核：');
 }
