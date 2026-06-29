@@ -53,6 +53,11 @@ export function selectArchivePathFromStructuredTags(
     (tag) => tag.dimension === policy.dimension
   );
   if (dimensionCandidates.length === 0) {
+    if (structuredResponse.tags.some(
+      (tag) => tag.labelPath[0] === policy.dimension
+    )) {
+      fail('archive-primary-tag-path-invalid');
+    }
     fail('archive-primary-tag-missing');
   }
 

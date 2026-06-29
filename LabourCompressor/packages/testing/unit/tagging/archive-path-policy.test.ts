@@ -50,6 +50,12 @@ test('wrong-dimension primary tags do not satisfy the configured role', () => {
   ], 'archive-primary-tag-role-invalid');
 });
 
+test('classifies a lone configured-root tag with the wrong dimension as path invalid', () => {
+  assertCode([
+    tag({ dimension: '表现形式' })
+  ], 'archive-primary-tag-path-invalid');
+});
+
 test('target entity identity or absence does not affect path selection', () => {
   const path = '核心动作 > 身体动作 > 位移动作 > 跑动';
 
