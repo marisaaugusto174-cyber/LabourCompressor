@@ -66,6 +66,11 @@ test('segment stage accepts local URL-column files and appends clip rows', async
             ];
           }
         },
+        continuityAnalyzer: {
+          async analyzeBoundaries() {
+            return [createBoundaryDecision(6, 'strong-boundary')];
+          }
+        },
         segmentExporter: {
           async exportSegment(input) {
             await mkdir(path.dirname(input.outputFilePath), { recursive: true });
@@ -206,8 +211,7 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
   const promptLibraryPath = path.join(tempDir, 'prompt.md');
   const candidateFixturesPath = path.join(tempDir, 'candidate-fixtures.json');
   const archiveRoot = path.join(tempDir, 'archive-root');
-  const clipOne = 'source_720P_260612_000003_01.mp4';
-  const clipTwo = 'source_720P_260612_000003_02.mp4';
+  const clipOne = 'source_720P_260612_000006_01.mp4';
 
   try {
     await mkdir(tempDir, { recursive: true });
@@ -218,8 +222,7 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
     );
     writeFileSync(promptLibraryPath, '# 标注提示词库\n\n## 规则\n- 只能输出标签库中的标签\n');
     writeFileSync(candidateFixturesPath, JSON.stringify({
-      [clipOne]: ['内容领域 > 商业营销 > 产品广告'],
-      [clipTwo]: ['内容领域 > 商业营销 > 产品广告']
+      [clipOne]: ['内容领域 > 商业营销 > 产品广告']
     }));
 
     const workbook = xlsx.utils.book_new();
@@ -266,6 +269,11 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
             ];
           }
         },
+        continuityAnalyzer: {
+          async analyzeBoundaries() {
+            return [createBoundaryDecision(3, 'strong-boundary')];
+          }
+        },
         segmentExporter: {
           async exportSegment(input) {
             await mkdir(path.dirname(input.outputFilePath), { recursive: true });
@@ -284,7 +292,7 @@ test('all staged pipeline switches to AfterEdit sheet after segmentation', async
     );
 
     assert.equal(result.failedRows, 0);
-    assert.equal(records.length, 2);
+    assert.equal(records.length, 1);
     assert.equal(records.every((record) => record.归档状态 === '已归档'), true);
     assert.equal(records.every((record) => record.一级标签 === '内容领域: 商业营销'), true);
     assert.equal(records.every((record) => String(record.压缩缓存路径 ?? '').length > 0), true);
@@ -449,4 +457,17 @@ function writeTinyVideo(filePath: string): void {
   if (result.status !== 0) {
     throw new Error(result.stderr || 'ffmpeg failed to create test video.');
   }
+}
+
+function createBoundaryDecision(
+  boundarySeconds: number,
+  classification: 'strong-continuity' | 'strong-boundary' | 'weak-or-unknown'
+) {
+  return {
+    boundarySeconds,
+    visual: { verdict: 'unknown' as const, metrics: { histogramSimilarity: 0.7, normalizedFrameDifference: 0.25 } },
+    motion: { verdict: 'unknown' as const, metrics: { beforeMagnitude: 1, afterMagnitude: 1, directionCosine: 0, magnitudeRatio: 1 } },
+    audio: { verdict: 'unknown' as const, metrics: { available: false as const } },
+    classification
+  };
 }

@@ -86,16 +86,13 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
     });
 
     const archiveDir = path.join(tempDir, '视频数据归档库/核心动作/身体动作/位移动作/跑动');
-    const firstClip = path.join(archiveDir, 'Sample_A_720P_260512_000023_01.mp4');
-    const secondClip = path.join(archiveDir, 'Sample_A_720P_260512_000023_02.mp4');
+    const firstClip = path.join(archiveDir, 'Sample_A_720P_260512_000045_01.mp4');
     const sourceArchivePath = path.join(archiveDir, 'Sample_A_720P_260512_000045.mp4');
 
     assert.equal(result.failures.length, 0);
     assert.equal(existsSync(firstClip), true);
-    assert.equal(existsSync(secondClip), true);
     assert.equal(existsSync(sourceArchivePath), false);
-    assert.equal(await readFile(firstClip, 'utf8'), '0-22.5');
-    assert.equal(await readFile(secondClip, 'utf8'), '22.5-45');
+    assert.equal(await readFile(firstClip, 'utf8'), '0-45');
 
     const postEditWorkbook = xlsx.readFile(path.join(downloadDir, 'AfterEdit', 'AfterEdit_归档记录表.xlsx'));
     const postEditRows = xlsx.utils.sheet_to_json<Record<string, string>>(
@@ -103,8 +100,7 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
       { defval: '' }
     );
     assert.deepEqual(postEditRows.map((row) => row.文件名), [
-      'Sample_A_720P_260512_000023_01.mp4',
-      'Sample_A_720P_260512_000023_02.mp4'
+      'Sample_A_720P_260512_000045_01.mp4'
     ]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });

@@ -88,7 +88,8 @@ export async function runSegmentStage(input: StageContext & {
     profileId: input.input.options.segmentationProfileId ?? 'standard_ad',
     startedAt: input.startedAt,
     emit: input.emit,
-    dependencies: input.segmentationDependencies
+    dependencies: input.segmentationDependencies,
+    ...(input.input.control?.signal === undefined ? {} : { signal: input.input.control.signal })
   });
 
   if (segmentation.postEditEntries.length > 0) {

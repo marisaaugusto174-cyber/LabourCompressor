@@ -60,6 +60,31 @@ test('runs one analyzer process for all boundaries', async () => {
   }
 });
 
+test('aborts the analyzer process and cleans temporary work', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'continuity-abort-'));
+  const executablePath = path.join(tempDir, 'slow-python');
+  const scriptPath = path.join(tempDir, 'analyzer.py');
+  const controller = new AbortController();
+
+  try {
+    writeFileSync(executablePath, '#!/bin/sh\nsleep 1\n', { mode: 0o755 });
+    writeFileSync(scriptPath, '# slow analyzer');
+    const analyzer = createLocalContinuityAnalyzer({ pythonPath: executablePath, scriptPath });
+    const startedAt = Date.now();
+    setTimeout(() => controller.abort(), 20);
+
+    await assert.rejects(() => analyzer.analyzeBoundaries({
+      filePath: '/tmp/source.mp4',
+      shots: [{ startSeconds: 0, endSeconds: 5 }, { startSeconds: 5, endSeconds: 10 }],
+      thresholds: DEFAULT_CONTINUITY_THRESHOLDS,
+      signal: controller.signal
+    }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+    assert.equal(Date.now() - startedAt < 500, true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 function createRawBoundary(boundarySeconds: number) {
   return {
     boundarySeconds,

@@ -46,7 +46,10 @@ export function createLocalContinuityAnalyzer(
         }), 'utf8');
         await execFileAsync(options.pythonPath, [
           options.scriptPath, '--request', requestPath, '--output', outputPath
-        ], { env: { ...process.env, ...options.environment } });
+        ], {
+          env: { ...process.env, ...options.environment },
+          ...(input.signal === undefined ? {} : { signal: input.signal })
+        });
         const decisions = parseContinuityMetricsOutput(
           await readFile(outputPath, 'utf8'),
           input.thresholds

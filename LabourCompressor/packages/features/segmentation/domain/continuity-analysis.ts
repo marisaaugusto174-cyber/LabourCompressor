@@ -104,6 +104,7 @@ export interface ContinuityAnalyzerPort {
     readonly filePath: string;
     readonly shots: readonly CandidateShot[];
     readonly thresholds: ContinuityThresholds;
+    readonly signal?: AbortSignal | undefined;
   }): Promise<readonly BoundaryContinuityDecision[]>;
 }
 

@@ -5,8 +5,8 @@ import { type MediaInfoProbeResult } from '../../packages/adapters/media/ffprobe
 import { type PostEditArchiveRecordFileEntry } from '../../packages/adapters/spreadsheets/local-spreadsheet.ts';
 import { type DownloadedMediaAsset } from '../../packages/features/download/domain/index.ts';
 import {
-  enforceSegmentDurations,
   type CandidateShot,
+  type ContinuityAnalyzerPort,
   type SegmentTimeRange,
   type SegmentationProfileId
 } from '../../packages/features/segmentation/domain/index.ts';
@@ -18,6 +18,7 @@ import {
   type PipelineRowState
 } from './local-pipeline-helpers.ts';
 import { resolveSegmentationDependencies } from './local-pipeline-segmentation-dependencies.ts';
+import { resolveContinuitySegmentation } from './local-pipeline-continuity.ts';
 import {
   resolveSegmentationProfileRules,
   type SegmentationProfileRules
@@ -44,6 +45,7 @@ export interface AutoSegmentationDependencies {
       readonly endSeconds: number;
     }): Promise<{ readonly outputFilePath: string }>;
   };
+  readonly continuityAnalyzer?: ContinuityAnalyzerPort;
 }
 
 export interface AutoSegmentationStageResult {
@@ -68,6 +70,7 @@ export async function runAutoSegmentationStage(input: {
     extras?: Omit<CliStageEvent, 'stage' | 'status' | 'message' | 'timestamp'>
   ) => void;
   readonly dependencies?: AutoSegmentationDependencies | undefined;
+  readonly signal?: AbortSignal | undefined;
 }): Promise<AutoSegmentationStageResult> {
   const dependencies = resolveSegmentationDependencies(input.dependencies);
   const rules = await resolveSegmentationProfileRules(input.profileId);
@@ -112,12 +115,15 @@ async function segmentAsset(input: {
 
   try {
     const mediaInfo = await input.dependencies.mediaInfoReader.readMediaInfo(input.asset.filePath);
-    const shots = await detectNormalizedShots({ input, mediaInfo });
-    const governed = enforceSegmentDurations({
-      segments: shots,
-      minimumSeconds: input.rules.minimumSeconds,
-      preferredMinimumSeconds: input.rules.preferredMinimumSeconds,
-      maximumSeconds: input.rules.maximumSeconds
+    const workspacePath = resolveSegmentationWorkspacePath(input.asset.filePath, input.asset.fileName);
+    const shots = await detectNormalizedShots({ input, mediaInfo, workspacePath });
+    const { governed } = await resolveContinuitySegmentation({
+      filePath: input.asset.filePath,
+      shots,
+      rules: input.rules,
+      analyzer: input.dependencies.continuityAnalyzer,
+      diagnosticsDirectoryPath: workspacePath,
+      ...(input.input.signal === undefined ? {} : { signal: input.input.signal })
     });
 
     await exportAcceptedSegments({ input, row, segments: governed.accepted });
@@ -125,6 +131,7 @@ async function segmentAsset(input: {
     pushSourceState({ input, row, hasProblems: governed.problems.length > 0 });
     input.input.emit('segmentation-item', 'succeeded', `${input.asset.fileName}: ${governed.accepted.length} clip(s)`);
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     await pushProblemForWholeAsset({
       input,
       row,
@@ -137,14 +144,11 @@ async function segmentAsset(input: {
 async function detectNormalizedShots(input: {
   readonly input: Parameters<typeof segmentAsset>[0];
   readonly mediaInfo: MediaInfoProbeResult;
+  readonly workspacePath: string;
 }): Promise<readonly SegmentTimeRange[]> {
   const shots = await input.input.dependencies.boundaryDetector.detectShots({
     inputFilePath: input.input.asset.filePath,
-    outputDirectoryPath: path.join(
-      path.dirname(input.input.asset.filePath),
-      '.segmentation',
-      sanitizeFileToken(path.parse(input.input.asset.fileName).name)
-    ),
+    outputDirectoryPath: input.workspacePath,
     detector: input.input.rules.detector
   });
 
@@ -157,6 +161,14 @@ async function detectNormalizedShots(input: {
     startSeconds: shot.startSeconds,
     endSeconds: Math.min(shot.endSeconds, input.mediaInfo.durationSeconds)
   })));
+}
+
+function resolveSegmentationWorkspacePath(filePath: string, fileName: string): string {
+  return path.join(
+    path.dirname(filePath),
+    '.segmentation',
+    sanitizeFileToken(path.parse(fileName).name)
+  );
 }
 
 async function exportAcceptedSegments(input: {

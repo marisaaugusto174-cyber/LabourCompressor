@@ -221,7 +221,8 @@ export async function runLocalPipelineCommand(input: {
       profileId: input.options.segmentationProfileId ?? 'standard_ad',
       startedAt,
       emit,
-      dependencies: input.segmentationDependencies
+      dependencies: input.segmentationDependencies,
+      ...(control?.signal === undefined ? {} : { signal: control.signal })
     });
     activeDownloadedAssets = [...segmentation.segmentedAssets, ...nonRemoteAssets];
     for (const row of segmentation.segmentedRows) {

@@ -10,9 +10,9 @@ import { runAutoSegmentationStage } from '../../../../apps/cli/local-pipeline-se
 import { type DownloadedMediaAsset } from '../../../features/download/domain/index.ts';
 import { type SpreadsheetTaskRow } from '../../../features/spreadsheet-tasks/domain/index.ts';
 
-test('auto segmentation forced-splits a long detected scene into valid AfterEdit clips', async () => {
+test('auto segmentation keeps a 42 second strong-continuity group intact', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-auto-seg-'));
-  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000045.mp4');
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000042.mp4');
   const afterEditDirectoryPath = path.join(tempDir, 'AfterEdit');
   const problemClipsDirectoryPath = path.join(tempDir, 'ProblemClips');
   const writes: readonly {
@@ -34,12 +34,20 @@ test('auto segmentation forced-splits a long detected scene into valid AfterEdit
       dependencies: {
         mediaInfoReader: {
           async readMediaInfo() {
-            return { durationSeconds: 45, width: 1920, height: 1080 };
+            return { durationSeconds: 42, width: 1920, height: 1080 };
           }
         },
         boundaryDetector: {
           async detectShots() {
-            return [{ startSeconds: 0, endSeconds: 45 }];
+            return [
+              { startSeconds: 0, endSeconds: 18 },
+              { startSeconds: 18, endSeconds: 42 }
+            ];
+          }
+        },
+        continuityAnalyzer: {
+          async analyzeBoundaries() {
+            return [createContinuityDecision(18, 'strong-continuity')];
           }
         },
         segmentExporter: {
@@ -61,21 +69,96 @@ test('auto segmentation forced-splits a long detected scene into valid AfterEdit
       }
     });
 
-    assert.equal(result.segmentedAssets.length, 2);
+    assert.equal(result.segmentedAssets.length, 1);
     assert.equal(result.failures.length, 0);
-    assert.deepEqual(writes.map((write) => write.endSeconds - write.startSeconds), [22.5, 22.5]);
+    assert.deepEqual(writes.map((write) => write.endSeconds - write.startSeconds), [42]);
     assert.deepEqual(result.segmentedAssets.map((asset) => asset.fileName), [
-      'Sample_A_720P_260512_000023_01.mp4',
-      'Sample_A_720P_260512_000023_02.mp4'
+      'Sample_A_720P_260512_000042_01.mp4'
     ]);
     assert.deepEqual(result.postEditEntries.map((entry) => entry.fileName), [
-      'Sample_A_720P_260512_000023_01.mp4',
-      'Sample_A_720P_260512_000023_02.mp4'
+      'Sample_A_720P_260512_000042_01.mp4'
     ]);
     assert.equal(
-      await readFile(path.join(afterEditDirectoryPath, 'Sample_A_720P_260512_000023_01.mp4'), 'utf8'),
-      '0-22.5'
+      await readFile(path.join(afterEditDirectoryPath, 'Sample_A_720P_260512_000042_01.mp4'), 'utf8'),
+      '0-42'
     );
+    const diagnostic = JSON.parse(await readFile(path.join(
+      tempDir, '.segmentation', 'Sample_A_720P_260512_000042', 'continuity.json'
+    ), 'utf8')) as { fallbackApplied?: boolean };
+    assert.equal(diagnostic.fallbackApplied, false);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('auto segmentation records and uses mechanical fallback when continuity analysis fails', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-fallback-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000045.mp4');
+  const writes: { startSeconds: number; endSeconds: number }[] = [];
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    const result = await runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad',
+      startedAt: '2026-05-12T00:00:00.000Z', emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 45, width: 1920, height: 1080 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 20 }, { startSeconds: 20, endSeconds: 45 }
+        ]; } },
+        continuityAnalyzer: { async analyzeBoundaries() { throw new Error('analysis unavailable /private/path'); } },
+        segmentExporter: { async exportSegment(input) {
+          writes.push({ startSeconds: input.startSeconds, endSeconds: input.endSeconds });
+          mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
+          writeFileSync(input.outputFilePath, 'clip');
+          return { outputFilePath: input.outputFilePath };
+        } }
+      }
+    });
+
+    assert.deepEqual(writes, [
+      { startSeconds: 0, endSeconds: 20 },
+      { startSeconds: 20, endSeconds: 45 }
+    ]);
+    assert.equal(result.failures.length, 0);
+    const diagnostic = JSON.parse(await readFile(path.join(
+      tempDir, '.segmentation', 'Sample_A_720P_260512_000045', 'continuity.json'
+    ), 'utf8')) as { fallbackApplied?: boolean; fallbackReason?: string };
+    assert.equal(diagnostic.fallbackApplied, true);
+    assert.equal(diagnostic.fallbackReason, 'continuity-analysis-failed');
+    assert.doesNotMatch(JSON.stringify(diagnostic), /private\/path/u);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('auto segmentation propagates cancellation instead of creating a problem clip', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-cancel-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000010.mp4');
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    await assert.rejects(() => runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad', startedAt: '2026-05-12T00:00:00.000Z', emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 10, width: 1920, height: 1080 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 5 }, { startSeconds: 5, endSeconds: 10 }
+        ]; } },
+        continuityAnalyzer: { async analyzeBoundaries() {
+          const error = new Error('cancelled'); error.name = 'AbortError'; throw error;
+        } },
+        segmentExporter: { async exportSegment() { throw new Error('must not export'); } }
+      }
+    }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -178,4 +261,17 @@ function createRow(): SpreadsheetTaskRow {
       title: 'Sample A'
     })
   });
+}
+
+function createContinuityDecision(
+  boundarySeconds: number,
+  classification: 'strong-continuity' | 'strong-boundary' | 'weak-or-unknown'
+) {
+  return {
+    boundarySeconds,
+    visual: { verdict: 'continuous' as const, metrics: { histogramSimilarity: 0.9, normalizedFrameDifference: 0.1 } },
+    motion: { verdict: 'continuous' as const, metrics: { beforeMagnitude: 1, afterMagnitude: 1, directionCosine: 0.8, magnitudeRatio: 1 } },
+    audio: { verdict: 'unknown' as const, metrics: { available: false as const } },
+    classification
+  };
 }
