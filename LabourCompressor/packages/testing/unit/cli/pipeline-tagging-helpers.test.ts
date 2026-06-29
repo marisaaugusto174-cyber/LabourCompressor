@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   resolveRequiredArchivePath,
   resolveRequiredContentTopic,
+  resolveTaggingFailurePresentation,
   resolveTaggingConcurrency,
   runTaggingBatch,
   runConcurrentInOrder,
@@ -368,6 +369,7 @@ test('keeps existing unique content topic without fallback', async () => {
 
 test('runTaggingBatch preserves classified archive primary tag errors', async () => {
   const failures: Array<{ readonly errorCode: string }> = [];
+  const resultsByRow = new Map();
   await runTaggingBatch({
     assets: [{
       mediaAssetId: 'asset-1', taskId: 'task-1', rowNumber: 2,
@@ -378,7 +380,7 @@ test('runTaggingBatch preserves classified archive primary tag errors', async ()
       taskId: 'task-1', rowNumber: 2, url: 'https://example.com/video',
       sourceKind: 'url' as const, values: {}
     }]]),
-    resultsByRow: new Map(),
+    resultsByRow,
     failures,
     startedAt: '2026-06-29T00:00:00.000Z',
     taggingMode: 'simulated',
@@ -394,6 +396,32 @@ test('runTaggingBatch preserves classified archive primary tag errors', async ()
     emit: () => undefined
   });
   assert.equal(failures[0]?.errorCode, 'archive-primary-tag-conflict');
+  assert.equal(resultsByRow.get(2)?.archiveState, '待复核：存在多个核心动作主动作');
+  assert.equal(resultsByRow.get(2)?.archivePath, '');
+  assert.equal(resultsByRow.get(2)?.archiveFileName, '');
+});
+
+test('maps every classified primary action failure to an explicit review archive state', () => {
+  const cases = [
+    ['archive-primary-tag-missing', '待复核：核心动作主动作缺失'],
+    ['archive-primary-tag-conflict', '待复核：存在多个核心动作主动作'],
+    ['archive-primary-tag-role-invalid', '待复核：核心动作角色不合法'],
+    ['archive-primary-tag-path-invalid', '待复核：核心动作路径不合法'],
+    ['archive-primary-tag-review-required', '待复核：核心动作无法确定']
+  ] as const;
+
+  for (const [errorCode, archiveState] of cases) {
+    const result = resolveTaggingFailurePresentation(new ArchivePrimaryTagError(errorCode));
+    assert.equal(result.errorCode, errorCode);
+    assert.equal(result.archiveState, archiveState);
+  }
+});
+
+test('keeps the existing fallback for unknown tagging failures', () => {
+  assert.deepEqual(resolveTaggingFailurePresentation(new Error('provider unavailable')), {
+    errorCode: 'tagging-failed',
+    archiveState: '打标失败'
+  });
 });
 
 test('retries provider rate-limit errors a finite number of times', async () => {

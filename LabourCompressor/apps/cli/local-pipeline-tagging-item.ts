@@ -21,7 +21,10 @@ import {
   requireValue
 } from './local-pipeline-helpers.ts';
 import { resolveRequiredArchivePath, resolveRequiredContentTopic } from './archive-path-resolution.ts';
-import { classifyTaggingError, isVideoTooShortError } from './tagging-failure-classification.ts';
+import {
+  isVideoTooShortError,
+  resolveTaggingFailurePresentation
+} from './tagging-failure-classification.ts';
 import { type PipelineItemTimings, type RunTaggingBatchInput } from './local-pipeline-tagging-contracts.ts';
 import { DEFAULT_VIDEO_CACHE_DIRECTORY } from './project-paths.ts';
 import { withRateLimitRetry } from './tagging-rate-limit.ts';
@@ -334,15 +337,16 @@ function handleTaggingFailure(context: ItemContext, error: unknown, completedCou
 
 function persistTaggingFailure(context: ItemContext, error: unknown, completedCount: number): void {
   const message = error instanceof Error ? error.message : 'Tagging failed.';
+  const presentation = resolveTaggingFailurePresentation(error);
   const failure = buildFailure({
-    row: context.row, phase: 'tagging', errorCode: classifyTaggingError(error),
+    row: context.row, phase: 'tagging', errorCode: presentation.errorCode,
     errorMessage: message, timestamp: new Date().toISOString()
   });
   context.input.failures.push(failure);
   context.input.resultsByRow.set(context.row.rowNumber, {
     ...createFailureRowState({
       row: context.row,
-      archiveState: /缺少内容题材/iu.test(message) ? '打标失败：缺少内容题材' : '打标失败',
+      archiveState: presentation.archiveState,
       failure
     }),
     timings: buildTimings(context)

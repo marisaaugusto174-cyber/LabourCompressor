@@ -94,3 +94,25 @@ test('renders actionable Xiaohongshu download failures', () => {
   assert.equal(html.includes('小红书媒体类型异常'), true);
   assert.equal(html.includes('小红书视频内容不完整'), true);
 });
+
+test('renders explicit actions for every classified primary action review failure', () => {
+  const cases = [
+    ['archive-primary-tag-missing', '待复核：核心动作主动作缺失', '补充唯一的核心动作主动作标签'],
+    ['archive-primary-tag-conflict', '待复核：存在多个核心动作主动作', '只保留一个核心动作主动作标签'],
+    ['archive-primary-tag-role-invalid', '待复核：核心动作角色不合法', '将核心动作标签角色修正为主动作'],
+    ['archive-primary-tag-path-invalid', '待复核：核心动作路径不合法', '从当前标签体系中选择合法的核心动作路径'],
+    ['archive-primary-tag-review-required', '待复核：核心动作无法确定', '人工确认唯一的核心动作主动作']
+  ];
+  const html = buildResultWorkbenchHtml(cases.map(([errorCode, archiveState], index) => ({
+    rowNumber: 10 + index,
+    archiveState,
+    archivePath: '',
+    archiveFileName: '',
+    failure: { phase: 'tagging', errorCode }
+  })));
+
+  for (const [, archiveState, action] of cases) {
+    assert.equal(html.includes(archiveState), true);
+    assert.equal(html.includes(action), true);
+  }
+});

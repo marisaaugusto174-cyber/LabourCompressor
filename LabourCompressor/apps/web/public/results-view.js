@@ -208,6 +208,11 @@ function humanizeFailureCode(errorCode, phase) {
     'download-failed': '下载失败',
     'tagging-failed': '打标失败',
     'missing-content-topic': '缺少内容题材',
+    'archive-primary-tag-missing': '待复核：核心动作主动作缺失',
+    'archive-primary-tag-conflict': '待复核：存在多个核心动作主动作',
+    'archive-primary-tag-role-invalid': '待复核：核心动作角色不合法',
+    'archive-primary-tag-path-invalid': '待复核：核心动作路径不合法',
+    'archive-primary-tag-review-required': '待复核：核心动作无法确定',
     'archive-failed': '归档失败',
     'edited-file-missing': '未找到剪辑后文件',
     'edited-file-invalid-name': '剪辑文件名不符合规范',
@@ -219,6 +224,17 @@ function humanizeFailureCode(errorCode, phase) {
 }
 
 function humanizeFailureHint(errorCode, phase) {
+  const primaryActionHints = {
+    'archive-primary-tag-missing': '请补充唯一的核心动作主动作标签后重新运行归档。',
+    'archive-primary-tag-conflict': '请只保留一个核心动作主动作标签后重新运行归档。',
+    'archive-primary-tag-role-invalid': '请将核心动作标签角色修正为主动作后重新运行归档。',
+    'archive-primary-tag-path-invalid': '请从当前标签体系中选择合法的核心动作路径后重新运行归档。',
+    'archive-primary-tag-review-required': '请人工确认唯一的核心动作主动作后重新运行归档。'
+  };
+  if (primaryActionHints[errorCode]) {
+    return primaryActionHints[errorCode];
+  }
+
   if (phase === 'download') {
     const mapping = {
       'missing-credentials': '请打开“配置下载凭证”，为当前平台重新导入 cookies.txt。',

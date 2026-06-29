@@ -11,6 +11,7 @@ export {
   type RequiredContentTopicResolution
 } from './archive-path-resolution.ts';
 export { isRateLimitError, withRateLimitRetry } from './tagging-rate-limit.ts';
+export { resolveTaggingFailurePresentation } from './tagging-failure-classification.ts';
 export { type PipelineItemTimings, type RunTaggingBatchInput };
 
 export async function runTaggingBatch(input: RunTaggingBatchInput): Promise<void> {
