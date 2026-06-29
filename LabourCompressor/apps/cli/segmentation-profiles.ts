@@ -191,12 +191,30 @@ function readContinuityThresholds(
 ): ContinuityThresholds {
   if (value === undefined) return DEFAULT_CONTINUITY_THRESHOLDS;
   const record = requireOptionalGroup(value, 'continuityThresholds', manifestPath);
-  return Object.freeze({
+  const thresholds: ContinuityThresholds = Object.freeze({
     visual: readVisualThresholds(record.visual, manifestPath),
     motion: readMotionThresholds(record.motion, manifestPath),
     audio: readAudioThresholds(record.audio, manifestPath),
     sampling: readSamplingThresholds(record.sampling, manifestPath)
   });
+  validateContinuityThresholdOrder(thresholds, manifestPath);
+  return thresholds;
+}
+
+function validateContinuityThresholdOrder(
+  thresholds: ContinuityThresholds,
+  manifestPath: string
+): void {
+  const invalid =
+    thresholds.visual.histogramBreakMaximum > thresholds.visual.histogramContinuousMinimum ||
+    thresholds.visual.frameDifferenceContinuousMaximum > thresholds.visual.frameDifferenceBreakMinimum ||
+    thresholds.motion.directionBreakMaximum > thresholds.motion.directionContinuousMinimum ||
+    thresholds.motion.magnitudeRatioContinuousMaximum > thresholds.motion.magnitudeRatioBreakMinimum ||
+    thresholds.audio.rmsDeltaContinuousMaximum > thresholds.audio.rmsDeltaBreakMinimum ||
+    thresholds.audio.spectrumBreakMaximum > thresholds.audio.spectrumContinuousMinimum;
+  if (invalid) {
+    throw new Error(`Invalid continuity threshold order in segmentation profile manifest: ${manifestPath}`);
+  }
 }
 
 function readVisualThresholds(value: unknown, manifestPath: string): ContinuityThresholds['visual'] {

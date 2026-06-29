@@ -98,11 +98,13 @@ In the Web UI:
 - `csv` remains available for import and 失败导出 only; formal writeback and local hyperlinks stay on `xlsx`.
 - Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
 - Xiaohongshu single-video notes use `yt-dlp` first and automatically fall back to local note-page parsing when the extractor returns no formats.
-- Automatic segmentation before tagging: scene detection, `3-30s` duration governance, and forced split when a long segment has no safe cut.
+- Continuity-first automatic segmentation before tagging: PySceneDetect proposes shots, then local visual, motion, and audio algorithms assemble `5-60s` ranges with `5-30s` preferred. No AI model or OCR participates in segmentation.
 - Effective-content coverage target is about `80%`; pure heads/tails, blank screens, posters, and small cutting loss are acceptable.
 - Original downloaded full videos remain in the download cache, but only accepted segmented clips enter tagging and archive.
 - `AfterEdit` receives generated clips such as `原名_720P_260512_000023_01.mp4`.
-- `ProblemClips` receives exceptional clips, with problem categories limited to `无法满足 3-30s`, `导出失败`, and `检测结果异常`.
+- `ProblemClips` receives exceptional clips, with problem categories limited to `无法满足 5-60s`, `导出失败`, and `检测结果异常`.
+- Strongly continuous `30-60s` groups remain intact. Segments over `60s` prefer the weakest detected boundary and use mathematical splitting only when no internal boundary exists.
+- Continuity analysis failures use a mechanical scene-and-duration fallback and write a compact `.segmentation/<asset>/continuity.json` diagnostic without frames, audio, credentials, or media payloads.
 - V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
 - Native video-level multimodal tagging with Qwen and Gemini provider profiles.
 - Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.

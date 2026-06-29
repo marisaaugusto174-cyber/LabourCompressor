@@ -96,6 +96,7 @@ async function runAssetsInOrder(
   state: ReturnType<typeof createSegmentationState>
 ): Promise<void> {
   for (const [assetIndex, asset] of input.downloadedAssets.entries()) {
+    input.signal?.throwIfAborted();
     input.emit('segmentation-item', 'running', `Segmenting ${asset.fileName}`, {
       currentItem: asset.fileName,
       progress: { current: assetIndex + 1, total: input.downloadedAssets.length }
@@ -117,7 +118,7 @@ async function segmentAsset(input: {
     const mediaInfo = await input.dependencies.mediaInfoReader.readMediaInfo(input.asset.filePath);
     const workspacePath = resolveSegmentationWorkspacePath(input.asset.filePath, input.asset.fileName);
     const shots = await detectNormalizedShots({ input, mediaInfo, workspacePath });
-    const { governed } = await resolveContinuitySegmentation({
+    const continuity = await resolveContinuitySegmentation({
       filePath: input.asset.filePath,
       shots,
       rules: input.rules,
@@ -125,6 +126,18 @@ async function segmentAsset(input: {
       diagnosticsDirectoryPath: workspacePath,
       ...(input.input.signal === undefined ? {} : { signal: input.input.signal })
     });
+    if (continuity.fallbackApplied) {
+      input.input.emit(
+        'segmentation-continuity',
+        'running',
+        `${input.asset.fileName}: using mechanical continuity fallback`,
+        { currentItem: input.asset.fileName, details: {
+          fallbackApplied: true,
+          reason: continuity.fallbackReason ?? 'continuity-analysis-failed'
+        } }
+      );
+    }
+    const { governed } = continuity;
 
     await exportAcceptedSegments({ input, row, segments: governed.accepted });
     await exportProblemSegments({ input, row, segments: governed.problems.map((problem) => problem.segment) });
@@ -177,6 +190,7 @@ async function exportAcceptedSegments(input: {
   readonly segments: readonly (SegmentTimeRange & { readonly forced?: boolean })[];
 }): Promise<void> {
   for (const [segmentOffset, segment] of input.segments.entries()) {
+    input.input.input.signal?.throwIfAborted();
     const segmentIndex = segmentOffset + 1;
     const outputFileName = buildSegmentFileName({
       sourceFileName: input.input.asset.fileName,
@@ -232,12 +246,13 @@ async function exportProblemSegments(input: {
   const problemBaseIndex = input.input.state.problemRows.length;
 
   for (const [segmentOffset, segment] of input.segments.entries()) {
+    input.input.input.signal?.throwIfAborted();
     await pushProblemForSegment({
       input: input.input,
       row: input.row,
       segment,
       segmentIndex: problemBaseIndex + segmentOffset + 1,
-      error: new Error('Segment cannot satisfy 3-30s duration rule.'),
+      error: new Error('Segment cannot satisfy the 5-60s duration rule.'),
       errorCode: 'duration-rule-unsatisfied'
     });
   }
@@ -453,7 +468,7 @@ function humanizeProblemCategory(
   errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid'
 ): string {
   if (errorCode === 'duration-rule-unsatisfied') {
-    return '无法满足 3-30s';
+    return '无法满足 5-60s';
   }
   if (errorCode === 'export-failed') {
     return '导出失败';

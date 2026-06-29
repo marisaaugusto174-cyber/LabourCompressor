@@ -25,6 +25,7 @@ export async function resolveContinuitySegmentation(input: {
   readonly diagnosticsDirectoryPath: string;
   readonly signal?: AbortSignal | undefined;
 }): Promise<ContinuitySegmentationResolution> {
+  input.signal?.throwIfAborted();
   let resolution: ContinuitySegmentationResolution;
   try {
     const decisions = await input.analyzer.analyzeBoundaries({
@@ -43,6 +44,7 @@ export async function resolveContinuitySegmentation(input: {
       true
     );
   }
+  input.signal?.throwIfAborted();
   await writeContinuityDiagnostic(input, resolution);
   return resolution;
 }

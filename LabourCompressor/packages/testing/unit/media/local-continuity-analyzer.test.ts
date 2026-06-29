@@ -130,3 +130,31 @@ test('analyzes a hard visual cut with the project-local OpenCV runtime', async (
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('clamps frame sampling near the end of a short trailing shot', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'continuity-edge-'));
+  const videoPath = path.join(tempDir, 'edge.mp4');
+  const projectRoot = path.resolve(import.meta.dirname, '../../../..');
+
+  try {
+    execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'color=c=red:s=320x180:r=10:d=5.8',
+      '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=10:d=0.2',
+      '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]', '-map', '[v]', videoPath
+    ]);
+    const analyzer = createLocalContinuityAnalyzer({
+      pythonPath: path.join(projectRoot, '.tools/scenedetect-venv/bin/python'),
+      scriptPath: path.join(projectRoot, 'scripts/analyze-boundary-continuity.py')
+    });
+
+    const result = await analyzer.analyzeBoundaries({
+      filePath: videoPath,
+      shots: [{ startSeconds: 0, endSeconds: 5.8 }, { startSeconds: 5.8, endSeconds: 6 }],
+      thresholds: DEFAULT_CONTINUITY_THRESHOLDS
+    });
+    assert.equal(result.length, 1);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});

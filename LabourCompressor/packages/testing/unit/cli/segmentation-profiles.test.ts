@@ -113,3 +113,28 @@ test('repository profiles override continuity thresholds without changing defaul
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('repository profiles reject contradictory continuity thresholds', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'segmentation-thresholds-invalid-'));
+
+  try {
+    writeFileSync(path.join(tempDir, 'bad-thresholds.json'), JSON.stringify({
+      id: 'bad-thresholds', detector: 'adaptive',
+      minimumSeconds: 5, preferredMinimumSeconds: 5,
+      preferredMaximumSeconds: 30, maximumSeconds: 60,
+      continuityThresholds: {
+        visual: {
+          histogramBreakMaximum: 0.7,
+          histogramContinuousMinimum: 0.6
+        }
+      }
+    }));
+
+    await assert.rejects(
+      () => loadSegmentationProfileRepository(tempDir),
+      /Invalid continuity threshold order/u
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});

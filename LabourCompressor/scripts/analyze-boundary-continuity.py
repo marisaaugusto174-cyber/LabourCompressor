@@ -31,7 +31,15 @@ def read_request(file_path: str) -> dict[str, Any]:
 
 
 def read_frame(capture: cv2.VideoCapture, seconds: float, width: int, height: int) -> np.ndarray:
-    capture.set(cv2.CAP_PROP_POS_MSEC, max(0.0, seconds) * 1000.0)
+    frame_rate = float(capture.get(cv2.CAP_PROP_FPS))
+    frame_count = float(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    last_frame_seconds = (
+        max(0.0, (frame_count - 1.0) / frame_rate)
+        if frame_rate > 0 and frame_count > 0
+        else max(0.0, seconds)
+    )
+    sample_seconds = min(max(0.0, seconds), last_frame_seconds)
+    capture.set(cv2.CAP_PROP_POS_MSEC, sample_seconds * 1000.0)
     ok, frame = capture.read()
     if not ok or frame is None:
         raise RuntimeError("unable to sample video frame")

@@ -71,7 +71,8 @@ install_scenedetect() {
 
   mkdir -p "${tools_bin}"
 
-  if [ -x "${scenedetect_bin}" ]; then
+  if [ -x "${scenedetect_bin}" ] && \
+    "${scenedetect_bin}" version 2>&1 | grep -q "PySceneDetect 0.7"; then
     echo "OK: scenedetect is already available at ${scenedetect_bin}."
     return
   fi

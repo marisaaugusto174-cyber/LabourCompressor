@@ -12,6 +12,7 @@ test('macOS setup avoids network-only pip self-upgrade during first launch', asy
   assert.doesNotMatch(setupScript, /pip install --upgrade pip/);
   assert.match(setupScript, /ensurepip --upgrade/);
   assert.match(setupScript, /pip install "scenedetect\[opencv\]==0\.7"/);
+  assert.match(setupScript, /scenedetect_bin.*version.*PySceneDetect 0\.7/su);
 });
 
 test('macOS setup treats PySceneDetect install failure as non-blocking for launcher creation', async () => {

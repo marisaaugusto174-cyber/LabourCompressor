@@ -95,6 +95,7 @@ test('auto segmentation records and uses mechanical fallback when continuity ana
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-fallback-'));
   const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000045.mp4');
   const writes: { startSeconds: number; endSeconds: number }[] = [];
+  const events: { stage: string; details?: unknown }[] = [];
 
   try {
     writeFileSync(sourcePath, 'source-video', 'utf8');
@@ -104,7 +105,8 @@ test('auto segmentation records and uses mechanical fallback when continuity ana
       afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
       problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
       profileId: 'standard_ad',
-      startedAt: '2026-05-12T00:00:00.000Z', emit: () => undefined,
+      startedAt: '2026-05-12T00:00:00.000Z',
+      emit: (stage, _status, _message, extras) => events.push({ stage, details: extras?.details }),
       dependencies: {
         mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 45, width: 1920, height: 1080 }; } },
         boundaryDetector: { async detectShots() { return [
@@ -131,6 +133,10 @@ test('auto segmentation records and uses mechanical fallback when continuity ana
     assert.equal(diagnostic.fallbackApplied, true);
     assert.equal(diagnostic.fallbackReason, 'continuity-analysis-failed');
     assert.doesNotMatch(JSON.stringify(diagnostic), /private\/path/u);
+    assert.equal(events.some((event) =>
+      event.stage === 'segmentation-continuity' &&
+      JSON.stringify(event.details).includes('continuity-analysis-failed')
+    ), true);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -159,6 +165,37 @@ test('auto segmentation propagates cancellation instead of creating a problem cl
         segmentExporter: { async exportSegment() { throw new Error('must not export'); } }
       }
     }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('auto segmentation stops before continuity work when its signal is already aborted', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-pre-cancel-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000010.mp4');
+  const controller = new AbortController();
+  let analyzerCalls = 0;
+  controller.abort();
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    await assert.rejects(() => runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad', startedAt: '2026-05-12T00:00:00.000Z',
+      emit: () => undefined, signal: controller.signal,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 10, width: 1920, height: 1080 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 5 }, { startSeconds: 5, endSeconds: 10 }
+        ]; } },
+        continuityAnalyzer: { async analyzeBoundaries() { analyzerCalls += 1; return [createContinuityDecision(5, 'strong-continuity')]; } },
+        segmentExporter: { async exportSegment() { throw new Error('must not export'); } }
+      }
+    }), (error: unknown) => error instanceof Error && error.name === 'AbortError');
+    assert.equal(analyzerCalls, 0);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -206,6 +243,36 @@ test('auto segmentation routes invalid detection to problem clips', async () => 
       await readFile(path.join(tempDir, 'ProblemClips', 'Sample_A_720P_260512_000010_problem_01.mp4'), 'utf8'),
       'source-video'
     );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('auto segmentation reports the 5-60 second hard duration rule', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-short-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000004.mp4');
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    const result = await runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad', startedAt: '2026-05-12T00:00:00.000Z', emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 4, width: 1920, height: 1080 }; } },
+        boundaryDetector: { async detectShots() { return []; } },
+        segmentExporter: { async exportSegment(input) {
+          mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
+          writeFileSync(input.outputFilePath, 'problem');
+          return { outputFilePath: input.outputFilePath };
+        } }
+      }
+    });
+
+    assert.equal(result.failures[0]?.errorCode, 'duration-rule-unsatisfied');
+    assert.match(result.postEditEntries[0]?.failureMessage ?? '', /^无法满足 5-60s/u);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

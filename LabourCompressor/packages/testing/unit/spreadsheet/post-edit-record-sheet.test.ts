@@ -66,7 +66,7 @@ test('creates post-edit spreadsheet rows with auto segmentation problem status',
           originalFileName: '样本A_720P_260512_000045.mp4',
           sourceUrl: 'https://example.com/video',
           archiveState: '自动分割待处理',
-          failureMessage: '无法满足 3-30s'
+          failureMessage: '无法满足 5-60s'
         }
       ]
     });
@@ -80,7 +80,7 @@ test('creates post-edit spreadsheet rows with auto segmentation problem status',
     assert.equal(matrix[1]?.[4], '');
     assert.equal(matrix[1]?.[17], '');
     assert.equal(matrix[2]?.[4], '自动分割待处理');
-    assert.equal(matrix[2]?.[17], '无法满足 3-30s');
+    assert.equal(matrix[2]?.[17], '无法满足 5-60s');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
