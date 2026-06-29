@@ -13,6 +13,7 @@ import {
   type PersistedRuntimeTask,
   type RuntimeLifecycleEventInput,
   type RuntimeTaskPersistence,
+  type RuntimeTaskOptionsPreparer,
   type RuntimeTaskStore,
   type RuntimeTaskSnapshot as OrchestratorRuntimeTaskSnapshot,
   type RuntimeTaskStatus
@@ -44,6 +45,9 @@ export function createRuntimeTaskService(options: {
   readonly taskStore?: RuntimeTaskStore<PersistedCliTask> | undefined;
   readonly maxPersistedTasks?: number | undefined;
   readonly pipelineRunner?: RuntimePipelineRunner | undefined;
+  readonly prepareOptions?: RuntimeTaskOptionsPreparer<RunLocalPipelineOptions> | undefined;
+  readonly createId?: (() => string) | undefined;
+  readonly now?: (() => string) | undefined;
 } = {}) {
   return createOrchestratorRuntimeTaskService({
     runner: options.pipelineRunner ?? runLocalPipelineCommand,
@@ -52,7 +56,10 @@ export function createRuntimeTaskService(options: {
     createAbortError: () => createPipelineCancelledError('任务已取消。'),
     isCancelledError: isPipelineCancelledError,
     persistence: options.taskStore ?? createJsonPersistence(options.stateFilePath),
-    maxPersistedTasks: options.maxPersistedTasks
+    maxPersistedTasks: options.maxPersistedTasks,
+    prepareOptions: options.prepareOptions,
+    createId: options.createId,
+    now: options.now
   });
 }
 

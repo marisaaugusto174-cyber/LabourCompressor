@@ -15,6 +15,8 @@ export { createRuntimeTaskService } from './runtime-task-service.ts';
 export type {
   PersistedRuntimeTask,
   RuntimeLifecycleEventInput,
+  RuntimeTaskOptionsPreparer,
+  RuntimeTaskPreparationInput,
   RuntimeTaskControl,
   RuntimeTaskPersistence,
   RuntimeTaskRunner,

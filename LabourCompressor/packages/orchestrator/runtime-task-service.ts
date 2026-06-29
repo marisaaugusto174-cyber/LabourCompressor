@@ -46,6 +46,16 @@ export type RuntimeTaskRunner<TOptions, TResult, TEvent> = (input: {
   readonly control: RuntimeTaskControl;
 }) => Promise<TResult>;
 
+export interface RuntimeTaskPreparationInput<TOptions> {
+  readonly taskId: string;
+  readonly createdAt: string;
+  readonly options: TOptions;
+}
+
+export type RuntimeTaskOptionsPreparer<TOptions> = (
+  input: RuntimeTaskPreparationInput<TOptions>
+) => Promise<TOptions>;
+
 export interface RuntimeLifecycleEventInput {
   readonly kind: 'paused' | 'resumed' | 'stopping' | 'succeeded' | 'failed' | 'cancelled';
   readonly taskId: string;
@@ -80,6 +90,7 @@ export function createRuntimeTaskService<TOptions, TResult, TEvent>(input: {
   readonly maxPersistedTasks?: number | undefined;
   readonly createId?: (() => string) | undefined;
   readonly now?: (() => string) | undefined;
+  readonly prepareOptions?: RuntimeTaskOptionsPreparer<TOptions> | undefined;
 }) {
   const engine = new RuntimeTaskEngine(input);
   return Object.freeze({
@@ -116,8 +127,19 @@ class RuntimeTaskEngine<TOptions, TResult, TEvent> {
   }
 
   async startTask(options: TOptions): Promise<RuntimeTaskSnapshot<TOptions, TResult, TEvent>> {
+    const taskId = this.#createId();
+    const createdAt = this.#now();
+    const preparedOptions = await (this.#dependencies.prepareOptions?.({
+      taskId,
+      createdAt,
+      options
+    }) ?? Promise.resolve(options));
     const state = this.#withRuntimeControls({
-      id: this.#createId(), status: 'queued', createdAt: this.#now(), options, events: []
+      id: taskId,
+      status: 'queued',
+      createdAt,
+      options: preparedOptions,
+      events: []
     });
     this.#tasks.set(state.id, state);
     this.#persist();

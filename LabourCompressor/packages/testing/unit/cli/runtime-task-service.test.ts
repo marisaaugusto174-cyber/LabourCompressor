@@ -84,6 +84,49 @@ test('persists completed runtime tasks and restores them after service restart',
   }
 });
 
+test('prepares options before a runtime task is created', async () => {
+  let runnerPath = '';
+  const service = createRuntimeTaskService({
+    createId: () => 'a1b2c3d4-0000-0000-0000-000000000000',
+    now: () => '2026-06-29T08:30:15.000Z',
+    prepareOptions: async ({ taskId, createdAt, options }) => {
+      assert.equal(taskId.slice(0, 8), 'a1b2c3d4');
+      assert.equal(createdAt, '2026-06-29T08:30:15.000Z');
+      return { ...options, spreadsheet: '/tmp/tasks-copy.xlsx' };
+    },
+    pipelineRunner: async ({ options }) => {
+      runnerPath = options.spreadsheet;
+      return createEmptyPipelineResult('prepared');
+    }
+  });
+
+  const task = await service.startTask(createMinimalPipelineOptions());
+  await waitForTask(service, task.id);
+
+  assert.equal(task.options.spreadsheet, '/tmp/tasks-copy.xlsx');
+  assert.equal(runnerPath, '/tmp/tasks-copy.xlsx');
+});
+
+test('does not create a task when option preparation fails', async () => {
+  let runnerCalled = false;
+  const service = createRuntimeTaskService({
+    prepareOptions: async () => {
+      throw new Error('working copy failed');
+    },
+    pipelineRunner: async () => {
+      runnerCalled = true;
+      return createEmptyPipelineResult('must-not-run');
+    }
+  });
+
+  await assert.rejects(
+    service.startTask(createMinimalPipelineOptions()),
+    /working copy failed/u
+  );
+  assert.equal(runnerCalled, false);
+  assert.deepEqual(service.listTasks(), []);
+});
+
 test('pauses running runtime tasks at the next cooperative checkpoint and resumes them', async () => {
   const service = createRuntimeTaskService({
     pipelineRunner: async ({ control }) => {
