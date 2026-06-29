@@ -48,6 +48,10 @@ export {
   parseStructuredTaggingResponse
 } from './structured-tag-response.ts';
 export {
+  ArchivePrimaryTagError,
+  selectArchivePathFromStructuredTags
+} from './archive-path-policy.ts';
+export {
   getEnabledProviderConfig,
   loadLocalProviderConfigFile,
   normalizeLocalProviderConfigMap,
@@ -121,5 +125,7 @@ export type {
   ContentTopicArchiveDecision
 } from './content-topic-classification.ts';
 export type {
-  ArchivePathPolicy
+  ArchivePathPolicy,
+  ArchivePrimaryTagErrorCode,
+  SelectArchivePathFromStructuredTagsInput
 } from './archive-path-policy.ts';
