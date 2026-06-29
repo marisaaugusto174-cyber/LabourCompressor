@@ -113,3 +113,6 @@ export type {
   ArchivePathSelectionInput,
   ContentTopicArchiveDecision
 } from './content-topic-classification.ts';
+export type {
+  ArchivePathPolicy
+} from './archive-path-policy.ts';

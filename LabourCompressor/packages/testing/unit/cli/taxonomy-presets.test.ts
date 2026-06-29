@@ -30,6 +30,14 @@ test('lists built-in taxonomy presets', () => {
   assert.equal(presets[0]?.source, 'internal');
   assert.equal(presets[1]?.source, 'internal');
   assert.equal(presets[2]?.source, 'external');
+  assert.equal(presets[0]?.archivePathPolicy, undefined);
+  assert.equal(presets[1]?.archivePathPolicy, undefined);
+  assert.deepEqual(presets[2]?.archivePathPolicy, {
+    dimension: '核心动作',
+    primaryRole: '主动作',
+    requiredCount: 1,
+    onInvalid: 'retry-once-then-review'
+  });
 });
 
 test('prefers explicit taxonomy path over preset', () => {
@@ -174,6 +182,41 @@ test('loadTaxonomyPresetRepository reads custom taxonomy manifests', () => {
     assert.equal(presets[0]?.filePath, path.join(tempDir, 'taxonomy.md'));
     assert.equal(presets[0]?.promptLibraryPath, path.join(tempDir, 'prompt.md'));
     assert.equal(presets[0]?.source, 'external');
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('loadTaxonomyPresetRepository rejects invalid archive path policies', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'taxonomy-presets-'));
+
+  try {
+    writeFileSync(path.join(tempDir, 'taxonomy.md'), '# Taxonomy\n');
+    writeFileSync(
+      path.join(tempDir, 'taxonomy.json'),
+      JSON.stringify({
+        id: 'invalid-archive-policy',
+        label: 'Invalid Archive Policy',
+        filePath: 'taxonomy.md',
+        description: 'Invalid archive policy fixture.',
+        baseKind: 'structured',
+        taxonomyVersionId: 'Invalid_Archive_Policy_V1',
+        archiveDimension: '内容领域',
+        archivePathPolicy: {
+          dimension: '核心动作',
+          primaryRole: '主动作',
+          requiredCount: 2,
+          onInvalid: 'retry-once-then-review'
+        },
+        modelResponseShape: 'structured-json',
+        taxonomyParseMode: 'bullet-root'
+      })
+    );
+
+    assert.throws(
+      () => loadTaxonomyPresetRepository(tempDir),
+      /archivePathPolicy/u
+    );
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

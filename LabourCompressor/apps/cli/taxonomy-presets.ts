@@ -3,6 +3,8 @@ import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import crypto from 'node:crypto';
 import path from 'node:path';
 
+import type { ArchivePathPolicy } from '../../packages/features/tagging/domain/index.ts';
+
 import { projectPath } from './project-paths.ts';
 
 export interface TaxonomyPresetDefinition {
@@ -14,6 +16,7 @@ export interface TaxonomyPresetDefinition {
   readonly baseKind: 'structured' | 'legacy';
   readonly taxonomyVersionId: string;
   readonly archiveDimension: string;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
   readonly modelResponseShape: 'structured-json' | 'paths-json-array';
   readonly taxonomyParseMode: 'heading' | 'bullet-root';
   readonly promptLibraryPath?: string | undefined;
@@ -242,11 +245,44 @@ function readTaxonomyPresetManifest(
     baseKind,
     taxonomyVersionId: readRequiredString(value.taxonomyVersionId, 'taxonomyVersionId', manifestPath),
     archiveDimension: readRequiredString(value.archiveDimension, 'archiveDimension', manifestPath),
+    archivePathPolicy: readArchivePathPolicy(value.archivePathPolicy, manifestPath),
     modelResponseShape,
     taxonomyParseMode,
     promptLibraryPath: readString(value.promptLibraryPath).length === 0
       ? undefined
       : resolveRepositoryFilePath(readString(value.promptLibraryPath), manifestPath)
+  });
+}
+
+function readArchivePathPolicy(
+  value: unknown,
+  manifestPath: string
+): ArchivePathPolicy | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`Invalid archivePathPolicy in taxonomy preset manifest: ${manifestPath}`);
+  }
+
+  const dimension = readString(value.dimension);
+  const primaryRole = readString(value.primaryRole);
+
+  if (
+    dimension.length === 0
+    || primaryRole.length === 0
+    || value.requiredCount !== 1
+    || value.onInvalid !== 'retry-once-then-review'
+  ) {
+    throw new Error(`Invalid archivePathPolicy in taxonomy preset manifest: ${manifestPath}`);
+  }
+
+  return Object.freeze({
+    dimension,
+    primaryRole,
+    requiredCount: 1,
+    onInvalid: 'retry-once-then-review'
   });
 }
 
