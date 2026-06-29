@@ -81,7 +81,7 @@ install_scenedetect() {
   rm -f "${scenedetect_bin}"
   "${PYTHON_FOR_SCENEDETECT}" -m venv "${venv_dir}"
   "${venv_dir}/bin/python" -m ensurepip --upgrade || return 1
-  "${venv_dir}/bin/python" -m pip install "scenedetect[opencv]" || return 1
+  "${venv_dir}/bin/python" -m pip install "scenedetect[opencv]==0.7" || return 1
 
   ln -sf "${venv_dir}/bin/scenedetect" "${scenedetect_bin}"
   echo "Created: ${scenedetect_bin}"

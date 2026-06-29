@@ -88,3 +88,28 @@ test('loadSegmentationProfileRepository rejects profiles outside the unified dur
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('repository profiles override continuity thresholds without changing defaults', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'segmentation-continuity-'));
+
+  try {
+    writeFileSync(path.join(tempDir, 'tuned.json'), JSON.stringify({
+      id: 'tuned', detector: 'adaptive',
+      minimumSeconds: 5, preferredMinimumSeconds: 5,
+      preferredMaximumSeconds: 30, maximumSeconds: 60,
+      continuityThresholds: {
+        visual: { histogramContinuousMinimum: 0.85 },
+        sampling: { frameWidth: 240 }
+      }
+    }));
+
+    const profile = (await loadSegmentationProfileRepository(tempDir))[0];
+
+    assert.equal(profile?.continuityThresholds.visual.histogramContinuousMinimum, 0.85);
+    assert.equal(profile?.continuityThresholds.visual.histogramBreakMaximum, 0.45);
+    assert.equal(profile?.continuityThresholds.sampling.frameWidth, 240);
+    assert.equal(profile?.continuityThresholds.sampling.audioSampleRate, 16_000);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});

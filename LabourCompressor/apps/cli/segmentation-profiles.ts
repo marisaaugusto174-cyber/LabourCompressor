@@ -2,6 +2,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { projectPath } from './project-paths.ts';
+import {
+  DEFAULT_CONTINUITY_THRESHOLDS,
+  type ContinuityThresholds
+} from '../../packages/features/segmentation/domain/index.ts';
 
 export type SegmentationDetector = 'adaptive' | 'content';
 
@@ -13,6 +17,7 @@ export interface SegmentationProfileDefinition {
   readonly preferredMinimumSeconds: number;
   readonly preferredMaximumSeconds: number;
   readonly maximumSeconds: number;
+  readonly continuityThresholds: ContinuityThresholds;
   readonly source: 'builtin' | 'repository';
   readonly manifestPath?: string | undefined;
 }
@@ -24,6 +29,7 @@ export type SegmentationProfileRules = Pick<
   | 'preferredMinimumSeconds'
   | 'preferredMaximumSeconds'
   | 'maximumSeconds'
+  | 'continuityThresholds'
 >;
 
 export const DEFAULT_SEGMENTATION_DURATION_POLICY = Object.freeze({
@@ -43,6 +49,7 @@ export const BUILTIN_SEGMENTATION_PROFILE_DEFINITIONS: readonly SegmentationProf
     label: 'standard_ad',
     detector: 'adaptive',
     ...DEFAULT_SEGMENTATION_DURATION_POLICY,
+    continuityThresholds: DEFAULT_CONTINUITY_THRESHOLDS,
     source: 'builtin'
   }),
   Object.freeze({
@@ -50,6 +57,7 @@ export const BUILTIN_SEGMENTATION_PROFILE_DEFINITIONS: readonly SegmentationProf
     label: 'fast_cut',
     detector: 'content',
     ...DEFAULT_SEGMENTATION_DURATION_POLICY,
+    continuityThresholds: DEFAULT_CONTINUITY_THRESHOLDS,
     source: 'builtin'
   }),
   Object.freeze({
@@ -57,6 +65,7 @@ export const BUILTIN_SEGMENTATION_PROFILE_DEFINITIONS: readonly SegmentationProf
     label: 'conservative',
     detector: 'adaptive',
     ...DEFAULT_SEGMENTATION_DURATION_POLICY,
+    continuityThresholds: DEFAULT_CONTINUITY_THRESHOLDS,
     source: 'builtin'
   })
 ]);
@@ -91,7 +100,8 @@ export async function resolveSegmentationProfileRules(profileId: string): Promis
     minimumSeconds: profile.minimumSeconds,
     preferredMinimumSeconds: profile.preferredMinimumSeconds,
     preferredMaximumSeconds: profile.preferredMaximumSeconds,
-    maximumSeconds: profile.maximumSeconds
+    maximumSeconds: profile.maximumSeconds,
+    continuityThresholds: profile.continuityThresholds
   });
 }
 
@@ -169,9 +179,107 @@ function readSegmentationProfileManifest(
     preferredMinimumSeconds,
     preferredMaximumSeconds,
     maximumSeconds,
+    continuityThresholds: readContinuityThresholds(value.continuityThresholds, manifestPath),
     source: 'repository',
     manifestPath
   });
+}
+
+function readContinuityThresholds(
+  value: unknown,
+  manifestPath: string
+): ContinuityThresholds {
+  if (value === undefined) return DEFAULT_CONTINUITY_THRESHOLDS;
+  const record = requireOptionalGroup(value, 'continuityThresholds', manifestPath);
+  return Object.freeze({
+    visual: readVisualThresholds(record.visual, manifestPath),
+    motion: readMotionThresholds(record.motion, manifestPath),
+    audio: readAudioThresholds(record.audio, manifestPath),
+    sampling: readSamplingThresholds(record.sampling, manifestPath)
+  });
+}
+
+function readVisualThresholds(value: unknown, manifestPath: string): ContinuityThresholds['visual'] {
+  const group = optionalGroup(value, 'visual', manifestPath);
+  const defaults = DEFAULT_CONTINUITY_THRESHOLDS.visual;
+  return Object.freeze({
+    histogramContinuousMinimum: optionalNumber(group.histogramContinuousMinimum, defaults.histogramContinuousMinimum, manifestPath),
+    histogramBreakMaximum: optionalNumber(group.histogramBreakMaximum, defaults.histogramBreakMaximum, manifestPath),
+    frameDifferenceContinuousMaximum: optionalNumber(group.frameDifferenceContinuousMaximum, defaults.frameDifferenceContinuousMaximum, manifestPath),
+    frameDifferenceBreakMinimum: optionalNumber(group.frameDifferenceBreakMinimum, defaults.frameDifferenceBreakMinimum, manifestPath)
+  });
+}
+
+function readMotionThresholds(value: unknown, manifestPath: string): ContinuityThresholds['motion'] {
+  const group = optionalGroup(value, 'motion', manifestPath);
+  const defaults = DEFAULT_CONTINUITY_THRESHOLDS.motion;
+  return Object.freeze({
+    stillMagnitudeMaximum: optionalNumber(group.stillMagnitudeMaximum, defaults.stillMagnitudeMaximum, manifestPath),
+    directionContinuousMinimum: optionalNumber(group.directionContinuousMinimum, defaults.directionContinuousMinimum, manifestPath),
+    directionBreakMaximum: optionalNumber(group.directionBreakMaximum, defaults.directionBreakMaximum, manifestPath),
+    magnitudeRatioContinuousMaximum: optionalNumber(group.magnitudeRatioContinuousMaximum, defaults.magnitudeRatioContinuousMaximum, manifestPath),
+    magnitudeRatioBreakMinimum: optionalNumber(group.magnitudeRatioBreakMinimum, defaults.magnitudeRatioBreakMinimum, manifestPath)
+  });
+}
+
+function readAudioThresholds(value: unknown, manifestPath: string): ContinuityThresholds['audio'] {
+  const group = optionalGroup(value, 'audio', manifestPath);
+  const defaults = DEFAULT_CONTINUITY_THRESHOLDS.audio;
+  return Object.freeze({
+    silenceDbMaximum: optionalNumber(group.silenceDbMaximum, defaults.silenceDbMaximum, manifestPath),
+    rmsDeltaContinuousMaximum: optionalNumber(group.rmsDeltaContinuousMaximum, defaults.rmsDeltaContinuousMaximum, manifestPath),
+    rmsDeltaBreakMinimum: optionalNumber(group.rmsDeltaBreakMinimum, defaults.rmsDeltaBreakMinimum, manifestPath),
+    spectrumContinuousMinimum: optionalNumber(group.spectrumContinuousMinimum, defaults.spectrumContinuousMinimum, manifestPath),
+    spectrumBreakMaximum: optionalNumber(group.spectrumBreakMaximum, defaults.spectrumBreakMaximum, manifestPath)
+  });
+}
+
+function readSamplingThresholds(value: unknown, manifestPath: string): ContinuityThresholds['sampling'] {
+  const group = optionalGroup(value, 'sampling', manifestPath);
+  const defaults = DEFAULT_CONTINUITY_THRESHOLDS.sampling;
+  return Object.freeze({
+    frameWidth: optionalPositiveInteger(group.frameWidth, defaults.frameWidth, manifestPath),
+    frameHeight: optionalPositiveInteger(group.frameHeight, defaults.frameHeight, manifestPath),
+    windowSeconds: optionalPositiveNumber(group.windowSeconds, defaults.windowSeconds, manifestPath),
+    audioSampleRate: optionalPositiveInteger(group.audioSampleRate, defaults.audioSampleRate, manifestPath)
+  });
+}
+
+function optionalGroup(
+  value: unknown,
+  fieldName: string,
+  manifestPath: string
+): Readonly<Record<string, unknown>> {
+  return value === undefined ? {} : requireOptionalGroup(value, fieldName, manifestPath);
+}
+
+function requireOptionalGroup(
+  value: unknown,
+  fieldName: string,
+  manifestPath: string
+): Readonly<Record<string, unknown>> {
+  if (!isRecord(value)) throw new Error(`Invalid ${fieldName} in segmentation profile manifest: ${manifestPath}`);
+  return value;
+}
+
+function optionalNumber(value: unknown, fallback: number, manifestPath: string): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Invalid continuity threshold in segmentation profile manifest: ${manifestPath}`);
+  }
+  return value;
+}
+
+function optionalPositiveNumber(value: unknown, fallback: number, manifestPath: string): number {
+  const result = optionalNumber(value, fallback, manifestPath);
+  if (result <= 0) throw new Error(`Invalid continuity threshold in segmentation profile manifest: ${manifestPath}`);
+  return result;
+}
+
+function optionalPositiveInteger(value: unknown, fallback: number, manifestPath: string): number {
+  const result = optionalPositiveNumber(value, fallback, manifestPath);
+  if (!Number.isInteger(result)) throw new Error(`Invalid continuity threshold in segmentation profile manifest: ${manifestPath}`);
+  return result;
 }
 
 function matchesUnifiedDurationPolicy(
