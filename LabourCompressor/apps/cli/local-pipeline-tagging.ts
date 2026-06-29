@@ -37,6 +37,7 @@ import { type CliStageEvent } from './status-reporter.ts';
 import { DEFAULT_VIDEO_CACHE_DIRECTORY } from './project-paths.ts';
 import { type VideoTaggingCacheResult } from '../../packages/adapters/media/media-frame-extractor.ts';
 import { resolveRequiredArchivePath, resolveRequiredContentTopic } from './archive-path-resolution.ts';
+import { classifyTaggingError, isVideoTooShortError } from './tagging-failure-classification.ts';
 
 export {
   resolveRequiredArchivePath,
@@ -395,10 +396,11 @@ function handleTaggingFailure(input: {
   }
 
   const message = input.error instanceof Error ? input.error.message : 'Tagging failed.';
+  const errorCode = classifyTaggingError(input.error);
   const failure = buildFailure({
     row: input.row,
     phase: 'tagging',
-    errorCode: /缺少内容题材/iu.test(message) ? 'missing-content-topic' : 'tagging-failed',
+    errorCode,
     errorMessage: message,
     timestamp: new Date().toISOString()
   });
@@ -434,11 +436,6 @@ function buildTimings(input: {
     archiveMs: input.archiveMs ?? 0,
     totalMs: Date.now() - input.itemStartedAt
   });
-}
-
-function isVideoTooShortError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /video file is too short|video modality input does not meet the requirements/iu.test(message);
 }
 
 export async function withRateLimitRetry<T>(input: {

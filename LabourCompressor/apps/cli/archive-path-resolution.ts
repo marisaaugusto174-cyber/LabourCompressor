@@ -230,24 +230,73 @@ function mergeModelJson(
   repair: unknown,
   policy: ArchivePathPolicy
 ): unknown {
-  if (!isRecord(original) || !Array.isArray(original.tags)) {
+  if (!isRecord(original)) {
     return original;
   }
-  const repairedTags = isRecord(repair) && Array.isArray(repair.tags)
-    ? repair.tags.filter((tag) => isRecord(tag) && tag.dimension === policy.dimension)
-    : [];
   const cloned = structuredClone(original);
-  if (!isRecord(cloned) || !Array.isArray(cloned.tags)) {
+  if (!isRecord(cloned)) {
     return cloned;
   }
-  const preservedTags = cloned.tags.filter(
-    (tag) => !isRecord(tag) || !isPrimaryRawPolicyTag(tag, policy)
-  );
-  cloned.tags = appendUniqueRawTags(
-    preservedTags,
-    structuredClone(repairedTags)
-  );
+  mergeRawTagCollections(cloned, repair, policy);
   return cloned;
+}
+
+const RAW_TAG_COLLECTIONS = [
+  'tags',
+  'fact_tags',
+  'metadata_tags',
+  'production_tags'
+] as const;
+
+function mergeRawTagCollections(
+  target: Record<string, unknown>,
+  repair: unknown,
+  policy: ArchivePathPolicy
+): void {
+  const repairRecord = isRecord(repair) ? repair : {};
+  const seen = new Set<string>();
+  for (const key of RAW_TAG_COLLECTIONS) {
+    const originalTags = Array.isArray(target[key]) ? target[key] : [];
+    const preserved = originalTags.filter(
+      (tag) => !isRecord(tag) || !isPrimaryRawPolicyTag(tag, policy)
+    );
+    if (key in target) {
+      target[key] = preserved;
+    }
+    preserved.forEach((tag) => seen.add(rawTagKey(tag)));
+  }
+  for (const key of RAW_TAG_COLLECTIONS) {
+    const additions = readRepairCollection(repairRecord[key], policy, seen);
+    if (additions.length === 0) {
+      continue;
+    }
+    const existing = Array.isArray(target[key]) ? target[key] : [];
+    target[key] = [...existing, ...structuredClone(additions)];
+  }
+}
+
+function readRepairCollection(
+  value: unknown,
+  policy: ArchivePathPolicy,
+  seen: Set<string>
+): unknown[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((tag) => {
+    if (!isRecord(tag) || tag.dimension !== policy.dimension) {
+      return false;
+    }
+    if (isPrimaryRawPolicyTag(tag, policy)) {
+      return true;
+    }
+    const key = rawTagKey(tag);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function isPrimaryPolicyTag(
@@ -288,22 +337,6 @@ function isPrimaryRawPolicyTag(
   policy: ArchivePathPolicy
 ): boolean {
   return tag.dimension === policy.dimension && tag.tag_role === policy.primaryRole;
-}
-
-function appendUniqueRawTags(
-  preserved: readonly unknown[],
-  additions: readonly unknown[]
-): unknown[] {
-  const seen = new Set(preserved.map(rawTagKey));
-  const appended = additions.filter((tag) => {
-    const key = rawTagKey(tag);
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-  return [...preserved, ...appended];
 }
 
 function rawTagKey(tag: unknown): string {

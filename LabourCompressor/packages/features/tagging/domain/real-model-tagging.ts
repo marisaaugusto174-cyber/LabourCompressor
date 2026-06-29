@@ -86,14 +86,10 @@ async function generateModelCandidatePathsWithAllowedPaths(
     readonly selectionMode: 'multi-branch' | 'content-topic-only';
   }
 ): Promise<GenerateModelCandidatePathsResult> {
-  const basePromptInstruction =
+  const promptInstruction =
     input.modelResponseShape === 'structured-json'
       ? input.taxonomyBaseMarkdown ?? buildPromptLibraryInstruction(input.promptLibrary)
       : buildPromptLibraryInstruction(input.promptLibrary);
-  const promptInstruction =
-    input.archivePathPolicy === undefined || input.modelResponseShape !== 'structured-json'
-    ? basePromptInstruction
-    : `${basePromptInstruction}\n\n${buildArchivePolicyInstruction(input.archivePathPolicy)}`;
   const selectedProfile = getVideoModelProfile(input.selectedModelProfileId);
   const resolvedProviderConfig = Object.freeze({
     ...input.providerConfig,
@@ -420,7 +416,7 @@ function isVideoMediaFile(filePath: string): boolean {
   return ['.mp4', '.mov', '.m4v', '.webm', '.mkv'].includes(extension);
 }
 
-function buildModelInstructionText(
+export function buildModelInstructionText(
   promptInstruction: string,
   allowedPaths: readonly string[],
   selectionMode: 'multi-branch' | 'content-topic-only',

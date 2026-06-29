@@ -37,6 +37,7 @@ export {
 } from './prompt-library.ts';
 export {
   buildArchivePolicyInstruction,
+  buildModelInstructionText,
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
   listDimensionLeafTaxonomyPaths,

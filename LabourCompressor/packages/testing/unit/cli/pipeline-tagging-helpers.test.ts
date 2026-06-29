@@ -5,12 +5,14 @@ import {
   resolveRequiredArchivePath,
   resolveRequiredContentTopic,
   resolveTaggingConcurrency,
+  runTaggingBatch,
   runConcurrentInOrder,
   withRateLimitRetry,
   type RequiredContentTopicResolution
 } from '../../../../apps/cli/local-pipeline-tagging.ts';
 import {
   ArchivePrimaryTagError,
+  parsePromptLibraryMarkdown,
   type ArchivePathPolicy,
   type StructuredTaggingResponse
 } from '../../../features/tagging/domain/index.ts';
@@ -220,6 +222,50 @@ test('rejects duplicate identical primary actions returned by the single repair'
   assert.equal(repairs, 1);
 });
 
+test('merges repaired primary actions into their raw domain collection', async () => {
+  const originalFact = {
+    dimension: '内容领域',
+    label_path: ['内容领域', '生活方式', '日常记录'],
+    evidence: 'fact'
+  };
+  const originalMetadata = {
+    dimension: '平台来源',
+    label_path: ['平台来源', '社媒平台'],
+    evidence: 'metadata'
+  };
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: [contentTag.labelPath.join(' > ')],
+    structuredResponse: response([contentTag]),
+    modelJson: {
+      taxonomy_version: 'v0.3',
+      fact_tags: [originalFact],
+      metadata_tags: [originalMetadata]
+    },
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    requestRepair: async () => ({
+      structuredResponse: response([mainAction]),
+      modelJson: {
+        fact_tags: [{
+          dimension: '核心动作',
+          label_path: [...mainAction.labelPath],
+          selected_level: 'l4',
+          tag_role: '主动作'
+        }]
+      }
+    })
+  });
+  const merged = result.mergedModelJson as Record<string, unknown>;
+  assert.deepEqual(merged.fact_tags, [originalFact, {
+    dimension: '核心动作',
+    label_path: [...mainAction.labelPath],
+    selected_level: 'l4',
+    tag_role: '主动作'
+  }]);
+  assert.deepEqual(merged.metadata_tags, [originalMetadata]);
+  assert.equal(merged.taxonomy_version, 'v0.3');
+});
+
 test('does not synthesize a real structured response before its single repair', async () => {
   let repairs = 0;
   const result = await resolveRequiredArchivePath({
@@ -287,6 +333,36 @@ test('keeps existing unique content topic without fallback', async () => {
     '视觉风格 > 真实感',
     '内容题材 > 生活方式 > 日常记录'
   ]);
+});
+
+test('runTaggingBatch preserves classified archive primary tag errors', async () => {
+  const failures: Array<{ readonly errorCode: string }> = [];
+  await runTaggingBatch({
+    assets: [{
+      mediaAssetId: 'asset-1', taskId: 'task-1', rowNumber: 2,
+      sourceUrl: 'https://example.com/video', platform: 'direct',
+      filePath: '/tmp/not-written.mp4', fileName: 'video.mp4', downloadedAt: '2026-06-29T00:00:00.000Z'
+    }],
+    rowByTaskId: new Map([['task-1', {
+      taskId: 'task-1', rowNumber: 2, url: 'https://example.com/video',
+      sourceKind: 'url' as const, values: {}
+    }]]),
+    resultsByRow: new Map(),
+    failures,
+    startedAt: '2026-06-29T00:00:00.000Z',
+    taggingMode: 'simulated',
+    candidateFixtures: {
+      'https://example.com/video': [
+        '核心动作 > 身体动作 > 位移动作 > 跑动',
+        '核心动作 > 身体动作 > 位移动作 > 行走'
+      ]
+    },
+    taxonomyTree: archiveTaxonomy,
+    promptLibrary: parsePromptLibraryMarkdown('# 提示\n\n## 规则\n- 仅合法路径\n'),
+    archivePathPolicy: archivePolicy,
+    emit: () => undefined
+  });
+  assert.equal(failures[0]?.errorCode, 'archive-primary-tag-conflict');
 });
 
 test('retries provider rate-limit errors a finite number of times', async () => {

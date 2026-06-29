@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import {
   buildArchivePolicyInstruction,
+  buildModelInstructionText,
   generateModelCandidatePaths,
   listLeafTaxonomyPaths,
   parseCandidatePathsFromModelText,
@@ -38,6 +39,22 @@ test('builds an exact structured archive policy instruction', () => {
   assert.match(instruction, /tag_role is "主动作"/u);
   assert.match(instruction, /Keep all other applicable tags/u);
   assert.match(instruction, /preserve the JSON schema/u);
+});
+
+test('injects archive policy once into the final structured provider prompt', () => {
+  const policy = {
+    dimension: '核心动作', primaryRole: '主动作', requiredCount: 1 as const,
+    onInvalid: 'retry-once-then-review' as const
+  };
+  const prompt = buildModelInstructionText(
+    'taxonomy schema', [], 'multi-branch', 'structured-json', '内容领域', policy
+  );
+  assert.equal(prompt.match(/exactly 1 tag/gu)?.length, 1);
+  const legacy = buildModelInstructionText(
+    'legacy', ['内容题材 > 生活'], 'multi-branch', 'paths-json-array', '内容题材', policy
+  );
+  assert.equal(legacy.includes('tag_role'), false);
+  assert.match(legacy, /JSON array/u);
 });
 
 test('parses candidate path json array from model response', () => {
