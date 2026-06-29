@@ -8,11 +8,12 @@ import {
   type DownloadedMediaAsset
 } from '../../packages/features/download/domain/index.ts';
 import {
+  ArchivePrimaryTagError,
   buildStructuredLevelValues,
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
   runAutomaticTagging,
-  selectUniqueArchivePath,
+  type ArchivePathPolicy,
   type LocalProviderConfig,
   type PromptLibraryDocument,
   type VideoModelProfile
@@ -35,12 +36,14 @@ import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 import { DEFAULT_VIDEO_CACHE_DIRECTORY } from './project-paths.ts';
 import { type VideoTaggingCacheResult } from '../../packages/adapters/media/media-frame-extractor.ts';
+import { resolveRequiredArchivePath, resolveRequiredContentTopic } from './archive-path-resolution.ts';
 
-export interface RequiredContentTopicResolution {
-  readonly acceptedPaths: readonly string[];
-  readonly selectedContentTopicPath: string;
-  readonly fallbackApplied: boolean;
-}
+export {
+  resolveRequiredArchivePath,
+  resolveRequiredContentTopic,
+  type RequiredArchivePathResolution,
+  type RequiredContentTopicResolution
+} from './archive-path-resolution.ts';
 
 export interface PipelineItemTimings {
   readonly preprocessMs: number;
@@ -67,6 +70,7 @@ export async function runTaggingBatch(input: {
   readonly taxonomyBaseMarkdown?: string | undefined;
   readonly taxonomyVersionId?: string | undefined;
   readonly archiveDimension?: string | undefined;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly emit: (
     stage: string,
@@ -123,6 +127,7 @@ export async function runTaggingBatch(input: {
                 taxonomyBaseMarkdown: input.taxonomyBaseMarkdown,
                 taxonomyVersionId,
                 archiveDimension,
+                archivePathPolicy: input.archivePathPolicy,
                 modelResponseShape: input.modelResponseShape,
 	                providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
                 videoCacheDirectory: DEFAULT_VIDEO_CACHE_DIRECTORY,
@@ -158,7 +163,8 @@ export async function runTaggingBatch(input: {
         taxonomyTree: input.taxonomyTree,
         promptLibrary: input.promptLibrary
       });
-	      const topicResolution = await resolveRequiredContentTopic({
+	      const topicResolution = input.archivePathPolicy === undefined
+        ? await resolveRequiredContentTopic({
 	        acceptedPaths: taggingResult.acceptedPaths,
         archiveDimension,
 	        requestFallbackPaths: async () => {
@@ -196,12 +202,52 @@ export async function runTaggingBatch(input: {
             promptLibrary: input.promptLibrary
           }).acceptedPaths;
         }
-      });
+          })
+        : await resolveRequiredArchivePath({
+            acceptedPaths: taggingResult.acceptedPaths,
+            structuredResponse: modelResult?.structuredResponse,
+            modelJson: modelResult?.parsedJson,
+            policy: input.archivePathPolicy,
+            taxonomyTree: input.taxonomyTree,
+            allowPathSynthesis: input.taggingMode !== 'qwen',
+            requestRepair: async () => {
+              if (input.taggingMode !== 'qwen') {
+                throw new ArchivePrimaryTagError('archive-primary-tag-missing');
+              }
+              const repairStartedAt = Date.now();
+              const repairResult = await withRateLimitRetry({
+                operation: () => generateModelCandidatePaths({
+                  mediaFilePath: asset.filePath,
+                  mediaAssetId: asset.mediaAssetId,
+                  taxonomyTree: input.taxonomyTree,
+                  promptLibrary: input.promptLibrary,
+                  taxonomyBaseMarkdown: input.taxonomyBaseMarkdown,
+                  taxonomyVersionId,
+                  archiveDimension,
+                  archivePathPolicy: input.archivePathPolicy,
+                  modelResponseShape: input.modelResponseShape,
+                  providerConfig: requireValue(input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
+                  videoCacheDirectory: DEFAULT_VIDEO_CACHE_DIRECTORY,
+                  selectedModelProfileId: input.selectedModelProfileId
+                })
+              });
+              modelRequestMs += Date.now() - repairStartedAt;
+              return {
+                structuredResponse: repairResult.structuredResponse,
+                modelJson: repairResult.parsedJson
+              };
+            }
+          });
+	      const selectedArchivePath = 'selectedArchivePath' in topicResolution
+        ? topicResolution.selectedArchivePath
+        : topicResolution.selectedContentTopicPath;
 	      tagNormalizeMs = Date.now() - normalizeStartedAt;
-	      const archivePath = ['视频数据归档库', ...topicResolution.selectedContentTopicPath.split(' > ')].join('/');
+	      const archivePath = ['视频数据归档库', ...selectedArchivePath.split(' > ')].join('/');
       const taggingJsonPayload = buildTaggingJsonPayload({
         taxonomyVersionId,
-        modelJson: modelResult?.parsedJson,
+        modelJson: 'mergedModelJson' in topicResolution
+          ? topicResolution.mergedModelJson ?? modelResult?.parsedJson
+          : modelResult?.parsedJson,
         acceptedPaths: topicResolution.acceptedPaths
       });
       const taggingJsonFileName = replaceExtension(asset.fileName, '.json');
@@ -224,7 +270,7 @@ export async function runTaggingBatch(input: {
         taggingJsonArchivePath: archivePath,
         taggingJsonPayload,
 	        acceptedPaths: topicResolution.acceptedPaths,
-        selectedContentTopicPath: topicResolution.selectedContentTopicPath,
+	        selectedContentTopicPath: selectedArchivePath,
         timings
       });
       completedCount += 1;
@@ -235,8 +281,10 @@ export async function runTaggingBatch(input: {
         details: {
           candidateCount: candidatePaths.length,
           acceptedCount: topicResolution.acceptedPaths.length,
-          selectedContentTopicPath: topicResolution.selectedContentTopicPath,
-          fallbackApplied: topicResolution.fallbackApplied
+          selectedContentTopicPath: selectedArchivePath,
+          fallbackApplied: 'fallbackApplied' in topicResolution
+            ? topicResolution.fallbackApplied
+            : topicResolution.repairApplied
         }
       });
     } catch (error) {
@@ -262,45 +310,6 @@ export function resolveTaggingConcurrency(input: {
   }
 
   return Math.min(clamped, Math.max(1, input.itemCount));
-}
-
-export async function resolveRequiredContentTopic(input: {
-  readonly acceptedPaths: readonly string[];
-  readonly archiveDimension?: string | undefined;
-  readonly requestFallbackPaths: () => Promise<readonly string[]>;
-}): Promise<RequiredContentTopicResolution> {
-  const archiveDimension = input.archiveDimension ?? '内容题材';
-  const firstDecision = selectUniqueArchivePath({
-    acceptedPaths: input.acceptedPaths,
-    archiveDimension
-  });
-
-  if (firstDecision.selectedPath !== undefined) {
-    return Object.freeze({
-      acceptedPaths: Object.freeze([...input.acceptedPaths]),
-      selectedContentTopicPath: firstDecision.selectedPath,
-      fallbackApplied: false
-    });
-  }
-
-  const fallbackPaths = await input.requestFallbackPaths();
-  const mergedPaths = Object.freeze(
-    [...new Set([...input.acceptedPaths, ...fallbackPaths].map((value) => value.trim()).filter(Boolean))]
-  );
-  const fallbackDecision = selectUniqueArchivePath({
-    acceptedPaths: mergedPaths,
-    archiveDimension
-  });
-
-  if (fallbackDecision.selectedPath === undefined) {
-    throw new Error(`打标失败：缺少${archiveDimension}`);
-  }
-
-  return Object.freeze({
-    acceptedPaths: mergedPaths,
-    selectedContentTopicPath: fallbackDecision.selectedPath,
-    fallbackApplied: true
-  });
 }
 
 export async function runConcurrentInOrder<T, R>(

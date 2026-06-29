@@ -321,6 +321,7 @@ export async function runLocalPipelineCommand(input: {
     taxonomyBaseMarkdown: taxonomyRuntime.taxonomyMarkdown,
     taxonomyVersionId: taxonomyRuntime.preset.taxonomyVersionId,
     archiveDimension: taxonomyRuntime.preset.archiveDimension,
+    archivePathPolicy: taxonomyRuntime.preset.archivePathPolicy,
     modelResponseShape: taxonomyRuntime.preset.modelResponseShape,
     emit
   });

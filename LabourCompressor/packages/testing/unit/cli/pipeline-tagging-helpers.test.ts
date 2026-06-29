@@ -2,12 +2,205 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  resolveRequiredArchivePath,
   resolveRequiredContentTopic,
   resolveTaggingConcurrency,
   runConcurrentInOrder,
   withRateLimitRetry,
   type RequiredContentTopicResolution
 } from '../../../../apps/cli/local-pipeline-tagging.ts';
+import {
+  ArchivePrimaryTagError,
+  type ArchivePathPolicy,
+  type StructuredTaggingResponse
+} from '../../../features/tagging/domain/index.ts';
+import { parseTaxonomyMarkdown } from '../../../features/taxonomy/domain/index.ts';
+
+const archivePolicy: ArchivePathPolicy = Object.freeze({
+  dimension: '核心动作',
+  primaryRole: '主动作',
+  requiredCount: 1,
+  onInvalid: 'retry-once-then-review'
+});
+
+const archiveTaxonomy = parseTaxonomyMarkdown([
+  '## 核心动作',
+  '',
+  '- 身体动作',
+  '  - 位移动作',
+  '    - 跑动',
+  '  - 姿态动作',
+  '    - 转身',
+  '',
+  '## 内容领域',
+  '',
+  '- 生活方式',
+  '  - 日常记录'
+].join('\n'));
+
+function response(tags: StructuredTaggingResponse['tags']): StructuredTaggingResponse {
+  return Object.freeze({ reviewRequired: false, reviewReason: '', tags: Object.freeze(tags) });
+}
+
+const mainAction = Object.freeze({
+  dimension: '核心动作',
+  labelPath: Object.freeze(['核心动作', '身体动作', '位移动作', '跑动']),
+  selectedLevel: 'l4',
+  tagRole: '主动作',
+  entityId: '',
+  targetEntityId: '',
+  confidenceScore: 0.9
+});
+
+const contentTag = Object.freeze({
+  dimension: '内容领域',
+  labelPath: Object.freeze(['内容领域', '生活方式', '日常记录']),
+  selectedLevel: 'l3',
+  tagRole: '',
+  entityId: 'entity-1',
+  targetEntityId: '',
+  confidenceScore: 0.8
+});
+
+test('keeps a legal primary archive action without repair', async () => {
+  let repairs = 0;
+  const structuredResponse = response([mainAction, contentTag]);
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: structuredResponse.tags.map((tag) => tag.labelPath.join(' > ')),
+    structuredResponse,
+    modelJson: { marker: 'original', tags: [{ dimension: '核心动作' }] },
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    requestRepair: async () => {
+      repairs += 1;
+      throw new Error('repair should not run');
+    }
+  });
+
+  assert.equal(repairs, 0);
+  assert.equal(result.repairApplied, false);
+  assert.equal(result.selectedArchivePath, '核心动作 > 身体动作 > 位移动作 > 跑动');
+  assert.equal(result.structuredResponse, structuredResponse);
+});
+
+test('repairs missing primary action once and preserves unrelated tag json', async () => {
+  const preservedTag = {
+    dimension: '内容领域',
+    label_path: ['内容领域', '生活方式', '日常记录'],
+    evidence: { source: 'frame-8' }
+  };
+  const originalJson = {
+    taxonomy_version: 'v0.3',
+    segment_id: 'segment-1',
+    tags: [preservedTag, { dimension: '核心动作', tag_role: '次动作' }]
+  };
+  let repairs = 0;
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: ['内容领域 > 生活方式 > 日常记录'],
+    structuredResponse: response([contentTag]),
+    modelJson: originalJson,
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    requestRepair: async () => {
+      repairs += 1;
+      return {
+        structuredResponse: response([mainAction]),
+        modelJson: {
+          tags: [{
+            dimension: '核心动作',
+            label_path: [...mainAction.labelPath],
+            selected_level: 'l4',
+            tag_role: '主动作'
+          }]
+        }
+      };
+    }
+  });
+
+  assert.equal(repairs, 1);
+  assert.equal(result.repairApplied, true);
+  assert.deepEqual(result.acceptedPaths, [
+    '内容领域 > 生活方式 > 日常记录',
+    '核心动作 > 身体动作 > 位移动作 > 跑动'
+  ]);
+  const merged = result.mergedModelJson as typeof originalJson;
+  assert.equal(merged.taxonomy_version, originalJson.taxonomy_version);
+  assert.equal(merged.segment_id, originalJson.segment_id);
+  assert.deepEqual(merged.tags[0], preservedTag);
+  assert.notEqual(merged.tags[0], preservedTag);
+  assert.equal(merged.tags.filter((tag) => tag.dimension === '核心动作').length, 1);
+  assert.deepEqual(originalJson.tags, [preservedTag, { dimension: '核心动作', tag_role: '次动作' }]);
+});
+
+test('repairs duplicate primary actions only once and propagates the classified retry failure', async () => {
+  let repairs = 0;
+  await assert.rejects(
+    resolveRequiredArchivePath({
+      acceptedPaths: [mainAction.labelPath.join(' > ')],
+      structuredResponse: response([mainAction, mainAction]),
+      modelJson: { tags: [] },
+      policy: archivePolicy,
+      taxonomyTree: archiveTaxonomy,
+      requestRepair: async () => {
+        repairs += 1;
+        return { structuredResponse: response([]), modelJson: { tags: [] } };
+      }
+    }),
+    (error: unknown) => error instanceof ArchivePrimaryTagError &&
+      error.code === 'archive-primary-tag-missing'
+  );
+  assert.equal(repairs, 1);
+});
+
+test('does not synthesize a real structured response before its single repair', async () => {
+  let repairs = 0;
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: [mainAction.labelPath.join(' > ')],
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    requestRepair: async () => {
+      repairs += 1;
+      return { structuredResponse: response([mainAction]), modelJson: { tags: [] } };
+    }
+  });
+
+  assert.equal(repairs, 1);
+  assert.equal(result.repairApplied, true);
+});
+
+test('synthesizes one configured primary action only for simulated path fixtures', async () => {
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: [
+      '核心动作 > 身体动作 > 位移动作 > 跑动',
+      '内容领域 > 生活方式 > 日常记录'
+    ],
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    allowPathSynthesis: true,
+    requestRepair: async () => {
+      throw new Error('repair should not run');
+    }
+  });
+
+  assert.equal(result.selectedArchivePath, '核心动作 > 身体动作 > 位移动作 > 跑动');
+  await assert.rejects(resolveRequiredArchivePath({
+    acceptedPaths: [],
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    allowPathSynthesis: true,
+    requestRepair: async () => { throw new Error('repair should not run'); }
+  }), (error: unknown) => error instanceof ArchivePrimaryTagError && error.code === 'archive-primary-tag-missing');
+  await assert.rejects(resolveRequiredArchivePath({
+    acceptedPaths: [
+      '核心动作 > 身体动作 > 位移动作 > 跑动',
+      '核心动作 > 身体动作 > 姿态动作 > 转身'
+    ],
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    allowPathSynthesis: true,
+    requestRepair: async () => { throw new Error('repair should not run'); }
+  }), (error: unknown) => error instanceof ArchivePrimaryTagError && error.code === 'archive-primary-tag-conflict');
+});
 
 test('keeps existing unique content topic without fallback', async () => {
   const result = await resolveRequiredContentTopic({

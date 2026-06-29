@@ -36,6 +36,7 @@ export {
   parsePromptLibraryMarkdown
 } from './prompt-library.ts';
 export {
+  buildArchivePolicyInstruction,
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
   listDimensionLeafTaxonomyPaths,

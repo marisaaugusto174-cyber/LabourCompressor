@@ -92,6 +92,7 @@ export async function runTagStage(input: StageContext): Promise<void> {
     taxonomyBaseMarkdown: taxonomyRuntime.taxonomyMarkdown,
     taxonomyVersionId: taxonomyRuntime.preset.taxonomyVersionId,
     archiveDimension: taxonomyRuntime.preset.archiveDimension,
+    archivePathPolicy: taxonomyRuntime.preset.archivePathPolicy,
     modelResponseShape: taxonomyRuntime.preset.modelResponseShape,
     emit: input.emit
   });

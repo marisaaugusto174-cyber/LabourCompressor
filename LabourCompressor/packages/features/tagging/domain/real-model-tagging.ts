@@ -29,6 +29,7 @@ import {
   parseStructuredTaggingResponse,
   type StructuredTaggingResponse
 } from './structured-tag-response.ts';
+import { type ArchivePathPolicy } from './archive-path-policy.ts';
 
 export interface GenerateModelCandidatePathsInput {
   readonly mediaFilePath: string;
@@ -41,6 +42,7 @@ export interface GenerateModelCandidatePathsInput {
   readonly taxonomyBaseMarkdown?: string | undefined;
   readonly taxonomyVersionId?: string | undefined;
   readonly archiveDimension?: string | undefined;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
 }
 
@@ -84,10 +86,14 @@ async function generateModelCandidatePathsWithAllowedPaths(
     readonly selectionMode: 'multi-branch' | 'content-topic-only';
   }
 ): Promise<GenerateModelCandidatePathsResult> {
-  const promptInstruction =
+  const basePromptInstruction =
     input.modelResponseShape === 'structured-json'
       ? input.taxonomyBaseMarkdown ?? buildPromptLibraryInstruction(input.promptLibrary)
       : buildPromptLibraryInstruction(input.promptLibrary);
+  const promptInstruction =
+    input.archivePathPolicy === undefined || input.modelResponseShape !== 'structured-json'
+    ? basePromptInstruction
+    : `${basePromptInstruction}\n\n${buildArchivePolicyInstruction(input.archivePathPolicy)}`;
   const selectedProfile = getVideoModelProfile(input.selectedModelProfileId);
   const resolvedProviderConfig = Object.freeze({
     ...input.providerConfig,
@@ -100,7 +106,8 @@ async function generateModelCandidatePathsWithAllowedPaths(
     allowedPaths: input.allowedPaths,
     selectionMode: input.selectionMode,
     modelResponseShape: input.modelResponseShape,
-    archiveDimension: input.archiveDimension
+    archiveDimension: input.archiveDimension,
+    archivePathPolicy: input.archivePathPolicy
   });
   const videoTaggingCache = isVideoMediaFile(input.mediaFilePath)
     ? await prepareVideoTaggingCache({
@@ -129,7 +136,8 @@ async function generateModelCandidatePathsWithAllowedPaths(
           videoTaggingCache,
           selectionMode: input.selectionMode,
           modelResponseShape: input.modelResponseShape,
-          archiveDimension: input.archiveDimension
+          archiveDimension: input.archiveDimension,
+          archivePathPolicy: input.archivePathPolicy
         })
       : resolvedProviderConfig.provider === 'google'
         ? await completeWithGemini({
@@ -141,7 +149,8 @@ async function generateModelCandidatePathsWithAllowedPaths(
             selectedProfileThinkingLevel: selectedProfile.thinkingLevel,
             selectionMode: input.selectionMode,
             modelResponseShape: input.modelResponseShape,
-            archiveDimension: input.archiveDimension
+            archiveDimension: input.archiveDimension,
+            archivePathPolicy: input.archivePathPolicy
           })
         : throwUnsupportedProvider(resolvedProviderConfig.provider);
   const parsedResponse = parseModelTaggingResponse(response.text);
@@ -166,6 +175,7 @@ async function completeWithQwen(input: {
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly archiveDimension?: string | undefined;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
 }) {
   const client = createQwenCompatibleClient(input.providerConfig);
   return isVideoMediaFile(input.mediaFilePath)
@@ -175,7 +185,8 @@ async function completeWithQwen(input: {
           input.allowedPaths,
           input.selectionMode,
           input.modelResponseShape,
-          input.archiveDimension
+          input.archiveDimension,
+          input.archivePathPolicy
         ),
         videoDataUrl: await encodeFileAsDataUrl(
           requireVideoCache(input.videoTaggingCache).cachePath
@@ -195,6 +206,7 @@ async function completeWithGemini(input: {
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly archiveDimension?: string | undefined;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
 }) {
   const client = createGeminiCompatibleClient(input.providerConfig);
 
@@ -205,7 +217,8 @@ async function completeWithGemini(input: {
         input.allowedPaths,
         input.selectionMode,
         input.modelResponseShape,
-        input.archiveDimension
+        input.archiveDimension,
+        input.archivePathPolicy
       ),
       thinkingLevel: input.selectedProfileThinkingLevel
     });
@@ -222,7 +235,8 @@ async function completeWithGemini(input: {
       input.allowedPaths,
       input.selectionMode,
       input.modelResponseShape,
-      input.archiveDimension
+      input.archiveDimension,
+      input.archivePathPolicy
     ),
     videoBase64: inlineData.base64Data,
     mimeType: inlineData.mimeType,
@@ -366,6 +380,7 @@ async function buildModelContentParts(input: {
   readonly selectionMode: 'multi-branch' | 'content-topic-only';
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly archiveDimension?: string | undefined;
+  readonly archivePathPolicy?: ArchivePathPolicy | undefined;
 }): Promise<readonly QwenMessageContentPart[]> {
   const extension = path.extname(input.mediaFilePath).toLowerCase();
   const content: QwenMessageContentPart[] = [
@@ -376,7 +391,8 @@ async function buildModelContentParts(input: {
         input.allowedPaths,
         input.selectionMode,
         input.modelResponseShape,
-        input.archiveDimension
+        input.archiveDimension,
+        input.archivePathPolicy
       )
     }
   ];
@@ -409,7 +425,8 @@ function buildModelInstructionText(
   allowedPaths: readonly string[],
   selectionMode: 'multi-branch' | 'content-topic-only',
   modelResponseShape: 'paths-json-array' | 'structured-json' = 'paths-json-array',
-  archiveDimension = '内容题材'
+  archiveDimension = '内容题材',
+  archivePathPolicy?: ArchivePathPolicy | undefined
 ): string {
   if (modelResponseShape === 'structured-json') {
     const selectionRules =
@@ -418,9 +435,11 @@ function buildModelInstructionText(
             `The response must include exactly one tag whose dimension is "${archiveDimension}".`,
             `That "${archiveDimension}" tag must be supported by direct evidence.`
           ]
-        : [
+        : archivePathPolicy === undefined ? [
             `The response must include exactly one primary "${archiveDimension}" tag when evidence allows.`,
             'Keep the JSON schema defined by the prompt base.'
+          ] : [
+            buildArchivePolicyInstruction(archivePathPolicy)
           ];
 
     return [
@@ -456,5 +475,12 @@ function buildModelInstructionText(
     '',
     'Allowed taxonomy paths:',
     ...allowedPaths.map((value) => `- ${value}`)
+  ].join('\n');
+}
+
+export function buildArchivePolicyInstruction(policy: ArchivePathPolicy): string {
+  return [
+    `The response must include exactly ${policy.requiredCount} tag whose dimension is "${policy.dimension}" and whose tag_role is "${policy.primaryRole}".`,
+    'Keep all other applicable tags and preserve the JSON schema defined by the prompt base.'
   ].join('\n');
 }

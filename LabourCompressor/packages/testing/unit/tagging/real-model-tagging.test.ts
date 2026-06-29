@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
+  buildArchivePolicyInstruction,
   generateModelCandidatePaths,
   listLeafTaxonomyPaths,
   parseCandidatePathsFromModelText,
@@ -22,6 +23,21 @@ test('lists only leaf taxonomy paths for model instruction', () => {
   );
 
   assert.deepEqual(listLeafTaxonomyPaths(tree), ['一级 > A > A1', '一级 > A > A2', '一级 > B > B1']);
+});
+
+test('builds an exact structured archive policy instruction', () => {
+  const instruction = buildArchivePolicyInstruction({
+    dimension: '核心动作',
+    primaryRole: '主动作',
+    requiredCount: 1,
+    onInvalid: 'retry-once-then-review'
+  });
+
+  assert.match(instruction, /exactly 1 tag/u);
+  assert.match(instruction, /dimension is "核心动作"/u);
+  assert.match(instruction, /tag_role is "主动作"/u);
+  assert.match(instruction, /Keep all other applicable tags/u);
+  assert.match(instruction, /preserve the JSON schema/u);
 });
 
 test('parses candidate path json array from model response', () => {
