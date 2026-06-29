@@ -12,7 +12,7 @@ import {
   getLevelValues,
   readOptionalSidecarJson,
   resolveRowFilePath,
-  resolveSelectedContentTopicPath,
+  resolveSelectedArchivePath,
   resolveSourceFilePath,
   resolveTaggingJsonFileName,
   shouldProcessMediaRow
@@ -27,7 +27,7 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
   for (const row of rows) {
     await waitForPipelineCheckpoint(input.input.control);
     const filePath = resolveRowFilePath(row, spreadsheetDirectory);
-    const selectedContentTopicPath = resolveSelectedContentTopicPath(row);
+    const selectedArchivePath = resolveSelectedArchivePath(row);
     if (filePath === undefined) {
       input.resultsByRow.set(row.rowNumber, createSkippedRowState({
         row,
@@ -36,7 +36,7 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
       }));
       continue;
     }
-    if (selectedContentTopicPath === undefined) {
+    if (selectedArchivePath === undefined) {
       input.resultsByRow.set(row.rowNumber, createSkippedRowState({
         row,
         archiveState: '等待打标',
@@ -51,7 +51,7 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
         sourceFilePath: filePath,
         archiveRoot: archiveLibraryRoot,
         placementPlans: buildArchivePlacementPlans({
-          acceptedPaths: [selectedContentTopicPath],
+          acceptedPaths: [selectedArchivePath],
           fileName: path.basename(filePath)
         }),
         placementMode: 'copy',
@@ -77,8 +77,8 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
             : path.basename(primaryArchiveRecord.archivePath),
         taggingJsonFileName: resolveTaggingJsonFileName(row, filePath),
         taggingJsonArchivePath: row.values['归档路径'] ?? '',
-        acceptedPaths: [selectedContentTopicPath],
-        selectedContentTopicPath
+        acceptedPaths: [selectedArchivePath],
+        selectedContentTopicPath: selectedArchivePath
       }));
     } catch (error) {
       pushStageFailure({

@@ -122,23 +122,20 @@ export function createAssetFromRow(input: {
   });
 }
 
-export function resolveSelectedContentTopicPath(row: SpreadsheetTaskRow): string | undefined {
+export function resolveSelectedArchivePath(row: SpreadsheetTaskRow): string | undefined {
   const archivePath = row.values['归档路径']?.trim() ?? '';
-  const segments = archivePath.split('/').filter(Boolean);
-  const contentTopicIndex = segments.indexOf('内容题材');
+  const segments = archivePath.split('/').map((segment) => segment.trim()).filter(Boolean);
+  const archiveRootIndex = segments.indexOf('视频数据归档库');
+  const relativeSegments = archiveRootIndex === -1
+    ? segments
+    : segments.slice(archiveRootIndex + 1);
 
-  if (contentTopicIndex !== -1) {
-    return segments.slice(contentTopicIndex).join(' > ');
-  }
-
-  const contentDomainIndex = segments.indexOf('内容领域');
-
-  if (contentDomainIndex !== -1) {
-    return segments.slice(contentDomainIndex).join(' > ');
-  }
-
-  return undefined;
+  return relativeSegments.length >= 2
+    ? relativeSegments.join(' > ')
+    : undefined;
 }
+
+export const resolveSelectedContentTopicPath = resolveSelectedArchivePath;
 
 export function resolveTaggingJsonFileName(row: SpreadsheetTaskRow, filePath: string): string | undefined {
   const fromRow = row.values['标签JSON文件']?.trim();

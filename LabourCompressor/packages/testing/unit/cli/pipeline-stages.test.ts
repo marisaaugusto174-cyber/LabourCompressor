@@ -8,6 +8,12 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 import { runLocalPipelineCommand } from '../../../../apps/cli/local-pipeline-command.ts';
+import {
+  resolveSelectedArchivePath,
+  resolveSelectedContentTopicPath,
+  shouldProcessMediaRow
+} from '../../../../apps/cli/pipeline/row-state.ts';
+import { type SpreadsheetTaskRow } from '../../../../packages/features/spreadsheet-tasks/domain/index.ts';
 
 const xlsx = XLSX.default ?? XLSX;
 
@@ -355,6 +361,54 @@ test('resume-cache pipeline runs compress, tag, and archive from an AfterEdit sh
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('archive path resolver accepts generic rooted and legacy relative paths', () => {
+  const cases = [
+    {
+      archivePath: '视频数据归档库/核心动作/身体动作/位移动作/跑动',
+      expected: '核心动作 > 身体动作 > 位移动作 > 跑动'
+    },
+    {
+      archivePath: '视频数据归档库/内容领域/商业营销/产品广告',
+      expected: '内容领域 > 商业营销 > 产品广告'
+    },
+    {
+      archivePath: '内容题材/生活方式/日常记录',
+      expected: '内容题材 > 生活方式 > 日常记录'
+    }
+  ] as const;
+
+  for (const { archivePath, expected } of cases) {
+    assert.equal(resolveSelectedArchivePath(createArchiveRow(archivePath)), expected);
+  }
+});
+
+test('archive path resolver leaves empty and root-only paths waiting for tagging', () => {
+  assert.equal(resolveSelectedArchivePath(createArchiveRow('')), undefined);
+  assert.equal(resolveSelectedArchivePath(createArchiveRow('视频数据归档库')), undefined);
+  assert.equal(resolveSelectedArchivePath(createArchiveRow('视频数据归档库/核心动作')), undefined);
+});
+
+test('archive stage row filter leaves archived rows unchanged', () => {
+  assert.equal(shouldProcessMediaRow(createArchiveRow('', '已归档')), false);
+});
+
+test('legacy content topic resolver remains an alias of the generic resolver', () => {
+  assert.equal(resolveSelectedContentTopicPath, resolveSelectedArchivePath);
+});
+
+function createArchiveRow(archivePath: string, archiveState = '等待归档'): SpreadsheetTaskRow {
+  return {
+    taskId: 'task-archive-path',
+    rowNumber: 2,
+    url: '',
+    sourceKind: 'local-file',
+    values: {
+      归档路径: archivePath,
+      归档状态: archiveState
+    }
+  };
+}
 
 function writeTinyVideo(filePath: string): void {
   const result = spawnSync(
