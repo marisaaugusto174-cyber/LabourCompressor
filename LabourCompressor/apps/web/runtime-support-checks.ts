@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { inspectYtDlpBinary } from '../../packages/adapters/downloaders/ytdlp-downloader.ts';
 import { validateFfmpegBinary } from '../../packages/adapters/media/ffmpeg-merge-operator.ts';
@@ -19,7 +20,8 @@ import {
 import { type RuntimeCheckResult } from './runtime-support-types.ts';
 
 export async function runPipelinePreflight(
-  options: RunLocalPipelineOptions
+  options: RunLocalPipelineOptions,
+  preflightOptions: { readonly userSheetWorkspace?: boolean } = {}
 ): Promise<readonly RuntimeCheckResult[]> {
   const taxonomyPreset = options.taxonomyPreset?.trim();
   const taxonomyParseMode = taxonomyPreset === undefined || taxonomyPreset.length === 0
@@ -32,7 +34,9 @@ export async function runPipelinePreflight(
       taxonomyPreset: undefined
     }), taxonomyParseMode),
     checkFileReadable('prompt-library', options.promptLibrary),
-    checkDirectoryWritable('download-dir', options.downloadDir),
+    preflightOptions.userSheetWorkspace === true
+      ? checkDirectoryWritable('user-sheet-directory', path.dirname(options.spreadsheet))
+      : checkDirectoryWritable('download-dir', options.downloadDir),
     checkDirectoryWritable('archive-root', options.archiveRoot),
     checkYtDlp(options),
     checkFfmpeg(),

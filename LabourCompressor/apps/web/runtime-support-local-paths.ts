@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { constants } from 'node:fs';
 import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -52,7 +53,7 @@ export async function checkOptionalFileReadable(key: string, filePath: string): 
 export async function checkDirectoryWritable(key: string, directoryPath: string): Promise<RuntimeCheckResult> {
   try {
     await mkdir(directoryPath, { recursive: true });
-    await access(directoryPath);
+    await access(directoryPath, constants.W_OK);
     return Object.freeze({ key, ok: true, message: `${key} is writable.` });
   } catch (error) {
     return buildFailedCheck(key, `${key} is not writable.`, error);

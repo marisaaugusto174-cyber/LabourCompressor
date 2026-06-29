@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
@@ -95,6 +95,45 @@ test('preflight treats stale yt-dlp as non-blocking when spreadsheet contains on
     assert.equal(ytDlpCheck?.details?.isStale, true);
     assert.match(ytDlpCheck?.message ?? '', /Douyin SSR/u);
   } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('user sheet preflight checks the spreadsheet parent instead of the old download directory', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-user-workspace-preflight-'));
+  const sourceDir = path.join(tempDir, 'readonly-source');
+  const spreadsheetPath = path.join(sourceDir, 'tasks.xlsx');
+  const taxonomyPath = path.join(tempDir, 'taxonomy.md');
+  try {
+    mkdirSync(sourceDir);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(
+      workbook,
+      xlsx.utils.aoa_to_sheet([['URL'], ['https://example.com/video']]),
+      'Sheet1'
+    );
+    xlsx.writeFile(workbook, spreadsheetPath);
+    writeFileSync(taxonomyPath, '* 主体对象\n    * 人物\n        * 成人\n');
+    chmodSync(sourceDir, 0o555);
+
+    const checks = await runPipelinePreflight({
+      spreadsheet: spreadsheetPath,
+      downloadDir: tempDir,
+      taxonomy: taxonomyPath,
+      promptLibrary: taxonomyPath,
+      archiveRoot: tempDir,
+      downloaderMode: 'simulated',
+      mergeMode: 'local',
+      taggingMode: 'simulated'
+    }, { userSheetWorkspace: true });
+
+    assert.equal(
+      checks.some((item) => item.key === 'user-sheet-directory' && !item.ok),
+      true
+    );
+    assert.equal(checks.some((item) => item.key === 'download-dir'), false);
+  } finally {
+    chmodSync(sourceDir, 0o755);
     rmSync(tempDir, { recursive: true, force: true });
   }
 });

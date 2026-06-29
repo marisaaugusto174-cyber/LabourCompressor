@@ -19,7 +19,9 @@ export const handlePipelineRoutes: WebRouteHandler = async ({ request, response,
     const uiOptions = await readJsonBody(request);
     const options = buildWebPipelineOptions(uiOptions);
     sendJson(response, {
-      checks: await runPipelinePreflight(options)
+      checks: await runPipelinePreflight(options, {
+        userSheetWorkspace: options.pipelineStage !== 'resume-cache'
+      })
     });
     return true;
   }
