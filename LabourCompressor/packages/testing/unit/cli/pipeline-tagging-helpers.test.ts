@@ -29,6 +29,7 @@ const archiveTaxonomy = parseTaxonomyMarkdown([
   '- 身体动作',
   '  - 位移动作',
   '    - 跑动',
+  '    - 行走',
   '  - 姿态动作',
   '    - 转身',
   '',
@@ -62,6 +63,16 @@ const contentTag = Object.freeze({
   confidenceScore: 0.8
 });
 
+const secondaryAction = Object.freeze({
+  dimension: '核心动作',
+  labelPath: Object.freeze(['核心动作', '身体动作', '位移动作', '行走']),
+  selectedLevel: 'l4',
+  tagRole: '次动作',
+  entityId: 'action-2',
+  targetEntityId: '',
+  confidenceScore: 0.7
+});
+
 test('keeps a legal primary archive action without repair', async () => {
   let repairs = 0;
   const structuredResponse = response([mainAction, contentTag]);
@@ -83,7 +94,7 @@ test('keeps a legal primary archive action without repair', async () => {
   assert.equal(result.structuredResponse, structuredResponse);
 });
 
-test('repairs missing primary action once and preserves unrelated tag json', async () => {
+test('repairs only the primary action and preserves secondary actions and unrelated json', async () => {
   const preservedTag = {
     dimension: '内容领域',
     label_path: ['内容领域', '生活方式', '日常记录'],
@@ -92,25 +103,39 @@ test('repairs missing primary action once and preserves unrelated tag json', asy
   const originalJson = {
     taxonomy_version: 'v0.3',
     segment_id: 'segment-1',
-    tags: [preservedTag, { dimension: '核心动作', tag_role: '次动作' }]
+    tags: [preservedTag, {
+      dimension: '核心动作',
+      label_path: [...secondaryAction.labelPath],
+      selected_level: 'l4',
+      tag_role: '次动作',
+      evidence: { source: 'frame-4' }
+    }]
   };
   let repairs = 0;
   const result = await resolveRequiredArchivePath({
-    acceptedPaths: ['内容领域 > 生活方式 > 日常记录'],
-    structuredResponse: response([contentTag]),
+    acceptedPaths: [
+      '内容领域 > 生活方式 > 日常记录',
+      secondaryAction.labelPath.join(' > ')
+    ],
+    structuredResponse: response([contentTag, secondaryAction]),
     modelJson: originalJson,
     policy: archivePolicy,
     taxonomyTree: archiveTaxonomy,
     requestRepair: async () => {
       repairs += 1;
       return {
-        structuredResponse: response([mainAction]),
+        structuredResponse: response([mainAction, secondaryAction]),
         modelJson: {
           tags: [{
             dimension: '核心动作',
             label_path: [...mainAction.labelPath],
             selected_level: 'l4',
             tag_role: '主动作'
+          }, {
+            dimension: '核心动作',
+            label_path: [...secondaryAction.labelPath],
+            selected_level: 'l4',
+            tag_role: '次动作'
           }]
         }
       };
@@ -121,15 +146,23 @@ test('repairs missing primary action once and preserves unrelated tag json', asy
   assert.equal(result.repairApplied, true);
   assert.deepEqual(result.acceptedPaths, [
     '内容领域 > 生活方式 > 日常记录',
+    '核心动作 > 身体动作 > 位移动作 > 行走',
     '核心动作 > 身体动作 > 位移动作 > 跑动'
   ]);
+  assert.deepEqual(result.structuredResponse?.tags, [contentTag, secondaryAction, mainAction]);
   const merged = result.mergedModelJson as typeof originalJson;
   assert.equal(merged.taxonomy_version, originalJson.taxonomy_version);
   assert.equal(merged.segment_id, originalJson.segment_id);
   assert.deepEqual(merged.tags[0], preservedTag);
   assert.notEqual(merged.tags[0], preservedTag);
-  assert.equal(merged.tags.filter((tag) => tag.dimension === '核心动作').length, 1);
-  assert.deepEqual(originalJson.tags, [preservedTag, { dimension: '核心动作', tag_role: '次动作' }]);
+  assert.deepEqual(merged.tags[1], originalJson.tags[1]);
+  assert.equal(merged.tags.filter((tag) => tag.dimension === '核心动作').length, 2);
+  assert.deepEqual(
+    merged.tags.filter((tag) => tag.dimension === '核心动作').map((tag) => tag.tag_role),
+    ['次动作', '主动作']
+  );
+  assert.deepEqual(originalJson.tags[0], preservedTag);
+  assert.equal(originalJson.tags.length, 2);
 });
 
 test('repairs duplicate primary actions only once and propagates the classified retry failure', async () => {

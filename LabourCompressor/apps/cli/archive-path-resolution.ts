@@ -97,6 +97,7 @@ export async function resolveRequiredArchivePath(input: {
   );
   const acceptedPaths = mergeAcceptedPaths(
     input.acceptedPaths,
+    initialResponse,
     repairedResponse,
     input.policy,
     input.taxonomyTree
@@ -184,24 +185,31 @@ function mergeStructuredResponses(
   repair: StructuredTaggingResponse,
   policy: ArchivePathPolicy
 ): StructuredTaggingResponse {
+  const preserved = original.tags.filter(
+    (tag) => !isPrimaryPolicyTag(tag, policy)
+  );
+  const repaired = repair.tags.filter((tag) => tag.dimension === policy.dimension);
   return Object.freeze({
     reviewRequired: repair.reviewRequired,
     reviewReason: repair.reviewReason,
-    tags: Object.freeze([
-      ...original.tags.filter((tag) => tag.dimension !== policy.dimension),
-      ...repair.tags.filter((tag) => tag.dimension === policy.dimension)
-    ])
+    tags: Object.freeze(uniqueStructuredTags([...preserved, ...repaired]))
   });
 }
 
 function mergeAcceptedPaths(
   acceptedPaths: readonly string[],
+  originalResponse: StructuredTaggingResponse,
   repairedResponse: StructuredTaggingResponse,
   policy: ArchivePathPolicy,
   taxonomyTree: ParsedTaxonomyTree
 ): readonly string[] {
+  const originalPrimaryPaths = new Set(
+    originalResponse.tags
+      .filter((tag) => isPrimaryPolicyTag(tag, policy))
+      .map((tag) => tag.labelPath.join(' > '))
+  );
   const preserved = acceptedPaths.filter(
-    (pathValue) => !pathValue.startsWith(`${policy.dimension} > `)
+    (pathValue) => !originalPrimaryPaths.has(pathValue)
   );
   const repaired = repairedResponse.tags
     .filter((tag) => tag.dimension === policy.dimension)
@@ -226,11 +234,73 @@ function mergeModelJson(
   if (!isRecord(cloned) || !Array.isArray(cloned.tags)) {
     return cloned;
   }
-  cloned.tags = [
-    ...cloned.tags.filter((tag) => !isRecord(tag) || tag.dimension !== policy.dimension),
+  const preservedTags = cloned.tags.filter(
+    (tag) => !isRecord(tag) || !isPrimaryRawPolicyTag(tag, policy)
+  );
+  cloned.tags = uniqueRawTags([
+    ...preservedTags,
     ...structuredClone(repairedTags)
-  ];
+  ]);
   return cloned;
+}
+
+function isPrimaryPolicyTag(
+  tag: StructuredTagCandidate,
+  policy: ArchivePathPolicy
+): boolean {
+  return tag.dimension === policy.dimension && tag.tagRole === policy.primaryRole;
+}
+
+function uniqueStructuredTags(
+  tags: readonly StructuredTagCandidate[]
+): readonly StructuredTagCandidate[] {
+  const seen = new Set<string>();
+  return tags.filter((tag) => {
+    const key = [
+      tag.dimension,
+      tag.tagRole,
+      tag.labelPath.join('\u0000'),
+      tag.entityId,
+      tag.targetEntityId
+    ].join('\u0001');
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function isPrimaryRawPolicyTag(
+  tag: Record<string, unknown>,
+  policy: ArchivePathPolicy
+): boolean {
+  return tag.dimension === policy.dimension && tag.tag_role === policy.primaryRole;
+}
+
+function uniqueRawTags(tags: readonly unknown[]): unknown[] {
+  const seen = new Set<string>();
+  return tags.filter((tag) => {
+    const key = rawTagKey(tag);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function rawTagKey(tag: unknown): string {
+  if (!isRecord(tag)) {
+    return `primitive:${JSON.stringify(tag)}`;
+  }
+  return JSON.stringify([
+    tag.dimension,
+    tag.tag_role,
+    tag.label_path,
+    tag.entity_id,
+    tag.target_entity_id
+  ]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
