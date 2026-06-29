@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, chmod, copyFile, rm } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { type RunLocalPipelineOptions } from '../cli/local-pipeline-command.ts';
@@ -31,6 +31,18 @@ export function buildUserSpreadsheetWorkingCopyPath(input: {
   return path.join(path.dirname(input.sourcePath), `${fileName}${extension}`);
 }
 
+export function buildUserSheetTaskCachePath(input: {
+  readonly sourcePath: string;
+  readonly taskId: string;
+}): string {
+  const extension = path.extname(input.sourcePath);
+  const baseName = path.basename(input.sourcePath, extension);
+  return path.join(
+    path.dirname(input.sourcePath),
+    `${normalizeBaseName(baseName)}_视频下载缓存_${input.taskId.slice(0, 8)}`
+  );
+}
+
 export async function prepareUserSpreadsheetWorkingCopy(
   input: RuntimeTaskPreparationInput<RunLocalPipelineOptions>
 ): Promise<RunLocalPipelineOptions> {
@@ -43,11 +55,30 @@ export async function prepareUserSpreadsheetWorkingCopy(
     taskId: input.taskId,
     createdAt: input.createdAt
   });
+  const cachePath = buildUserSheetTaskCachePath({
+    sourcePath,
+    taskId: input.taskId
+  });
 
   await assertSourceReadable(sourcePath);
   await assertDirectoryWritable(directoryPath);
-  await copyWorkingFile(sourcePath, targetPath);
-  return { ...input.options, spreadsheet: targetPath };
+  await createCacheDirectory(cachePath);
+  try {
+    await copyWorkingFile(sourcePath, targetPath);
+  } catch (error) {
+    await rmdir(cachePath).catch(() => undefined);
+    throw error;
+  }
+  return { ...input.options, spreadsheet: targetPath, downloadDir: cachePath };
+}
+
+async function createCacheDirectory(cachePath: string): Promise<void> {
+  try {
+    await mkdir(cachePath, { mode: 0o755 });
+  } catch (error) {
+    if (isErrorCode(error, 'EEXIST')) throw new WorkingCopyNameConflictError(cachePath);
+    throw error;
+  }
 }
 
 async function copyWorkingFile(sourcePath: string, targetPath: string): Promise<void> {
@@ -81,7 +112,7 @@ async function assertDirectoryWritable(directoryPath: string): Promise<void> {
     await access(directoryPath, constants.W_OK);
   } catch (error) {
     throw new Error(
-      `用户表所在目录不可写，无法创建任务副本：${directoryPath}`,
+      `用户表所在目录不可写，无法创建任务工作区：${directoryPath}`,
       { cause: error }
     );
   }

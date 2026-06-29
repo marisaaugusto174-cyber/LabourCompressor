@@ -14,6 +14,7 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 import {
+  buildUserSheetTaskCachePath,
   buildUserSpreadsheetWorkingCopyPath,
   prepareUserSpreadsheetWorkingCopy,
   WorkingCopyNameConflictError
@@ -40,6 +41,11 @@ test('creates a writable working copy beside a read-only user spreadsheet', asyn
 
     assert.equal(path.dirname(prepared.spreadsheet), tempDir);
     assert.equal(
+      prepared.downloadDir,
+      path.join(tempDir, '测试_集_O2_视频下载缓存_a1b2c3d4')
+    );
+    assert.equal((await stat(prepared.downloadDir)).isDirectory(), true);
+    assert.equal(
       path.basename(prepared.spreadsheet),
       '测试_集_O2_任务副本_20260629_163015_a1b2c3d4.xlsx'
     );
@@ -64,6 +70,13 @@ test('normalizes names and preserves the csv extension', () => {
     target,
     '/tmp/销售_任务_任务副本_20260629_163015_a1b2c3d4.csv'
   );
+  assert.equal(
+    buildUserSheetTaskCachePath({
+      sourcePath: '/tmp/  销售@@ 任务  .csv',
+      taskId: TASK_ID
+    }),
+    '/tmp/销售_任务_视频下载缓存_a1b2c3d4'
+  );
 });
 
 test('leaves resume-cache spreadsheets unchanged', async () => {
@@ -75,6 +88,7 @@ test('leaves resume-cache spreadsheets unchanged', async () => {
   });
 
   assert.equal(prepared, options);
+  assert.equal(prepared.downloadDir, '/tmp/downloads');
 });
 
 test('does not overwrite an existing working copy', async () => {
