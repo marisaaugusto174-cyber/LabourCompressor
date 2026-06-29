@@ -14,6 +14,7 @@ cookies.txt
 node_modules
 dist
 .tools
+.worktrees
 视频数据下载缓存
 视频数据归档库
 视频数据采集总表.xlsx
