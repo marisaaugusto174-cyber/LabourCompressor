@@ -36,6 +36,27 @@ test('ignores secondary actions when selecting the primary path', () => {
   ]), '核心动作 > 身体动作 > 位移动作 > 跑动');
 });
 
+test('ignores a primary tag from the wrong dimension even with the configured root', () => {
+  assert.equal(select([
+    tag(),
+    tag({ dimension: '表现形式' })
+  ]), '核心动作 > 身体动作 > 位移动作 > 跑动');
+});
+
+test('wrong-dimension primary tags do not satisfy the configured role', () => {
+  assertCode([
+    tag({ tagRole: '次动作' }),
+    tag({ dimension: '表现形式' })
+  ], 'archive-primary-tag-role-invalid');
+});
+
+test('target entity identity or absence does not affect path selection', () => {
+  const path = '核心动作 > 身体动作 > 位移动作 > 跑动';
+
+  assert.equal(select([tag({ targetEntityId: 'person-2' })]), path);
+  assert.equal(select([tag({ targetEntityId: '' })]), path);
+});
+
 test('classifies a missing core-action candidate', () => {
   assertCode([], 'archive-primary-tag-missing');
 });
@@ -54,7 +75,6 @@ test('classifies two primary actions as a conflict', () => {
 test('classifies malformed or illegal primary paths', async (t) => {
   const cases: readonly [string, StructuredTagCandidate][] = [
     ['wrong root', tag({ labelPath: ['表现形式', '身体动作', '位移动作', '跑动'] })],
-    ['dimension mismatch', tag({ dimension: '表现形式' })],
     ['unknown taxonomy path', tag({ labelPath: ['核心动作', '身体动作', '位移动作', '飞奔'] })],
     ['selected level mismatch', tag({ selectedLevel: 'l3' })]
   ];

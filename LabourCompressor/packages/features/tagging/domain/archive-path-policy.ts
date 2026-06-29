@@ -50,7 +50,7 @@ export function selectArchivePathFromStructuredTags(
   }
 
   const dimensionCandidates = structuredResponse.tags.filter(
-    (tag) => tag.dimension === policy.dimension || tag.labelPath[0] === policy.dimension
+    (tag) => tag.dimension === policy.dimension
   );
   if (dimensionCandidates.length === 0) {
     fail('archive-primary-tag-missing');
