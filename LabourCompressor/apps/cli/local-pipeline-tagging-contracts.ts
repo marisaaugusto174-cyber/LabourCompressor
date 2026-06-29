@@ -1,6 +1,7 @@
 import { type DownloadedMediaAsset } from '../../packages/features/download/domain/index.ts';
 import {
   type ArchivePathPolicy,
+  type GenerateModelCandidatePathsResult,
   type LocalProviderConfig,
   type PromptLibraryDocument,
   type VideoModelProfile
@@ -38,6 +39,7 @@ export interface RunTaggingBatchInput {
   readonly archiveDimension?: string | undefined;
   readonly archivePathPolicy?: ArchivePathPolicy | undefined;
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
+  readonly generateModelCandidates?: (() => Promise<GenerateModelCandidatePathsResult>) | undefined;
   readonly emit: (
     stage: string,
     status: CliStageEvent['status'],

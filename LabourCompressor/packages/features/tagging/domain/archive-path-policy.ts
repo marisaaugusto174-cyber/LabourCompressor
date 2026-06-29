@@ -14,12 +14,15 @@ export interface ArchivePathPolicy {
   readonly onInvalid: 'retry-once-then-review';
 }
 
-export type ArchivePrimaryTagErrorCode =
-  | 'archive-primary-tag-missing'
-  | 'archive-primary-tag-conflict'
-  | 'archive-primary-tag-role-invalid'
-  | 'archive-primary-tag-path-invalid'
-  | 'archive-primary-tag-review-required';
+export const ARCHIVE_PRIMARY_TAG_ERROR_CODES = Object.freeze([
+  'archive-primary-tag-missing',
+  'archive-primary-tag-conflict',
+  'archive-primary-tag-role-invalid',
+  'archive-primary-tag-path-invalid',
+  'archive-primary-tag-review-required'
+] as const);
+
+export type ArchivePrimaryTagErrorCode = typeof ARCHIVE_PRIMARY_TAG_ERROR_CODES[number];
 
 export class ArchivePrimaryTagError extends Error {
   readonly code: ArchivePrimaryTagErrorCode;

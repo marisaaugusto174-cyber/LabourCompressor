@@ -1,5 +1,13 @@
 import { escapeHtml } from './form-state.js';
 
+export const PRIMARY_ACTION_REVIEW_ERROR_CODES = Object.freeze([
+  'archive-primary-tag-missing',
+  'archive-primary-tag-conflict',
+  'archive-primary-tag-role-invalid',
+  'archive-primary-tag-path-invalid',
+  'archive-primary-tag-review-required'
+]);
+
 export function renderAfterEditFiles(files, resultsList) {
   if (!files.length) {
     resultsList.innerHTML = '';

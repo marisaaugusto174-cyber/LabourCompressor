@@ -50,6 +50,7 @@ export {
   parseStructuredTaggingResponse
 } from './structured-tag-response.ts';
 export {
+  ARCHIVE_PRIMARY_TAG_ERROR_CODES,
   ArchivePrimaryTagError,
   selectArchivePathFromStructuredTags
 } from './archive-path-policy.ts';

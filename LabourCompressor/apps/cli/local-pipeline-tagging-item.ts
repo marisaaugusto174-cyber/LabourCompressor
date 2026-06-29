@@ -40,6 +40,10 @@ interface ItemContext {
   readonly archiveDimension: string;
   modelRequestMs: number;
   tagNormalizeMs: number;
+  latestTaggingSidecar?: Readonly<{
+    readonly fileName: string;
+    readonly payload: unknown;
+  }> | undefined;
 }
 
 interface ProcessedTaggingResult {
@@ -100,7 +104,14 @@ async function requestInitialModelResult(
   if (context.input.taggingMode !== 'qwen') {
     return undefined;
   }
-  return timeModelRequest(context, () => generateModelCandidatePaths(buildModelInput(context)));
+  const result = await timeModelRequest(context, () => requestModelCandidates(context));
+  await persistLatestModelSidecar(context, result.parsedJson);
+  return result;
+}
+
+function requestModelCandidates(context: ItemContext): Promise<GenerateModelCandidatePathsResult> {
+  return context.input.generateModelCandidates?.() ??
+    generateModelCandidatePaths(buildModelInput(context));
 }
 
 function buildModelInput(context: ItemContext) {
@@ -240,8 +251,20 @@ async function requestPolicyRepair(context: ItemContext) {
   if (context.input.taggingMode !== 'qwen') {
     throw new ArchivePrimaryTagError('archive-primary-tag-missing');
   }
-  const result = await timeModelRequest(context, () => generateModelCandidatePaths(buildModelInput(context)));
+  const result = await timeModelRequest(context, () => requestModelCandidates(context));
+  await persistLatestModelSidecar(context, result.parsedJson);
   return { structuredResponse: result.structuredResponse, modelJson: result.parsedJson };
+}
+
+async function persistLatestModelSidecar(context: ItemContext, payload: unknown): Promise<void> {
+  if (payload === undefined) return;
+  const fileName = replaceExtension(context.asset.fileName, '.json');
+  await writeFile(
+    replaceExtension(context.asset.filePath, '.json'),
+    `${JSON.stringify(payload, null, 2)}\n`,
+    'utf8'
+  );
+  context.latestTaggingSidecar = Object.freeze({ fileName, payload });
 }
 
 type ArchiveResolution = Awaited<ReturnType<typeof resolveLegacyArchivePath>> |
@@ -348,6 +371,11 @@ function persistTaggingFailure(context: ItemContext, error: unknown, completedCo
       row: context.row,
       archiveState: presentation.archiveState,
       failure
+    }),
+    ...(context.latestTaggingSidecar === undefined ? {} : {
+      taggingJsonFileName: context.latestTaggingSidecar.fileName,
+      taggingJsonArchivePath: '',
+      taggingJsonPayload: context.latestTaggingSidecar.payload
     }),
     timings: buildTimings(context)
   });

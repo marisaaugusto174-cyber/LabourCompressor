@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   buildResultWorkbenchHtml,
-  classifyResult
+  classifyResult,
+  PRIMARY_ACTION_REVIEW_ERROR_CODES
 } from '../../../../apps/web/public/results-view.js';
+import { ARCHIVE_PRIMARY_TAG_ERROR_CODES } from '../../../features/tagging/domain/index.ts';
 
 const succeeded = {
   rowNumber: 2,
@@ -103,6 +105,7 @@ test('renders explicit actions for every classified primary action review failur
     ['archive-primary-tag-path-invalid', '待复核：核心动作路径不合法', '从当前标签体系中选择合法的核心动作路径'],
     ['archive-primary-tag-review-required', '待复核：核心动作无法确定', '人工确认唯一的核心动作主动作']
   ];
+  assert.deepEqual(cases.map(([errorCode]) => errorCode), PRIMARY_ACTION_REVIEW_ERROR_CODES);
   const html = buildResultWorkbenchHtml(cases.map(([errorCode, archiveState], index) => ({
     rowNumber: 10 + index,
     archiveState,
@@ -115,4 +118,8 @@ test('renders explicit actions for every classified primary action review failur
     assert.equal(html.includes(archiveState), true);
     assert.equal(html.includes(action), true);
   }
+});
+
+test('keeps browser review error mappings exhaustive with the domain error contract', () => {
+  assert.deepEqual(PRIMARY_ACTION_REVIEW_ERROR_CODES, ARCHIVE_PRIMARY_TAG_ERROR_CODES);
 });
