@@ -45,6 +45,9 @@ export {
   parseModelTaggingResponse
 } from './real-model-tagging.ts';
 export {
+  parseStructuredTaggingResponse
+} from './structured-tag-response.ts';
+export {
   getEnabledProviderConfig,
   loadLocalProviderConfigFile,
   normalizeLocalProviderConfigMap,
@@ -98,6 +101,10 @@ export type {
 export type {
   GenerateModelCandidatePathsResult
 } from './real-model-tagging.ts';
+export type {
+  StructuredTagCandidate,
+  StructuredTaggingResponse
+} from './structured-tag-response.ts';
 export type {
   AssetSelectionTaggingScope,
   DirectoryTaggingScope,

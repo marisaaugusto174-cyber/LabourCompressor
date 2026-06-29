@@ -9,6 +9,7 @@ import {
   generateModelCandidatePaths,
   listLeafTaxonomyPaths,
   parseCandidatePathsFromModelText,
+  parseModelTaggingResponse,
   parsePromptLibraryMarkdown
 } from '../../../features/tagging/domain/index.ts';
 import {
@@ -33,8 +34,7 @@ test('parses candidate path json array from model response', () => {
 });
 
 test('parses core v0.1 structured tagging json response into taxonomy paths', () => {
-  assert.deepEqual(
-    parseCandidatePathsFromModelText(JSON.stringify({
+  const parsed = parseModelTaggingResponse(JSON.stringify({
       taxonomy_version: 'Core_Prompt_V0.1',
       segment_id: 'seg-1',
       review_required: false,
@@ -49,9 +49,21 @@ test('parses core v0.1 structured tagging json response into taxonomy paths', ()
           label_path: ['内容领域', '商业营销', '产品广告']
         }
       ]
-    })),
+    }));
+
+  assert.deepEqual(
+    parsed.candidatePaths,
     ['表现形式 > 商业传播 > 产品转化', '内容领域 > 商业营销 > 产品广告']
   );
+  assert.deepEqual(parsed.structuredResponse?.tags[0], {
+    dimension: '表现形式',
+    labelPath: ['表现形式', '商业传播', '产品转化'],
+    selectedLevel: '',
+    tagRole: '',
+    entityId: '',
+    targetEntityId: '',
+    confidenceScore: undefined
+  });
 });
 
 test('parses full v0.2 structured tagging json response across all data domains', () => {
@@ -83,6 +95,82 @@ test('parses full v0.2 structured tagging json response across all data domains'
       '质量状态 > 正常可用'
     ]
   );
+});
+
+test('preserves normalized core-action tag roles and label paths', () => {
+  const parsed = parseModelTaggingResponse(JSON.stringify({
+    review_required: false,
+    review_reason: '',
+    tags: [
+      {
+        dimension: '核心动作',
+        label_path: ['核心动作', '身体动作', '位移动作', '跑动'],
+        selected_level: '四级',
+        tag_role: '主动作',
+        entity_id: '',
+        target_entity_id: 'ent-1',
+        confidence_score: 0.95
+      },
+      {
+        dimension: '核心动作',
+        label_path: ['核心动作', '身体动作', '姿态动作', '转身'],
+        selected_level: '四级',
+        tag_role: '次动作',
+        entity_id: '',
+        target_entity_id: 'ent-1'
+      }
+    ]
+  }));
+
+  assert.deepEqual(parsed.candidatePaths, [
+    '核心动作 > 身体动作 > 位移动作 > 跑动',
+    '核心动作 > 身体动作 > 姿态动作 > 转身'
+  ]);
+  assert.deepEqual(parsed.structuredResponse?.tags, [
+    {
+      dimension: '核心动作',
+      labelPath: ['核心动作', '身体动作', '位移动作', '跑动'],
+      selectedLevel: '四级',
+      tagRole: '主动作',
+      entityId: '',
+      targetEntityId: 'ent-1',
+      confidenceScore: 0.95
+    },
+    {
+      dimension: '核心动作',
+      labelPath: ['核心动作', '身体动作', '姿态动作', '转身'],
+      selectedLevel: '四级',
+      tagRole: '次动作',
+      entityId: '',
+      targetEntityId: 'ent-1',
+      confidenceScore: undefined
+    }
+  ]);
+});
+
+test('keeps structured response undefined for legacy path arrays', () => {
+  const parsed = parseModelTaggingResponse(
+    '["核心动作 > 身体动作 > 位移动作 > 跑动"]'
+  );
+
+  assert.deepEqual(parsed.candidatePaths, [
+    '核心动作 > 身体动作 > 位移动作 > 跑动'
+  ]);
+  assert.equal(parsed.structuredResponse, undefined);
+});
+
+test('rejects malformed structured tag selection fields', () => {
+  for (const malformedTag of [
+    { dimension: 1, label_path: ['核心动作'] },
+    { dimension: '核心动作', label_path: ['核心动作'], tag_role: 1 },
+    { dimension: '核心动作', label_path: ['核心动作'], selected_level: 1 },
+    { dimension: '核心动作', label_path: ['核心动作', 1] }
+  ]) {
+    assert.throws(
+      () => parseModelTaggingResponse(JSON.stringify({ tags: [malformedTag] })),
+      /must be (?:a string|an array of strings)/u
+    );
+  }
 });
 
 test('rejects too-short videos before provider request', async () => {

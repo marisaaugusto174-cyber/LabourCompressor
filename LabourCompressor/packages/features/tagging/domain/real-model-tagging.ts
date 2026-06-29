@@ -25,6 +25,10 @@ import {
 import {
   getVideoModelProfile
 } from './video-model-profiles.ts';
+import {
+  parseStructuredTaggingResponse,
+  type StructuredTaggingResponse
+} from './structured-tag-response.ts';
 
 export interface GenerateModelCandidatePathsInput {
   readonly mediaFilePath: string;
@@ -45,6 +49,7 @@ export interface GenerateModelCandidatePathsResult {
   readonly rawText: string;
   readonly promptInstruction: string;
   readonly parsedJson?: unknown | undefined;
+  readonly structuredResponse?: StructuredTaggingResponse | undefined;
   readonly videoTaggingCache?: VideoTaggingCacheResult | undefined;
 }
 
@@ -146,6 +151,7 @@ async function generateModelCandidatePathsWithAllowedPaths(
     rawText: response.text,
     promptInstruction,
     parsedJson: parsedResponse.parsedJson,
+    structuredResponse: parsedResponse.structuredResponse,
     videoTaggingCache
   });
 }
@@ -293,6 +299,7 @@ export function parseCandidatePathsFromModelText(
 export function parseModelTaggingResponse(modelText: string): Readonly<{
   readonly candidatePaths: readonly string[];
   readonly parsedJson: unknown;
+  readonly structuredResponse?: StructuredTaggingResponse | undefined;
 }> {
   const parsed = JSON.parse(stripMarkdownCodeFence(modelText)) as unknown;
 
@@ -308,39 +315,23 @@ export function parseModelTaggingResponse(modelText: string): Readonly<{
   }
 
   if (isRecord(parsed)) {
+    const structuredResponse = parseStructuredTaggingResponse(parsed);
     return Object.freeze({
-      candidatePaths: extractStructuredCandidatePaths(parsed),
-      parsedJson: parsed
+      candidatePaths: extractStructuredCandidatePaths(structuredResponse),
+      parsedJson: parsed,
+      structuredResponse
     });
   }
 
   throw new Error('Model tagging response must be a JSON array of strings or a structured JSON object.');
 }
 
-function extractStructuredCandidatePaths(parsed: Readonly<Record<string, unknown>>): readonly string[] {
-  const tagArrays = [
-    parsed.tags,
-    parsed.fact_tags,
-    parsed.metadata_tags,
-    parsed.production_tags
-  ].filter(Array.isArray) as readonly unknown[][];
-  const paths: string[] = [];
-
-  for (const tagArray of tagArrays) {
-    for (const tag of tagArray) {
-      if (!isRecord(tag) || !Array.isArray(tag.label_path)) {
-        continue;
-      }
-
-      const pathSegments = tag.label_path
-        .map((segment) => String(segment).trim())
-        .filter(Boolean);
-
-      if (pathSegments.length > 0) {
-        paths.push(pathSegments.join(' > '));
-      }
-    }
-  }
+function extractStructuredCandidatePaths(
+  parsed: StructuredTaggingResponse
+): readonly string[] {
+  const paths = parsed.tags
+    .filter((tag) => tag.labelPath.length > 0)
+    .map((tag) => tag.labelPath.join(' > '));
 
   if (paths.length === 0) {
     throw new Error('Structured model tagging response does not contain any label_path values.');
