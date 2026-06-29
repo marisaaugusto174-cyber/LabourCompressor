@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   chmod,
   mkdtemp,
@@ -10,12 +11,16 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 
 import {
   buildUserSpreadsheetWorkingCopyPath,
   prepareUserSpreadsheetWorkingCopy,
   WorkingCopyNameConflictError
 } from '../../../../apps/web/user-spreadsheet-working-copy.ts';
+import { writeTagResultsToSpreadsheet } from '../../../../packages/adapters/spreadsheets/local-spreadsheet.ts';
+
+const xlsx = XLSX.default ?? XLSX;
 
 const TASK_ID = 'a1b2c3d4-0000-0000-0000-000000000000';
 const CREATED_AT = '2026-06-29T16:30:15';
@@ -98,6 +103,48 @@ test('does not overwrite an existing working copy', async () => {
   }
 });
 
+test('writes results to a working copy without changing the read-only xlsx source', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'spreadsheet-copy-writeback-'));
+  const source = path.join(tempDir, '用户任务.xlsx');
+  try {
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(
+      workbook,
+      xlsx.utils.aoa_to_sheet([
+        ['URL', '采集人', '归档状态'],
+        ['https://example.com/video', '测试员', '']
+      ]),
+      'Sheet1'
+    );
+    xlsx.writeFile(workbook, source);
+    const sourceHash = await sha256(source);
+    await chmod(source, 0o444);
+
+    const prepared = await prepareUserSpreadsheetWorkingCopy({
+      taskId: TASK_ID,
+      createdAt: CREATED_AT,
+      options: createOptions(source)
+    });
+    writeTagResultsToSpreadsheet({
+      filePath: prepared.spreadsheet,
+      updates: [{
+        rowNumber: 2,
+        columnValues: { 归档状态: '已下载待剪辑' }
+      }]
+    });
+
+    assert.equal(await sha256(source), sourceHash);
+    assert.equal((await stat(source)).mode & 0o222, 0);
+    const updated = xlsx.readFile(prepared.spreadsheet);
+    const rows = xlsx.utils.sheet_to_json<string[]>(updated.Sheets.Sheet1!, { header: 1 });
+    assert.equal(rows[1]?.[2], '已下载待剪辑');
+    assert.notEqual((await stat(prepared.spreadsheet)).mode & 0o200, 0);
+  } finally {
+    await chmod(source, 0o644).catch(() => undefined);
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 function createOptions(spreadsheet: string) {
   return {
     spreadsheet,
@@ -106,4 +153,8 @@ function createOptions(spreadsheet: string) {
     promptLibrary: '/tmp/prompts.md',
     archiveRoot: '/tmp/archive'
   };
+}
+
+async function sha256(filePath: string): Promise<string> {
+  return createHash('sha256').update(await readFile(filePath)).digest('hex');
 }
