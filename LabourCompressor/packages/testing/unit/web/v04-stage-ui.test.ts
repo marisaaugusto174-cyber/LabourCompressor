@@ -81,6 +81,11 @@ test('web ui gives spreadsheet and local media source modes equal status in task
   assert.equal(appJs.includes('/api/source-intake/import'), true);
 });
 
+test('task creation switches the spreadsheet field to the working copy', () => {
+  assert.match(appJs, /task\?\.options\?\.spreadsheet/u);
+  assert.match(appJs, /已创建任务工作副本/u);
+});
+
 test('web ui avoids introductory and explanatory copy on the main surface', () => {
   for (const text of [
     '一键全流程：导入表格、Preflight、下载、自动分割、打标归档。',
