@@ -48,6 +48,8 @@ export function createRuntimeTaskService(options: {
   readonly prepareOptions?: RuntimeTaskOptionsPreparer<RunLocalPipelineOptions> | undefined;
   readonly createId?: (() => string) | undefined;
   readonly now?: (() => string) | undefined;
+  readonly isPreparationConflict?: ((error: unknown) => boolean) | undefined;
+  readonly maximumPreparationAttempts?: number | undefined;
 } = {}) {
   return createOrchestratorRuntimeTaskService({
     runner: options.pipelineRunner ?? runLocalPipelineCommand,
@@ -59,19 +61,25 @@ export function createRuntimeTaskService(options: {
     maxPersistedTasks: options.maxPersistedTasks,
     prepareOptions: options.prepareOptions,
     createId: options.createId,
-    now: options.now
+    now: options.now,
+    isPreparationConflict: options.isPreparationConflict,
+    maximumPreparationAttempts: options.maximumPreparationAttempts
   });
 }
 
 export async function createConfiguredRuntimeTaskService(input: {
   readonly defaultJsonPath: string;
   readonly environment?: Readonly<Record<string, string | undefined>> | undefined;
+  readonly prepareOptions?: RuntimeTaskOptionsPreparer<RunLocalPipelineOptions> | undefined;
+  readonly isPreparationConflict?: ((error: unknown) => boolean) | undefined;
 }) {
   const environment = input.environment ?? process.env;
   const storeKind = environment.LABOUR_COMPRESSOR_TASK_STORE ?? 'json';
   if (storeKind === 'json') {
     return createRuntimeTaskService({
-      taskStore: createJsonRuntimeTaskStore({ filePath: input.defaultJsonPath })
+      taskStore: createJsonRuntimeTaskStore({ filePath: input.defaultJsonPath }),
+      prepareOptions: input.prepareOptions,
+      isPreparationConflict: input.isPreparationConflict
     });
   }
   if (storeKind !== 'sqlite') {
@@ -93,7 +101,9 @@ export async function createConfiguredRuntimeTaskService(input: {
     );
   }
   return createRuntimeTaskService({
-    taskStore: createSqliteRuntimeTaskStore<PersistedCliTask>({ databasePath })
+    taskStore: createSqliteRuntimeTaskStore<PersistedCliTask>({ databasePath }),
+    prepareOptions: input.prepareOptions,
+    isPreparationConflict: input.isPreparationConflict
   });
 }
 

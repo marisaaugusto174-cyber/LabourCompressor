@@ -91,6 +91,8 @@ export function createRuntimeTaskService<TOptions, TResult, TEvent>(input: {
   readonly createId?: (() => string) | undefined;
   readonly now?: (() => string) | undefined;
   readonly prepareOptions?: RuntimeTaskOptionsPreparer<TOptions> | undefined;
+  readonly isPreparationConflict?: ((error: unknown) => boolean) | undefined;
+  readonly maximumPreparationAttempts?: number | undefined;
 }) {
   const engine = new RuntimeTaskEngine(input);
   return Object.freeze({
@@ -127,24 +129,38 @@ class RuntimeTaskEngine<TOptions, TResult, TEvent> {
   }
 
   async startTask(options: TOptions): Promise<RuntimeTaskSnapshot<TOptions, TResult, TEvent>> {
-    const taskId = this.#createId();
     const createdAt = this.#now();
-    const preparedOptions = await (this.#dependencies.prepareOptions?.({
-      taskId,
-      createdAt,
-      options
-    }) ?? Promise.resolve(options));
+    const prepared = await this.#prepareTask(options, createdAt);
     const state = this.#withRuntimeControls({
-      id: taskId,
+      id: prepared.taskId,
       status: 'queued',
       createdAt,
-      options: preparedOptions,
+      options: prepared.options,
       events: []
     });
     this.#tasks.set(state.id, state);
     this.#persist();
     queueMicrotask(() => void this.#runTask(state));
     return this.#snapshot(state);
+  }
+
+  async #prepareTask(options: TOptions, createdAt: string): Promise<{
+    readonly taskId: string;
+    readonly options: TOptions;
+  }> {
+    const maximumAttempts = this.#dependencies.maximumPreparationAttempts ?? 3;
+    for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+      const taskId = this.#createId();
+      try {
+        const preparedOptions = await (this.#dependencies.prepareOptions?.({
+          taskId, createdAt, options
+        }) ?? Promise.resolve(options));
+        return { taskId, options: preparedOptions };
+      } catch (error) {
+        if (this.#dependencies.isPreparationConflict?.(error) !== true) throw error;
+      }
+    }
+    throw new Error('无法生成唯一的任务工作副本名称。');
   }
 
   getTask(taskId: string): RuntimeTaskSnapshot<TOptions, TResult, TEvent> | undefined {

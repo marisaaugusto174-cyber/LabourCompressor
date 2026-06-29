@@ -15,6 +15,10 @@ import {
   ensureDefaultMasterSpreadsheet,
   ensureFirstRunLocalState
 } from './runtime-support.ts';
+import {
+  prepareUserSpreadsheetWorkingCopy,
+  WorkingCopyNameConflictError
+} from './user-spreadsheet-working-copy.ts';
 
 const WEB_PORT = Number(process.env.LABOUR_COMPRESSOR_WEB_PORT ?? '4311');
 const WEB_HOST = process.env.LABOUR_COMPRESSOR_WEB_HOST ?? '127.0.0.1';
@@ -27,7 +31,9 @@ const UPLOADS_DIR = projectPath('.runtime-uploads');
 const RUNTIME_TASK_STATE_FILE = projectPath('.runtime-state/tasks.json');
 
 const taskService = await createConfiguredRuntimeTaskService({
-  defaultJsonPath: RUNTIME_TASK_STATE_FILE
+  defaultJsonPath: RUNTIME_TASK_STATE_FILE,
+  prepareOptions: prepareUserSpreadsheetWorkingCopy,
+  isPreparationConflict: (error) => error instanceof WorkingCopyNameConflictError
 });
 
 await ensureFirstRunLocalState({

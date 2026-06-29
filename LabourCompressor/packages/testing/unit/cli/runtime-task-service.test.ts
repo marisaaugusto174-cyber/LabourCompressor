@@ -6,6 +6,7 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 import { createRuntimeTaskService } from '../../../../apps/web/task-service.ts';
+import { WorkingCopyNameConflictError } from '../../../../apps/web/user-spreadsheet-working-copy.ts';
 
 const xlsx = XLSX.default ?? XLSX;
 
@@ -125,6 +126,36 @@ test('does not create a task when option preparation fails', async () => {
   );
   assert.equal(runnerCalled, false);
   assert.deepEqual(service.listTasks(), []);
+});
+
+test('allocates a new identity when working-copy preparation conflicts', async () => {
+  const ids = [
+    'aaaaaaaa-0000-0000-0000-000000000000',
+    'bbbbbbbb-0000-0000-0000-000000000000'
+  ];
+  let runnerCalls = 0;
+  const service = createRuntimeTaskService({
+    createId: () => ids.shift() ?? 'unexpected',
+    isPreparationConflict: (error) => error instanceof WorkingCopyNameConflictError,
+    prepareOptions: async ({ taskId, options }) => {
+      if (taskId.startsWith('aaaaaaaa')) {
+        throw new WorkingCopyNameConflictError('/tmp/aaaaaaaa.xlsx');
+      }
+      return { ...options, spreadsheet: `/tmp/${taskId.slice(0, 8)}.xlsx` };
+    },
+    pipelineRunner: async () => {
+      runnerCalls += 1;
+      return createEmptyPipelineResult('collision-retry');
+    }
+  });
+
+  const task = await service.startTask(createMinimalPipelineOptions());
+  await waitForTask(service, task.id);
+
+  assert.equal(task.id.startsWith('bbbbbbbb'), true);
+  assert.equal(task.options.spreadsheet, '/tmp/bbbbbbbb.xlsx');
+  assert.equal(service.listTasks().length, 1);
+  assert.equal(runnerCalls, 1);
 });
 
 test('pauses running runtime tasks at the next cooperative checkpoint and resumes them', async () => {
