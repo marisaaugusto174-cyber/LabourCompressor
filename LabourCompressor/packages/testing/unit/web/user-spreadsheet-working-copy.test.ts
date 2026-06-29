@@ -166,6 +166,13 @@ test('writes results to a working copy without changing the read-only xlsx sourc
       createdAt: CREATED_AT,
       options: createOptions(source)
     });
+    const workspacePaths = [
+      path.join(prepared.downloadDir, 'AfterEdit'),
+      path.join(prepared.downloadDir, 'ProblemClips'),
+      path.join(prepared.downloadDir, '本次打标结果')
+    ];
+    for (const directoryPath of workspacePaths) await mkdir(directoryPath);
+    await writeFile(path.join(prepared.downloadDir, 'downloaded.mp4'), 'video');
     writeTagResultsToSpreadsheet({
       filePath: prepared.spreadsheet,
       updates: [{
@@ -180,6 +187,14 @@ test('writes results to a working copy without changing the read-only xlsx sourc
     const rows = xlsx.utils.sheet_to_json<string[]>(updated.Sheets.Sheet1!, { header: 1 });
     assert.equal(rows[1]?.[2], '已下载待剪辑');
     assert.notEqual((await stat(prepared.spreadsheet)).mode & 0o200, 0);
+    assert.equal(path.dirname(prepared.downloadDir), tempDir);
+    for (const directoryPath of workspacePaths) {
+      assert.equal((await stat(directoryPath)).isDirectory(), true);
+    }
+    assert.equal(
+      await readFile(path.join(prepared.downloadDir, 'downloaded.mp4'), 'utf8'),
+      'video'
+    );
   } finally {
     await chmod(source, 0o644).catch(() => undefined);
     await rm(tempDir, { recursive: true, force: true });

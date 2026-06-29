@@ -96,7 +96,7 @@ In the Web UI:
 - Local Web UI for selecting task inputs, running preflight, starting jobs, and viewing task state.
 - Spreadsheet-driven workflow with `xlsx` as the complete standard format. `Numbers` files keep 读取兼容, while intermediate tables, writeback, and archive records remain `xlsx`.
 - `csv` remains available for import and 失败导出 only; formal writeback and local hyperlinks stay on `xlsx`.
-- Web user-sheet tasks create a writable copy beside the selected sheet before launch. The copy is named `<原名>_任务副本_<时间>_<任务ID前8位>` and is the only sheet modified by the task; the source sheet stays unchanged. The source directory must be writable, and task copies remain available after failure or cancellation.
+- Web user-sheet tasks create a writable copy and a task cache beside the selected sheet before launch. They are named `<原名>_任务副本_<时间>_<任务ID前8位>` and `<原名>_视频下载缓存_<任务ID前8位>`. The source sheet stays unchanged; downloads, segmentation output, `AfterEdit`, `ProblemClips`, and per-task result sheets use the task cache. The source directory must be writable, and task workspaces remain available after failure or cancellation.
 - Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
 - Xiaohongshu single-video notes use `yt-dlp` first and automatically fall back to local note-page parsing when the extractor returns no formats.
 - Continuity-first automatic segmentation before tagging: PySceneDetect proposes shots, then local visual, motion, and audio algorithms assemble `5-60s` ranges with `5-30s` preferred. No AI model or OCR participates in segmentation.
