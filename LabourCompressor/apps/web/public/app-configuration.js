@@ -72,6 +72,16 @@ export function createAppConfiguration(input) {
     resolveSelectedModelConcurrency() {
       return defaultsPayload?.modelProfiles?.find((item) => item.id === fieldValue('selectedModelProfileId'))?.defaultTaggingConcurrency ?? defaultsPayload?.defaults?.taggingConcurrency ?? 1;
     },
+    syncTaskWorkspacePaths(task) {
+      const spreadsheet = task?.options?.spreadsheet;
+      const downloadDir = task?.options?.downloadDir;
+      if (typeof spreadsheet === 'string' && spreadsheet.length > 0) setField('spreadsheet', spreadsheet);
+      if (typeof downloadDir !== 'string' || downloadDir.length === 0) return;
+      setField('downloadDir', downloadDir);
+      refs.downloadDirDisplay.textContent = downloadDir;
+      refs.afterEditDirDisplay.textContent = `${downloadDir}/${fieldValue('afterEditDirectoryName')}`;
+      refs.preflightOutput.textContent = `已创建任务工作副本与视频下载缓存：${downloadDir}`;
+    },
     setTaggingConcurrency(value) { setField('taggingConcurrency', String(clamp(value))); api.updateTaggingConcurrencyLabel(); },
     updateTaggingConcurrencyLabel() { if (refs.taggingConcurrencyValue) refs.taggingConcurrencyValue.textContent = String(clamp(refs.taggingConcurrency.value)); }
   });

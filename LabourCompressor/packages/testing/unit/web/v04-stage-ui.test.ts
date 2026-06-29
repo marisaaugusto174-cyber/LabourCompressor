@@ -86,6 +86,14 @@ test('task creation switches the spreadsheet field to the working copy', () => {
   assert.match(appJs, /已创建任务工作副本/u);
 });
 
+test('task creation synchronizes the user task cache directory', () => {
+  assert.match(appJs, /syncTaskWorkspacePaths/u);
+  assert.match(appJs, /task\?\.options\?\.downloadDir/u);
+  assert.match(appJs, /refs\.downloadDirDisplay\.textContent = downloadDir/u);
+  assert.match(appJs, /refs\.afterEditDirDisplay\.textContent/u);
+  assert.match(appJs, /视频下载缓存/u);
+});
+
 test('web ui avoids introductory and explanatory copy on the main surface', () => {
   for (const text of [
     '一键全流程：导入表格、Preflight、下载、自动分割、打标归档。',

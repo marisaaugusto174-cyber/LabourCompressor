@@ -326,11 +326,7 @@ async function startTask(pipelineStage = 'all') {
     return;
   }
   const task = await apiPost('/api/tasks', collectFormData());
-  const workingSpreadsheet = task?.options?.spreadsheet;
-  if (typeof workingSpreadsheet === 'string' && workingSpreadsheet.length > 0) {
-    setField('spreadsheet', workingSpreadsheet);
-    preflightOutput.textContent = `已创建任务工作副本：${workingSpreadsheet}`;
-  }
+  configuration.syncTaskWorkspacePaths(task);
   currentTaskId = task.id;
   renderTaskStatus(task);
   updateTaskControls(task);
