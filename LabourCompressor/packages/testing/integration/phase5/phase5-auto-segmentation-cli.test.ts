@@ -7,23 +7,40 @@ import path from 'node:path';
 import * as XLSX from 'xlsx';
 
 import { runLocalPipelineCommand } from '../../../../apps/cli/local-pipeline-command.ts';
+import { runTaggingBatch } from '../../../../apps/cli/local-pipeline-tagging.ts';
+import { buildArchivePlacementPlans } from '../../../features/archive/domain/index.ts';
+import {
+  parsePromptLibraryMarkdown,
+  type ArchivePathPolicy,
+  type StructuredTagCandidate,
+  type StructuredTaggingResponse
+} from '../../../features/tagging/domain/index.ts';
+import { parseTaxonomyMarkdown } from '../../../features/taxonomy/domain/index.ts';
+import { archiveFileByPlans } from '../../../adapters/storage/filesystem/archive-file-operator.ts';
 
 const xlsx = XLSX.default ?? XLSX;
+const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
+const V03_TAXONOMY_PATH = path.join(
+  PROJECT_ROOT,
+  'config/repositories/taxonomies/核心基座_标签提示词_V0.3_戏核增强候选.md'
+);
+const V03_ARCHIVE_POLICY: ArchivePathPolicy = Object.freeze({
+  dimension: '核心动作',
+  primaryRole: '主动作',
+  requiredCount: 1,
+  onInvalid: 'retry-once-then-review'
+});
 
 test('local pipeline auto-segments remote downloads before tagging and archiving', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase5-auto-seg-'));
   const spreadsheetPath = path.join(tempDir, 'tasks.xlsx');
   const downloadDir = path.join(tempDir, 'downloads');
-  const taxonomyPath = path.join(tempDir, 'taxonomy.md');
-  const promptLibraryPath = path.join(tempDir, 'prompt-library.md');
   const downloadFixturesPath = path.join(tempDir, 'download-fixtures.json');
   const candidateFixturesPath = path.join(tempDir, 'candidate-fixtures.json');
 
   try {
     writeWorkbook(spreadsheetPath);
     writeSharedFiles({
-      taxonomyPath,
-      promptLibraryPath,
       downloadFixturesPath,
       candidateFixturesPath
     });
@@ -32,8 +49,9 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
       options: {
         spreadsheet: spreadsheetPath,
         downloadDir,
-        taxonomy: taxonomyPath,
-        promptLibrary: promptLibraryPath,
+        taxonomyPreset: 'core-v0.3-drama',
+        taxonomy: V03_TAXONOMY_PATH,
+        promptLibrary: V03_TAXONOMY_PATH,
         archiveRoot: tempDir,
         downloadFixtures: downloadFixturesPath,
         candidateFixtures: candidateFixturesPath,
@@ -64,7 +82,7 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
       }
     });
 
-    const archiveDir = path.join(tempDir, '视频数据归档库/内容题材/广告营销/产品广告');
+    const archiveDir = path.join(tempDir, '视频数据归档库/核心动作/身体动作/位移动作/跑动');
     const firstClip = path.join(archiveDir, 'Sample_A_720P_260512_000023_01.mp4');
     const secondClip = path.join(archiveDir, 'Sample_A_720P_260512_000023_02.mp4');
     const sourceArchivePath = path.join(archiveDir, 'Sample_A_720P_260512_000045.mp4');
@@ -90,6 +108,97 @@ test('local pipeline auto-segments remote downloads before tagging and archiving
   }
 });
 
+test('V0.3 archives by the unique main action and preserves secondary and unrelated tags', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase5-main-action-'));
+  const mediaPath = path.join(tempDir, 'sample.mp4');
+  const resultsByRow = new Map();
+  const failures: Array<{ readonly errorCode: string }> = [];
+  const mainAction = tag('核心动作', '主动作', ['核心动作', '身体动作', '位移动作', '跑动']);
+  const secondaryAction = tag('核心动作', '次动作', ['核心动作', '身体动作', '姿态动作', '手势表达']);
+  const contentTag = tag('内容领域', '主领域', ['内容领域', '人物生活', '日常生活']);
+
+  try {
+    writeFileSync(mediaPath, 'video');
+    const taxonomyMarkdown = await readFile(V03_TAXONOMY_PATH, 'utf8');
+    const structuredResponse = response([mainAction, secondaryAction, contentTag]);
+    const modelJson = rawResponse([mainAction, secondaryAction, contentTag]);
+    await runTaggingBatch({
+      assets: [asset(mediaPath)],
+      rowByTaskId: rowMap(), resultsByRow, failures,
+      startedAt: '2026-06-29T00:00:00.000Z', taggingMode: 'qwen',
+      taxonomyTree: parseTaxonomyMarkdown(taxonomyMarkdown, { rootMode: 'bullet-root' }),
+      promptLibrary: parsePromptLibraryMarkdown(taxonomyMarkdown),
+      archivePathPolicy: V03_ARCHIVE_POLICY,
+      generateModelCandidates: async () => ({
+        candidatePaths: structuredResponse.tags.map((item) => item.labelPath.join(' > ')),
+        rawText: '', promptInstruction: '', structuredResponse, parsedJson: modelJson
+      }),
+      emit: () => undefined
+    });
+
+    const row = resultsByRow.get(2);
+    assert.equal(failures.length, 0);
+    assert.equal(row?.archivePath, '视频数据归档库/核心动作/身体动作/位移动作/跑动');
+    const archived = await archiveFileByPlans({
+      sourceFilePath: mediaPath,
+      archiveRoot: path.join(tempDir, '视频数据归档库'),
+      placementPlans: buildArchivePlacementPlans({
+        acceptedPaths: [row.selectedContentTopicPath], fileName: 'sample.mp4'
+      }),
+      placementMode: 'copy', taskId: 'task-1', mediaAssetId: 'asset-1',
+      taxonomyVersionId: 'Core_Base_Prompt_V0.3_Drama_Core_Candidate',
+      fingerprintId: 'fingerprint-1', recordedAt: '2026-06-29T00:00:00.000Z',
+      jsonSidecarContent: `${JSON.stringify(row.taggingJsonPayload, null, 2)}\n`
+    });
+    assert.equal(archived[0]?.archivePath, '核心动作/身体动作/位移动作/跑动/sample.mp4');
+    const sidecar = JSON.parse(await readFile(path.join(tempDir, '视频数据归档库/核心动作/身体动作/位移动作/跑动/sample.json'), 'utf8'));
+    assert.equal(sidecar.tags.some((item: { tag_role?: string }) => item.tag_role === '次动作'), true);
+    assert.equal(sidecar.tags.some((item: { dimension?: string }) => item.dimension === '内容领域'), true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('V0.3 stops after one failed primary-action repair and keeps the review sidecar', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase5-main-action-failure-'));
+  const mediaPath = path.join(tempDir, 'sample.mp4');
+  const resultsByRow = new Map();
+  const failures: Array<{ readonly errorCode: string }> = [];
+  let modelCalls = 0;
+
+  try {
+    writeFileSync(mediaPath, 'video');
+    const taxonomyMarkdown = await readFile(V03_TAXONOMY_PATH, 'utf8');
+    await runTaggingBatch({
+      assets: [asset(mediaPath)], rowByTaskId: rowMap(), resultsByRow, failures,
+      startedAt: '2026-06-29T00:00:00.000Z', taggingMode: 'qwen',
+      taxonomyTree: parseTaxonomyMarkdown(taxonomyMarkdown, { rootMode: 'bullet-root' }),
+      promptLibrary: parsePromptLibraryMarkdown(taxonomyMarkdown),
+      archivePathPolicy: V03_ARCHIVE_POLICY,
+      generateModelCandidates: async () => {
+        modelCalls += 1;
+        return {
+          candidatePaths: [], rawText: '', promptInstruction: '',
+          structuredResponse: response([]),
+          parsedJson: { review_required: true, review_reason: '核心动作主动作无法确定', tags: [], attempt: modelCalls }
+        };
+      },
+      emit: () => undefined
+    });
+
+    const row = resultsByRow.get(2);
+    assert.equal(modelCalls, 2);
+    assert.equal(failures[0]?.errorCode, 'archive-primary-tag-missing');
+    assert.equal(row?.archivePath, '');
+    assert.equal(row?.archiveFileName, '');
+    assert.equal(row?.taggingJsonArchivePath, '');
+    assert.deepEqual(JSON.parse(await readFile(path.join(tempDir, 'sample.json'), 'utf8')), row?.taggingJsonPayload);
+    assert.equal(existsSync(path.join(tempDir, '视频数据归档库')), false);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 function writeWorkbook(filePath: string): void {
   const workbook = xlsx.utils.book_new();
   const worksheet = xlsx.utils.aoa_to_sheet([
@@ -101,19 +210,9 @@ function writeWorkbook(filePath: string): void {
 }
 
 function writeSharedFiles(input: {
-  readonly taxonomyPath: string;
-  readonly promptLibraryPath: string;
   readonly downloadFixturesPath: string;
   readonly candidateFixturesPath: string;
 }): void {
-  writeFileSync(
-    input.taxonomyPath,
-    '## 1. 内容题材（末端计数：1）\n\n- 广告营销\n  - 产品广告\n'
-  );
-  writeFileSync(
-    input.promptLibraryPath,
-    '# 标注提示词库\n\n## 规则\n- 只能输出标签库中的标签\n'
-  );
   writeFileSync(
     input.downloadFixturesPath,
     JSON.stringify({
@@ -130,8 +229,67 @@ function writeSharedFiles(input: {
   writeFileSync(
     input.candidateFixturesPath,
     JSON.stringify({
-      'https://www.youtube.com/watch?v=auto-seg': ['内容题材 > 广告营销 > 产品广告'],
-      'https://youtube.com/watch?v=auto-seg': ['内容题材 > 广告营销 > 产品广告']
+      'https://www.youtube.com/watch?v=auto-seg': [
+        '核心动作 > 身体动作 > 位移动作 > 跑动',
+        '内容领域 > 人物生活 > 日常生活'
+      ],
+      'https://youtube.com/watch?v=auto-seg': [
+        '核心动作 > 身体动作 > 位移动作 > 跑动',
+        '内容领域 > 人物生活 > 日常生活'
+      ]
     })
   );
+}
+
+function tag(
+  dimension: string,
+  tagRole: string,
+  labelPath: readonly string[]
+): StructuredTagCandidate {
+  return Object.freeze({
+    dimension,
+    tagRole,
+    labelPath: Object.freeze([...labelPath]),
+    selectedLevel: `l${labelPath.length}`,
+    entityId: 'entity-1',
+    targetEntityId: 'entity-1'
+  });
+}
+
+function response(tags: readonly StructuredTagCandidate[]): StructuredTaggingResponse {
+  return Object.freeze({
+    reviewRequired: false,
+    reviewReason: '',
+    tags: Object.freeze([...tags])
+  });
+}
+
+function rawResponse(tags: readonly StructuredTagCandidate[]): unknown {
+  return {
+    review_required: false,
+    review_reason: '',
+    tags: tags.map((item) => ({
+      dimension: item.dimension,
+      label_path: item.labelPath,
+      selected_level: item.selectedLevel,
+      tag_role: item.tagRole,
+      entity_id: item.entityId,
+      target_entity_id: item.targetEntityId
+    }))
+  };
+}
+
+function asset(mediaPath: string) {
+  return {
+    mediaAssetId: 'asset-1', taskId: 'task-1', rowNumber: 2,
+    sourceUrl: 'https://example.com/video', platform: 'direct' as const,
+    filePath: mediaPath, fileName: 'sample.mp4', downloadedAt: '2026-06-29T00:00:00.000Z'
+  };
+}
+
+function rowMap() {
+  return new Map([['task-1', {
+    taskId: 'task-1', rowNumber: 2, url: 'https://example.com/video',
+    sourceKind: 'url' as const, values: {}
+  }]]);
 }

@@ -206,6 +206,10 @@ test('runs phase 3 closed loop from spreadsheet urls to archive', async () => {
     );
     assert.equal(archiveRecords.length, 2);
     assert.equal(archiveRecords[0]?.tagPaths.length, 1);
+    assert.equal(
+      await readFile(path.join(tempDir, '内容题材/广告营销/产品广告/Sample_A_720P_260424_000027.mp4'), 'utf8'),
+      'muxed-a'
+    );
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

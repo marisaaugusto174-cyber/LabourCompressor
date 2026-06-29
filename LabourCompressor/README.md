@@ -106,9 +106,10 @@ In the Web UI:
 - V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
 - Native video-level multimodal tagging with Qwen and Gemini provider profiles.
 - Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.
-- Multi-branch tag writeback plus exactly one unique `内容题材` terminal path for archive placement.
+- Multi-branch tag writeback. New `core-v0.3-drama` tasks require exactly one legal `核心动作/主动作`; all secondary actions and unrelated accepted tags remain in the result and sidecar.
 - Per-task result spreadsheet generation under `<downloadDir>/本次打标结果/`.
-- Local archive layout rooted at `视频数据归档库/内容题材`.
+- New V0.3 archive layout uses the complete selected path, for example `视频数据归档库/核心动作/身体动作/位移动作/跑动`. If the unique main action is invalid, the model is repaired at most once; a second failure is left for review and no media is archived.
+- V0.1, V0.2, explicit historical content-domain paths, and already archived files remain compatible and are not migrated.
 
 ## Requirements
 

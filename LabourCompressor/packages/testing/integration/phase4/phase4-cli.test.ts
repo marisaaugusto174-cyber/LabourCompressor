@@ -11,7 +11,7 @@ const xlsx = XLSX.default ?? XLSX;
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 const CLI_PATH = path.join(PROJECT_ROOT, 'apps/cli/main.ts');
 
-test('runs cli local pipeline and prints stage status', async () => {
+test('keeps the explicit historical content-topic archive path compatible', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-phase4-'));
   const spreadsheetPath = path.join(tempDir, 'tasks.xlsx');
   const downloadDir = path.join(tempDir, 'downloads');
