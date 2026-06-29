@@ -282,6 +282,37 @@ test('does not synthesize a real structured response before its single repair', 
   assert.equal(result.repairApplied, true);
 });
 
+test('uses repaired raw json for the sidecar when initial json is a legacy path array', async () => {
+  const originalJson = ['核心动作 > 身体动作 > 位移动作 > 行走'];
+  const repairedRawTag = {
+    dimension: '核心动作',
+    label_path: [...mainAction.labelPath],
+    selected_level: 'l4',
+    tag_role: '主动作'
+  };
+  const repairJson = { taxonomy_version: 'v0.3', tags: [repairedRawTag] };
+  let repairs = 0;
+  const result = await resolveRequiredArchivePath({
+    acceptedPaths: originalJson,
+    modelJson: originalJson,
+    policy: archivePolicy,
+    taxonomyTree: archiveTaxonomy,
+    requestRepair: async () => {
+      repairs += 1;
+      return { structuredResponse: response([mainAction]), modelJson: repairJson };
+    }
+  });
+
+  assert.equal(repairs, 1);
+  assert.equal(result.repairApplied, true);
+  assert.equal(result.selectedArchivePath, mainAction.labelPath.join(' > '));
+  assert.deepEqual(result.structuredResponse?.tags, [mainAction]);
+  assert.equal(Array.isArray(result.mergedModelJson), false);
+  assert.deepEqual(result.mergedModelJson, repairJson);
+  assert.notEqual(result.mergedModelJson, repairJson);
+  assert.notEqual((result.mergedModelJson as typeof repairJson).tags, repairJson.tags);
+});
+
 test('synthesizes one configured primary action only for simulated path fixtures', async () => {
   const result = await resolveRequiredArchivePath({
     acceptedPaths: [

@@ -231,7 +231,7 @@ function mergeModelJson(
   policy: ArchivePathPolicy
 ): unknown {
   if (!isRecord(original)) {
-    return original;
+    return isRecord(repair) ? structuredClone(repair) : original;
   }
   const cloned = structuredClone(original);
   if (!isRecord(cloned)) {
