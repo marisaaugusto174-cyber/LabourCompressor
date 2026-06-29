@@ -192,7 +192,7 @@ function mergeStructuredResponses(
   return Object.freeze({
     reviewRequired: repair.reviewRequired,
     reviewReason: repair.reviewReason,
-    tags: Object.freeze(uniqueStructuredTags([...preserved, ...repaired]))
+    tags: Object.freeze(appendUniqueStructuredTags(preserved, repaired))
   });
 }
 
@@ -237,10 +237,10 @@ function mergeModelJson(
   const preservedTags = cloned.tags.filter(
     (tag) => !isRecord(tag) || !isPrimaryRawPolicyTag(tag, policy)
   );
-  cloned.tags = uniqueRawTags([
-    ...preservedTags,
-    ...structuredClone(repairedTags)
-  ]);
+  cloned.tags = appendUniqueRawTags(
+    preservedTags,
+    structuredClone(repairedTags)
+  );
   return cloned;
 }
 
@@ -251,24 +251,30 @@ function isPrimaryPolicyTag(
   return tag.dimension === policy.dimension && tag.tagRole === policy.primaryRole;
 }
 
-function uniqueStructuredTags(
-  tags: readonly StructuredTagCandidate[]
+function appendUniqueStructuredTags(
+  preserved: readonly StructuredTagCandidate[],
+  additions: readonly StructuredTagCandidate[]
 ): readonly StructuredTagCandidate[] {
-  const seen = new Set<string>();
-  return tags.filter((tag) => {
-    const key = [
-      tag.dimension,
-      tag.tagRole,
-      tag.labelPath.join('\u0000'),
-      tag.entityId,
-      tag.targetEntityId
-    ].join('\u0001');
+  const seen = new Set(preserved.map(structuredTagKey));
+  const appended = additions.filter((tag) => {
+    const key = structuredTagKey(tag);
     if (seen.has(key)) {
       return false;
     }
     seen.add(key);
     return true;
   });
+  return [...preserved, ...appended];
+}
+
+function structuredTagKey(tag: StructuredTagCandidate): string {
+  return [
+    tag.dimension,
+    tag.tagRole,
+    tag.labelPath.join('\u0000'),
+    tag.entityId,
+    tag.targetEntityId
+  ].join('\u0001');
 }
 
 function isPrimaryRawPolicyTag(
@@ -278,9 +284,12 @@ function isPrimaryRawPolicyTag(
   return tag.dimension === policy.dimension && tag.tag_role === policy.primaryRole;
 }
 
-function uniqueRawTags(tags: readonly unknown[]): unknown[] {
-  const seen = new Set<string>();
-  return tags.filter((tag) => {
+function appendUniqueRawTags(
+  preserved: readonly unknown[],
+  additions: readonly unknown[]
+): unknown[] {
+  const seen = new Set(preserved.map(rawTagKey));
+  const appended = additions.filter((tag) => {
     const key = rawTagKey(tag);
     if (seen.has(key)) {
       return false;
@@ -288,6 +297,7 @@ function uniqueRawTags(tags: readonly unknown[]): unknown[] {
     seen.add(key);
     return true;
   });
+  return [...preserved, ...appended];
 }
 
 function rawTagKey(tag: unknown): string {

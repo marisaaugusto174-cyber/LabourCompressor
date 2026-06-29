@@ -100,10 +100,15 @@ test('repairs only the primary action and preserves secondary actions and unrela
     label_path: ['内容领域', '生活方式', '日常记录'],
     evidence: { source: 'frame-8' }
   };
+  const repeatedPreservedTag = {
+    dimension: '内容领域',
+    label_path: ['内容领域', '生活方式', '日常记录'],
+    evidence: { source: 'frame-9' }
+  };
   const originalJson = {
     taxonomy_version: 'v0.3',
     segment_id: 'segment-1',
-    tags: [preservedTag, {
+    tags: [preservedTag, repeatedPreservedTag, {
       dimension: '核心动作',
       label_path: [...secondaryAction.labelPath],
       selected_level: 'l4',
@@ -117,7 +122,7 @@ test('repairs only the primary action and preserves secondary actions and unrela
       '内容领域 > 生活方式 > 日常记录',
       secondaryAction.labelPath.join(' > ')
     ],
-    structuredResponse: response([contentTag, secondaryAction]),
+    structuredResponse: response([contentTag, contentTag, secondaryAction]),
     modelJson: originalJson,
     policy: archivePolicy,
     taxonomyTree: archiveTaxonomy,
@@ -149,20 +154,27 @@ test('repairs only the primary action and preserves secondary actions and unrela
     '核心动作 > 身体动作 > 位移动作 > 行走',
     '核心动作 > 身体动作 > 位移动作 > 跑动'
   ]);
-  assert.deepEqual(result.structuredResponse?.tags, [contentTag, secondaryAction, mainAction]);
+  assert.deepEqual(result.structuredResponse?.tags, [
+    contentTag,
+    contentTag,
+    secondaryAction,
+    mainAction
+  ]);
   const merged = result.mergedModelJson as typeof originalJson;
   assert.equal(merged.taxonomy_version, originalJson.taxonomy_version);
   assert.equal(merged.segment_id, originalJson.segment_id);
   assert.deepEqual(merged.tags[0], preservedTag);
   assert.notEqual(merged.tags[0], preservedTag);
-  assert.deepEqual(merged.tags[1], originalJson.tags[1]);
+  assert.deepEqual(merged.tags[1], repeatedPreservedTag);
+  assert.deepEqual(merged.tags[2], originalJson.tags[2]);
   assert.equal(merged.tags.filter((tag) => tag.dimension === '核心动作').length, 2);
   assert.deepEqual(
     merged.tags.filter((tag) => tag.dimension === '核心动作').map((tag) => tag.tag_role),
     ['次动作', '主动作']
   );
   assert.deepEqual(originalJson.tags[0], preservedTag);
-  assert.equal(originalJson.tags.length, 2);
+  assert.deepEqual(originalJson.tags[1], repeatedPreservedTag);
+  assert.equal(originalJson.tags.length, 3);
 });
 
 test('repairs duplicate primary actions only once and propagates the classified retry failure', async () => {
