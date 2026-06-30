@@ -10,3 +10,4 @@ dist
 .runtime-state
 .runtime-uploads
 .runtime-credentials
+.superpowers/
