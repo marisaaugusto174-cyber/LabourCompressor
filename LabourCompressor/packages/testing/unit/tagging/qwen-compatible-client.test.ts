@@ -5,6 +5,7 @@ import {
   createQwenCompatibleClient,
   extractAssistantText
 } from '../../../adapters/models/qwen-compatible-client.ts';
+import { ModelProviderRequestError } from '../../../adapters/models/model-provider-error.ts';
 
 test('extracts string assistant content from qwen compatible response', () => {
   const text = extractAssistantText({
@@ -160,3 +161,30 @@ test('sends native video payload to qwen multimodal endpoint', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('classifies Qwen DataInspectionFailed as content rejected', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    code: 'DataInspectionFailed',
+    message: 'Input video data may contain inappropriate content.'
+  }), { status: 400, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  try {
+    const client = createQwenCompatibleClient(createQwenConfig());
+    await assert.rejects(client.probe({ prompt: 'test' }), (error: unknown) => {
+      assert.ok(error instanceof ModelProviderRequestError);
+      assert.equal(error.category, 'content-rejected');
+      assert.equal(error.providerCode, 'DataInspectionFailed');
+      return true;
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function createQwenConfig() {
+  return {
+    enabled: true as const, provider: 'qwen' as const, authMode: 'api-key' as const,
+    modelName: 'qwen3.7-plus', apiKey: 'test-key',
+    oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+  };
+}

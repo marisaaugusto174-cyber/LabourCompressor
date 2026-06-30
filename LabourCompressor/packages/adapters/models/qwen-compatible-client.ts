@@ -1,6 +1,7 @@
 import {
   type LocalProviderConfig
 } from '../../features/tagging/domain/provider-local-config.ts';
+import { ModelProviderRequestError } from './model-provider-error.ts';
 
 export interface QwenProbeInput {
   readonly prompt: string;
@@ -116,7 +117,7 @@ export function createQwenCompatibleClient(config: LocalProviderConfig) {
       const body = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error(buildQwenErrorMessage(body, response.status));
+        throw buildQwenRequestError(body, response.status);
       }
 
       const output = readPlainObject(body.output, 'Qwen native video response output');
@@ -173,7 +174,7 @@ export function createQwenCompatibleClient(config: LocalProviderConfig) {
       const body = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
-        throw new Error(buildQwenErrorMessage(body, response.status));
+        throw buildQwenRequestError(body, response.status);
       }
 
       const text = extractAssistantText(body);
@@ -273,6 +274,21 @@ function buildQwenErrorMessage(
   }
 
   return `Qwen API request failed with status ${statusCode}.`;
+}
+
+function buildQwenRequestError(
+  body: Record<string, unknown>,
+  statusCode: number
+): ModelProviderRequestError {
+  const topLevelCode = readOptionalString(body.code);
+  const nestedError = isPlainObject(body.error) ? body.error : {};
+  const providerCode = topLevelCode || readOptionalString(nestedError.code);
+  return new ModelProviderRequestError({
+    provider: 'qwen',
+    statusCode,
+    providerCode,
+    message: buildQwenErrorMessage(body, statusCode)
+  });
 }
 
 function readOptionalString(value: unknown): string {

@@ -1,6 +1,7 @@
 import {
   type LocalProviderConfig
 } from '../../features/tagging/domain/provider-local-config.ts';
+import { ModelProviderRequestError } from './model-provider-error.ts';
 
 export interface GeminiProbeInput {
   readonly prompt: string;
@@ -119,7 +120,7 @@ async function requestGemini(input: {
   const body = (await response.json()) as Record<string, unknown>;
 
   if (!response.ok) {
-    throw new Error(buildGeminiErrorMessage(body, response.status));
+    throw buildGeminiRequestError(body, response.status);
   }
 
   return Object.freeze({
@@ -144,6 +145,14 @@ function extractGeminiText(body: Record<string, unknown>): string {
   const candidates = body.candidates;
 
   if (!Array.isArray(candidates) || candidates.length === 0) {
+    const promptFeedback = isPlainObject(body.promptFeedback) ? body.promptFeedback : {};
+    const blockReason = readOptionalString(promptFeedback.blockReason);
+    if (blockReason.length > 0) {
+      throw new ModelProviderRequestError({
+        provider: 'google', statusCode: 200, providerCode: blockReason,
+        message: `Gemini response blocked (${blockReason}).`
+      });
+    }
     throw new Error('Gemini response does not contain candidates.');
   }
 
@@ -192,6 +201,18 @@ function buildGeminiErrorMessage(
   }
 
   return `Gemini API request failed with status ${statusCode}.`;
+}
+
+function buildGeminiRequestError(
+  body: Record<string, unknown>,
+  statusCode: number
+): ModelProviderRequestError {
+  const error = isPlainObject(body.error) ? body.error : {};
+  return new ModelProviderRequestError({
+    provider: 'google', statusCode,
+    providerCode: readOptionalString(error.status),
+    message: buildGeminiErrorMessage(body, statusCode)
+  });
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createGeminiCompatibleClient
 } from '../../../adapters/models/gemini-compatible-client.ts';
+import { ModelProviderRequestError } from '../../../adapters/models/model-provider-error.ts';
 
 test('passes thinking config for Gemini 3 Flash Thinking text probe', async () => {
   const originalFetch = globalThis.fetch;
@@ -122,6 +123,28 @@ test('sends native video payload to Gemini video endpoint', async () => {
     assert.equal(capturedBody.includes('"mime_type":"video/mp4"'), true);
     assert.equal(capturedBody.includes('"data":"AAAA"'), true);
     assert.equal(result.text, '["内容题材 > 广告营销 > 产品广告"]');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('classifies Gemini safety block as content rejected', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    promptFeedback: { blockReason: 'PROHIBITED_CONTENT' }
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  try {
+    const client = createGeminiCompatibleClient({
+      enabled: true, provider: 'google', authMode: 'api-key',
+      modelName: 'gemini-3.5-flash', apiKey: 'test-key',
+      oauth: { authorizeUrl: '', clientId: '', redirectUri: '', scope: [] }
+    });
+    await assert.rejects(client.completeText({ prompt: 'test' }), (error: unknown) => {
+      assert.ok(error instanceof ModelProviderRequestError);
+      assert.equal(error.category, 'content-rejected');
+      assert.equal(error.providerCode, 'PROHIBITED_CONTENT');
+      return true;
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
