@@ -809,6 +809,7 @@ button:disabled {
   max-height: 100%;
   overflow: auto;
   padding-right: 4px;
+  container-type: inline-size;
 }
 
 .review-accepted-editor {
@@ -882,8 +883,8 @@ button:disabled {
 
 .review-tag-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
   margin-top: 8px;
 }
 
@@ -898,13 +899,33 @@ button:disabled {
   background: #fff;
   color: #1f2937;
   text-align: left;
+  white-space: normal;
 }
 
 .review-tag-compact:hover { background: #f8fafc; border-color: #93c5fd; filter: none; }
 .review-tag-compact strong,
-.review-tag-compact span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-tag-compact span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
 .review-tag-compact strong { font-size: 12px; }
 .review-tag-compact span { color: #64748b; font-size: 11px; }
+
+@container (max-width: 620px) {
+  .review-tag-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (min-width: 900px) {
+  .review-tag-list {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
 
 .tag-evidence-overlay {
   position: absolute;

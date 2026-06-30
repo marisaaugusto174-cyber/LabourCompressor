@@ -137,6 +137,16 @@ test('review detail integrates Plyr and adaptive one-screen layout', () => {
   assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*overflow:\s*auto/su);
 });
 
+test('review detail tags show full paths and adapt column count to available panel width', () => {
+  assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*container-type:\s*inline-size/su);
+  assert.match(stylesCss, /\.review-tag-list\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(260px,\s*1fr\)\)/su);
+  assert.match(stylesCss, /\.review-tag-compact\s+strong,\s*\.review-tag-compact\s+span\s*\{[^}]*white-space:\s*normal/su);
+  assert.match(stylesCss, /\.review-tag-compact\s+strong,\s*\.review-tag-compact\s+span\s*\{[^}]*overflow:\s*visible/su);
+  assert.doesNotMatch(stylesCss, /\.review-tag-compact\s+strong,\s*\.review-tag-compact\s+span\s*\{[^}]*text-overflow:\s*ellipsis/su);
+  assert.doesNotMatch(stylesCss, /\.review-tag-list\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/su);
+  assert.match(stylesCss, /@container\s*\(max-width:\s*620px\)/u);
+});
+
 test('review cards use thumbnail images instead of mounting videos', () => {
   assert.match(reviewJs, /function thumbnailUrl/u);
   assert.match(reviewJs, /\/api\/tag-review\/thumbnail/u);
