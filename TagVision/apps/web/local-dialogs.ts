@@ -50,7 +50,6 @@ function buildChoosePathScript(input: {
   const chooser = input.kind === 'folder' ? 'choose folder' : 'choose file';
 
   return [
-    'tell application "Finder" to activate',
     `${chooser} with prompt "${prompt}"${defaultLocation}`,
     'POSIX path of result'
   ].join('\n');

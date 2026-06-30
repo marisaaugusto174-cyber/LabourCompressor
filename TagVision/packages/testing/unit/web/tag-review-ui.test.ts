@@ -328,7 +328,7 @@ test('review serves Plyr from an offline runtime dependency through exact routes
   assert.doesNotMatch(serverTs, /url\.pathname.*node_modules/u);
 });
 
-test('local folder chooser activates Finder before opening mac dialog', () => {
-  assert.match(localDialogsTs, /tell application "Finder" to activate/u);
+test('local folder chooser opens the system dialog without activating Finder windows', () => {
+  assert.doesNotMatch(localDialogsTs, /tell application "Finder" to activate/u);
   assert.match(localDialogsTs, /choose folder/u);
 });
