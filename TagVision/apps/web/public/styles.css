@@ -812,17 +812,22 @@ button:disabled {
 
 .review-accepted-editor {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   margin-top: 12px;
-  padding: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  padding: 8px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
   background: #f8fafc;
 }
 
 .review-accepted-editor h3,
 .review-accepted-editor p {
   margin: 0;
+}
+
+.review-accepted-editor h3 {
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .accepted-editor-heading {
@@ -837,8 +842,23 @@ button:disabled {
 .accepted-path-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 7px;
   align-items: flex-start;
+}
+
+.accepted-path-list.empty-state {
+  display: block;
+}
+
+.accepted-path-list.empty-state p {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px dashed #dbe3ee;
+  border-radius: 10px;
+  color: #64748b;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .accepted-path-row {
@@ -846,19 +866,33 @@ button:disabled {
   grid-template-columns: minmax(180px, 1fr) auto;
   flex: 1 1 260px;
   max-width: 100%;
-  gap: 5px;
+  gap: 6px;
   align-items: center;
-  padding: 4px 6px;
-  border: 1px solid #e5e7eb;
+  padding: 7px 9px;
+  border: 1px solid #dbe3ee;
   border-radius: 10px;
   background: #fff;
 }
 
 .accepted-path-row span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.accepted-path-row button {
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .accepted-path-control {
@@ -945,7 +979,7 @@ button:disabled {
 
 .review-detail-nav {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   gap: 10px;
   margin-top: 0;
@@ -954,6 +988,12 @@ button:disabled {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+#detail-position {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
 }
 
 .review-diagnostics-header,
@@ -1012,7 +1052,7 @@ button:disabled {
   .review-tag-list { grid-template-columns: 1fr; }
 
   .review-detail-nav {
-    justify-content: space-between;
+    justify-content: center;
   }
 
   .review-detail-modal {

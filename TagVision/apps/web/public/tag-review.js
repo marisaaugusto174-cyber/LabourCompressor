@@ -352,7 +352,7 @@ function openDetail(index) {
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
   refs.openCurrentLabelStudioTask.disabled = !canOpenLabelStudioTask(item);
-  refs.saveAcceptedResult.disabled = !(currentScan?.taxonomySnapshot?.paths?.length > 0);
+  updateAcceptedSaveState();
   refs.closeDetail.focus();
 }
 
@@ -459,6 +459,7 @@ function renderAcceptedPaths() {
   if (selectedAcceptedPaths.length === 0) {
     refs.acceptedPathList.classList.add('empty-state');
     refs.acceptedPathList.innerHTML = '<p>未选择 accepted 路径。</p>';
+    updateAcceptedSaveState();
     return;
   }
 
@@ -474,8 +475,10 @@ function renderAcceptedPaths() {
       const index = Number(button.dataset.acceptedPathIndex);
       selectedAcceptedPaths = selectedAcceptedPaths.filter((_, itemIndex) => itemIndex !== index);
       renderAcceptedPaths();
+      updateAcceptedSaveState();
     });
   }
+  updateAcceptedSaveState();
 }
 
 function addAcceptedPath() {
@@ -487,6 +490,15 @@ function addAcceptedPath() {
 
   selectedAcceptedPaths = [...selectedAcceptedPaths, pathValue];
   renderAcceptedPaths();
+  updateAcceptedSaveState();
+}
+
+function updateAcceptedSaveState() {
+  const hasTaxonomySnapshot = (currentScan?.taxonomySnapshot?.paths?.length ?? 0) > 0;
+  refs.saveAcceptedResult.disabled = selectedAcceptedPaths.length === 0 || !hasTaxonomySnapshot;
+  refs.saveAcceptedResult.title = hasTaxonomySnapshot
+    ? ''
+    : '缺少 taxonomy 快照，无法校验并写入 accepted result。';
 }
 
 async function saveAcceptedResult() {

@@ -114,15 +114,28 @@ test('review detail exposes accepted path editor and save action', () => {
   assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*display:\s*block/su);
   assert.doesNotMatch(stylesCss, /#detail-tags\s*\{[^}]*flex:/su);
   assert.match(stylesCss, /\.review-accepted-editor\s*\{[^}]*margin-top:\s*12px/su);
+  assert.match(stylesCss, /\.review-accepted-editor\s+h3\s*\{[^}]*font-size:\s*13px/su);
   assert.match(stylesCss, /\.accepted-path-list\s*\{[^}]*flex-wrap:\s*wrap/su);
+  assert.match(stylesCss, /\.accepted-path-list\.empty-state\s+p\s*\{[^}]*font-size:\s*12px/su);
+  assert.match(stylesCss, /\.accepted-path-row\s*\{[^}]*border:\s*1px solid #dbe3ee/su);
+  assert.match(stylesCss, /\.accepted-path-row\s+span\s*\{[^}]*font-size:\s*12px/su);
+  assert.match(stylesCss, /\.accepted-path-row\s+button\s*\{[^}]*font-size:\s*12px/su);
   assert.doesNotMatch(stylesCss, /\.accepted-path-list\s*\{[^}]*overflow-x:\s*auto/su);
   assert.doesNotMatch(stylesCss, /\.accepted-path-list\s*\{[^}]*white-space:\s*nowrap/su);
+  assert.doesNotMatch(reviewJs, /refs\.saveAcceptedResult\.disabled = !\(currentScan\?\.taxonomySnapshot\?\.paths\?\.length > 0\)/u);
+  assert.match(reviewJs, /selectedAcceptedPaths\.length === 0[\s\S]*updateAcceptedSaveState\(\);[\s\S]*return;/u);
 });
 
 test('review detail exposes keyboard shortcuts', () => {
   assert.match(reviewJs, /import \{ handleReviewShortcut \} from '\.\/review-shortcuts\.js'/u);
   assert.match(reviewJs, /handleReviewShortcut\(\{/u);
-  assert.equal(reviewHtml.includes('← 上一个　空格 播放/暂停　→ 下一个　Esc 关闭'), true);
+  assert.equal(reviewHtml.includes('← 上一个　空格 播放/暂停　→ 下一个　Esc 关闭'), false);
+  assert.match(reviewHtml, /id="previous-detail"[^>]*hidden/u);
+  assert.match(reviewHtml, /id="next-detail"[^>]*hidden/u);
+  assert.ok(
+    [...stylesCss.matchAll(/\.review-detail-nav\s*\{[^}]*justify-content:\s*center[^}]*\}/gs)].length >= 2,
+    'detail nav should stay centered in base and narrow layouts'
+  );
 });
 
 test('review detail integrates Plyr and adaptive one-screen layout', () => {
