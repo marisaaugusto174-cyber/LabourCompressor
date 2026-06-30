@@ -1,5 +1,6 @@
 import { apiGet, apiPost, buildDebugJson } from './api-client.js';
 import { escapeHtml } from './form-state.js';
+import { handleReviewShortcut } from './review-shortcuts.js';
 
 const INITIAL_RENDER_COUNT = 36;
 const RENDER_BATCH_SIZE = 24;
@@ -87,9 +88,15 @@ function bindActions() {
   refs.labelStudioUrl.addEventListener('input', updateActionState);
   refs.labelStudioToken.addEventListener('input', updateActionState);
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isDetailOpen()) {
-      closeDetail();
-    }
+    handleReviewShortcut({
+      event,
+      detailOpen: isDetailOpen(),
+      selectedIndex,
+      itemCount: currentItems.length,
+      video: refs.detailVideo,
+      openDetail,
+      closeDetail
+    });
   });
   window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
 }
@@ -315,6 +322,7 @@ function openDetail(index) {
   refs.detailView.classList.remove('hidden');
   refs.detailTitle.textContent = item.videoFileName;
   refs.detailSubtitle.textContent = `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
+  refs.detailVideo.pause();
   refs.detailVideo.src = mediaUrl(item);
   selectedAcceptedPaths = [...(item.acceptedResult?.acceptedPaths ?? item.tagging?.tags?.map((tag) => (tag.labelPath ?? []).join(' > ')).filter(Boolean) ?? [])];
   renderAcceptedPathOptions();

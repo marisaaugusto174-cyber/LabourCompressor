@@ -108,6 +108,12 @@ test('review detail exposes accepted path editor and save action', () => {
   assert.equal(reviewJs.includes('renderAcceptedPathOptions'), true);
 });
 
+test('review detail exposes keyboard shortcuts', () => {
+  assert.match(reviewJs, /import \{ handleReviewShortcut \} from '\.\/review-shortcuts\.js'/u);
+  assert.match(reviewJs, /handleReviewShortcut\(\{/u);
+  assert.equal(reviewHtml.includes('← 上一个　空格 播放/暂停　→ 下一个　Esc 关闭'), true);
+});
+
 test('review cards use thumbnail images instead of mounting videos', () => {
   assert.match(reviewJs, /function thumbnailUrl/u);
   assert.match(reviewJs, /\/api\/tag-review\/thumbnail/u);
