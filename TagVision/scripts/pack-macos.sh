@@ -14,6 +14,7 @@ rsync -a \
   --exclude dist \
   --exclude tagvision-launcher.log \
   --exclude tagvision-macos-launcher.log \
+  --exclude tagvision-macos-server.pid \
   --exclude '_tagvision-thumbnails' \
   "$PROJECT_ROOT/" "$PACKAGE_DIR/"
 

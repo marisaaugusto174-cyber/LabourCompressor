@@ -39,6 +39,11 @@ const localDialogsTs = readFileSync(
   path.join(process.cwd(), 'apps/web/local-dialogs.ts'),
   'utf8'
 );
+const packMacosSh = readFileSync(
+  path.join(process.cwd(), 'scripts/pack-macos.sh'),
+  'utf8'
+);
+const gitignore = readFileSync(path.join(process.cwd(), '.gitignore'), 'utf8');
 const packageJson = JSON.parse(
   readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
 ) as {
@@ -306,6 +311,11 @@ test('mac launcher starts TagVision from its own directory and opens review ui',
   assert.match(launcherScript, /Refusing to stop non-TagVision process/u);
   assert.doesNotMatch(launcherScript, /Opening existing TagVision URL/u);
   assert.doesNotMatch(launcherScript, /wait "\$SERVER_PID"/u);
+});
+
+test('launcher runtime pid file is ignored and excluded from mac package', () => {
+  assert.match(gitignore, /^tagvision-macos-server\.pid$/mu);
+  assert.match(packMacosSh, /--exclude tagvision-macos-server\.pid/u);
 });
 
 test('server does not write json errors after response headers were sent', () => {

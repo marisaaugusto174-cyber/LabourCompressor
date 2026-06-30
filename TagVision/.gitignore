@@ -5,6 +5,7 @@
 cookies.txt
 *.cookie
 *.har
+tagvision-macos-server.pid
 node_modules
 dist
 .runtime-state
