@@ -4,7 +4,6 @@ import { access, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-export const TAG_REVIEW_STATE_FILE_NAME = '_tag-review-state.json';
 export const TAGVISION_TAXONOMY_FILE_NAME = '_tagvision-taxonomy.json';
 export const TAGVISION_THUMBNAIL_DIRECTORY_NAME = '_tagvision-thumbnails';
 
@@ -12,7 +11,6 @@ const execFileAsync = promisify(execFile);
 
 const VIDEO_FILE_NAME_PATTERN = /\.(mp4|mov|m4v|mkv|avi|webm)$/iu;
 const JSON_FILE_NAME_PATTERN = /\.json$/iu;
-const REVIEW_STATUSES = new Set(['通过', '需修改', '跳过']);
 const ACCEPTED_REVIEW_STATUS = '通过' as const;
 
 export interface TagReviewScanResult {
@@ -21,7 +19,6 @@ export interface TagReviewScanResult {
   readonly unpairedVideos: readonly TagReviewFileEntry[];
   readonly orphanJsonFiles: readonly TagReviewFileEntry[];
   readonly invalidJsonFiles: readonly TagReviewInvalidJsonFile[];
-  readonly state: TagReviewStateFile | null;
   readonly taxonomySnapshot: TagVisionTaxonomySnapshot | null;
 }
 
@@ -34,9 +31,6 @@ export interface TagReviewItem {
   readonly videoRelativePath: string;
   readonly jsonRelativePath: string;
   readonly tagging: TagReviewTaggingSummary;
-  readonly reviewStatus?: string;
-  readonly reviewNote?: string;
-  readonly labelStudioTaskId?: string | number;
   readonly acceptedResult?: AcceptedTagReviewResult;
 }
 
@@ -97,39 +91,6 @@ export interface WriteAcceptedTagReviewResultInput {
   readonly reviewedAt?: string;
 }
 
-export interface LabelStudioImportPackage {
-  readonly labelConfig: string;
-  readonly tasks: readonly LabelStudioImportTask[];
-  readonly taskCount: number;
-}
-
-export interface LabelStudioImportTask {
-  readonly data: Readonly<Record<string, unknown>>;
-}
-
-export interface TagReviewStateFile {
-  readonly version: 1;
-  readonly source: 'label-studio';
-  readonly syncedAt: string;
-  readonly items: Readonly<Record<string, TagReviewStateItem>>;
-}
-
-export interface TagReviewStateItem {
-  readonly reviewItemId: string;
-  readonly videoRelativePath: string;
-  readonly jsonRelativePath: string;
-  readonly labelStudioTaskId?: string | number;
-  readonly status: string;
-  readonly note: string;
-  readonly syncedAt: string;
-}
-
-export interface WriteTagReviewStateInput {
-  readonly directoryPath: string;
-  readonly syncedAt: string;
-  readonly items: readonly TagReviewStateItem[];
-}
-
 export interface ParsedRange {
   readonly start: number;
   readonly end: number;
@@ -168,7 +129,6 @@ export async function scanTagReviewDirectory(input: {
   const invalidJsonFiles: TagReviewInvalidJsonFile[] = [];
 
   await scanDirectory(directoryPath, directoryPath);
-  const state = await readTagReviewState(directoryPath);
   const taxonomySnapshot = await readTagVisionTaxonomySnapshot(directoryPath);
   const jsonByKey = new Map(jsonFiles.map((file) => [file.matchKey, file]));
   const acceptedByKey = new Map(acceptedFiles.map((file) => [file.matchKey, file]));
@@ -186,7 +146,6 @@ export async function scanTagReviewDirectory(input: {
     }
 
     const reviewItemId = createReviewItemId(video.relativePath, json.relativePath);
-    const stateItem = state?.items[reviewItemId];
     const acceptedResult = normalizeAcceptedTagReviewResultForItem({
       value: acceptedByKey.get(video.matchKey)?.parsed,
       reviewItemId,
@@ -194,8 +153,6 @@ export async function scanTagReviewDirectory(input: {
       sourceJsonRelativePath: json.relativePath,
       taxonomySnapshot
     });
-    const reviewStatus = acceptedResult?.status ?? stateItem?.status;
-
     pairedJsonKeys.add(json.matchKey);
     pairedItems.push({
       reviewItemId,
@@ -206,9 +163,6 @@ export async function scanTagReviewDirectory(input: {
       videoRelativePath: video.relativePath,
       jsonRelativePath: json.relativePath,
       tagging: normalizeTaggingJson(json.parsed),
-      ...(reviewStatus === undefined ? {} : { reviewStatus }),
-      ...(stateItem?.note === undefined ? {} : { reviewNote: stateItem.note }),
-      ...(stateItem?.labelStudioTaskId === undefined ? {} : { labelStudioTaskId: stateItem.labelStudioTaskId }),
       ...(acceptedResult === undefined ? {} : { acceptedResult })
     });
   }
@@ -223,7 +177,6 @@ export async function scanTagReviewDirectory(input: {
     unpairedVideos: Object.freeze(unpairedVideos),
     orphanJsonFiles: Object.freeze(orphanJsonFiles),
     invalidJsonFiles: Object.freeze(sortByRelativePath(invalidJsonFiles)),
-    state,
     taxonomySnapshot
   });
 
@@ -263,7 +216,7 @@ export async function scanTagReviewDirectory(input: {
         continue;
       }
 
-      if (!JSON_FILE_NAME_PATTERN.test(entry.name) || entry.name === TAG_REVIEW_STATE_FILE_NAME) {
+      if (!JSON_FILE_NAME_PATTERN.test(entry.name) || entry.name === '_tag-review-state.json') {
         continue;
       }
 
@@ -360,105 +313,6 @@ export async function writeAcceptedTagReviewResult(
   await writeFile(temporaryPath, `${JSON.stringify(acceptedResult, null, 2)}\n`, 'utf8');
   await rename(temporaryPath, targetPath);
   return acceptedResult;
-}
-
-export function buildLabelStudioImportPackage(input: {
-  readonly directoryPath: string;
-  readonly mediaBaseUrl: string;
-  readonly items: readonly TagReviewItem[];
-}): LabelStudioImportPackage {
-  const directoryPath = path.resolve(input.directoryPath);
-  const tasks = input.items.map((item) => Object.freeze({
-    data: Object.freeze({
-      review_item_id: item.reviewItemId,
-      file_name: item.videoFileName,
-      video: buildMediaUrl({
-        mediaBaseUrl: input.mediaBaseUrl,
-        directoryPath,
-        relativePath: item.videoRelativePath
-      }),
-      tag_markdown: renderTagMarkdown(item),
-      video_relative_path: item.videoRelativePath,
-      json_relative_path: item.jsonRelativePath,
-      json_file_name: item.jsonFileName
-    })
-  }));
-
-  return Object.freeze({
-    labelConfig: LABEL_STUDIO_LABEL_CONFIG,
-    tasks: Object.freeze(tasks),
-    taskCount: tasks.length
-  });
-}
-
-export function parseLabelStudioReviewExport(
-  payload: unknown,
-  syncedAt: string
-): readonly TagReviewStateItem[] {
-  if (!Array.isArray(payload)) {
-    return Object.freeze([]);
-  }
-
-  const items: TagReviewStateItem[] = [];
-
-  for (const task of payload) {
-    if (!isRecord(task) || !isRecord(task.data)) {
-      continue;
-    }
-
-    const reviewItemId = readString(task.data.review_item_id);
-    const videoRelativePath = readString(task.data.video_relative_path);
-    const jsonRelativePath = readString(task.data.json_relative_path);
-
-    if (reviewItemId.length === 0 || videoRelativePath.length === 0 || jsonRelativePath.length === 0) {
-      continue;
-    }
-
-    const annotation = Array.isArray(task.annotations)
-      ? findLastAnnotationWithResults(task.annotations)
-      : undefined;
-
-    if (!isRecord(annotation) || !Array.isArray(annotation.result)) {
-      continue;
-    }
-
-    const status = readReviewStatus(annotation.result);
-
-    if (status.length === 0) {
-      continue;
-    }
-
-    const labelStudioTaskId = typeof task.id === 'number' || typeof task.id === 'string' ? task.id : undefined;
-    items.push(Object.freeze({
-      reviewItemId,
-      videoRelativePath,
-      jsonRelativePath,
-      ...(labelStudioTaskId === undefined ? {} : { labelStudioTaskId }),
-      status,
-      note: readReviewNote(annotation.result),
-      syncedAt
-    }));
-  }
-
-  return Object.freeze(items);
-}
-
-export async function writeTagReviewState(input: WriteTagReviewStateInput): Promise<TagReviewStateFile> {
-  const directoryPath = path.resolve(input.directoryPath);
-  const items = Object.fromEntries(input.items.map((item) => [item.reviewItemId, item]));
-  const state: TagReviewStateFile = Object.freeze({
-    version: 1,
-    source: 'label-studio',
-    syncedAt: input.syncedAt,
-    items: Object.freeze(items)
-  });
-  const targetPath = path.join(directoryPath, TAG_REVIEW_STATE_FILE_NAME);
-  const temporaryPath = path.join(directoryPath, `${TAG_REVIEW_STATE_FILE_NAME}.tmp`);
-
-  await mkdir(directoryPath, { recursive: true });
-  await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-  await rename(temporaryPath, targetPath);
-  return state;
 }
 
 export function parseRangeHeader(rangeHeader: string | undefined, fileSize: number): ParsedRange {
@@ -660,144 +514,6 @@ function normalizeTaggingJson(value: unknown): TagReviewTaggingSummary {
   });
 }
 
-function renderTagMarkdown(item: TagReviewItem): string {
-  const lines = [
-    `## ${item.videoFileName}`,
-    '',
-    `- Review ID: \`${item.reviewItemId}\``,
-    `- JSON: \`${item.jsonRelativePath}\``,
-    `- Taxonomy: ${item.tagging.taxonomyVersion || 'unknown'}`,
-    `- Model review required: ${item.tagging.reviewRequired ? 'yes' : 'no'}`,
-    item.tagging.reviewReason.length > 0 ? `- Model review reason: ${item.tagging.reviewReason}` : '',
-    '',
-    '### Tags'
-  ].filter((line) => line.length > 0);
-
-  if (item.tagging.tags.length === 0) {
-    lines.push('', 'No tags found in JSON.');
-    return lines.join('\n');
-  }
-
-  for (const [index, tag] of item.tagging.tags.entries()) {
-    lines.push(
-      '',
-      `${index + 1}. **${tag.dimension || '未命名维度'}**`,
-      `   - Path: ${tag.labelPath.join(' > ') || '—'}`,
-      `   - Role: ${tag.tagRole || '—'} / Level: ${tag.selectedLevel || '—'}`,
-      `   - Evidence: ${tag.evidenceType || '—'} / Confidence: ${formatConfidence(tag.confidenceScore)}`,
-      `   - Note: ${tag.evidenceNote || '—'}`
-    );
-  }
-
-  return lines.join('\n');
-}
-
-function buildMediaUrl(input: {
-  readonly mediaBaseUrl: string;
-  readonly directoryPath: string;
-  readonly relativePath: string;
-}): string {
-  const url = new URL(input.mediaBaseUrl);
-  url.searchParams.set('directoryPath', input.directoryPath);
-  url.searchParams.set('relativePath', input.relativePath);
-  return url.toString();
-}
-
-function readReviewStatus(results: readonly unknown[]): string {
-  for (const result of results) {
-    if (!isRecord(result) || readString(result.from_name) !== 'review_status' || !isRecord(result.value)) {
-      continue;
-    }
-
-    const choices = Array.isArray(result.value.choices) ? result.value.choices : [];
-    const status = readString(choices[0]);
-
-    if (REVIEW_STATUSES.has(status)) {
-      return status;
-    }
-  }
-
-  return '';
-}
-
-function findLastAnnotationWithResults(annotations: readonly unknown[]): unknown {
-  for (let index = annotations.length - 1; index >= 0; index -= 1) {
-    const annotation = annotations[index];
-
-    if (isRecord(annotation) && Array.isArray(annotation.result)) {
-      return annotation;
-    }
-  }
-
-  return undefined;
-}
-
-function readReviewNote(results: readonly unknown[]): string {
-  for (const result of results) {
-    if (!isRecord(result) || readString(result.from_name) !== 'review_note' || !isRecord(result.value)) {
-      continue;
-    }
-
-    if (Array.isArray(result.value.text)) {
-      return result.value.text.map(readString).filter((item) => item.length > 0).join('\n');
-    }
-
-    return readString(result.value.text);
-  }
-
-  return '';
-}
-
-async function readTagReviewState(directoryPath: string): Promise<TagReviewStateFile | null> {
-  try {
-    const parsed = JSON.parse(
-      await readFile(path.join(directoryPath, TAG_REVIEW_STATE_FILE_NAME), 'utf8')
-    ) as unknown;
-
-    if (!isRecord(parsed) || parsed.version !== 1 || parsed.source !== 'label-studio' || !isRecord(parsed.items)) {
-      return null;
-    }
-
-    const items: Record<string, TagReviewStateItem> = {};
-
-    for (const [key, value] of Object.entries(parsed.items)) {
-      if (!isRecord(value)) {
-        continue;
-      }
-
-      const reviewItemId = readString(value.reviewItemId);
-      const status = readString(value.status);
-
-      if (reviewItemId.length === 0 || !REVIEW_STATUSES.has(status)) {
-        continue;
-      }
-
-      const labelStudioTaskId = typeof value.labelStudioTaskId === 'number' || typeof value.labelStudioTaskId === 'string'
-        ? value.labelStudioTaskId
-        : undefined;
-
-      items[key] = Object.freeze({
-        reviewItemId,
-        videoRelativePath: readString(value.videoRelativePath),
-        jsonRelativePath: readString(value.jsonRelativePath),
-        ...(labelStudioTaskId === undefined ? {} : { labelStudioTaskId }),
-        status,
-        note: readString(value.note),
-        syncedAt: readString(value.syncedAt)
-      });
-    }
-
-    return Object.freeze({
-      version: 1,
-      source: 'label-studio',
-      syncedAt: readString(parsed.syncedAt),
-      items: Object.freeze(items)
-    });
-  } catch {
-    return null;
-  }
-}
-
 async function readTagVisionTaxonomySnapshot(directoryPath: string): Promise<TagVisionTaxonomySnapshot | null> {
   try {
     const parsed = JSON.parse(
@@ -977,10 +693,6 @@ function contentTypeForVideo(filePath: string): string {
   return mapping[extension] ?? 'application/octet-stream';
 }
 
-function formatConfidence(value: number | undefined): string {
-  return value === undefined ? '—' : String(value);
-}
-
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -988,21 +700,3 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
-
-const LABEL_STUDIO_LABEL_CONFIG = `<View>
-  <View style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr); gap: 20px; align-items: start;">
-    <View>
-      <Header value="$file_name" />
-      <Video name="video" value="$video" height="520" />
-    </View>
-    <View>
-      <Markdown value="$tag_markdown" />
-    </View>
-  </View>
-  <Choices name="review_status" toName="video" choice="single-radio" showInline="true" required="true" requiredMessage="请选择质检结论">
-    <Choice value="通过" />
-    <Choice value="需修改" />
-    <Choice value="跳过" />
-  </Choices>
-  <TextArea name="review_note" toName="video" placeholder="质检备注或修正建议" rows="4" />
-</View>`;

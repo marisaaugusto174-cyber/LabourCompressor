@@ -5,15 +5,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  buildLabelStudioImportPackage,
-  parseLabelStudioReviewExport,
   parseRangeHeader,
   resolveTagReviewMediaPath,
   resolveTagReviewThumbnail,
   scanTagReviewDirectory,
-  writeAcceptedTagReviewResult,
-  writeTagReviewState
+  writeAcceptedTagReviewResult
 } from '../../../../apps/web/tag-review.ts';
+
+const tagReviewSource = readFileSync(path.join(process.cwd(), 'apps/web/tag-review.ts'), 'utf8');
+const tagReviewRouteSource = readFileSync(path.join(process.cwd(), 'apps/web/api/routes/tag-review.ts'), 'utf8');
 
 test('scanTagReviewDirectory pairs valid same-directory video and json stems', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-scan-'));
@@ -95,110 +95,38 @@ test('scanTagReviewDirectory sorts paired review items by filename before relati
   }
 });
 
-test('scanTagReviewDirectory overlays existing mirrored review state', async () => {
+test('scanTagReviewDirectory ignores legacy external review state', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-state-'));
 
   try {
     writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
     writeFileSync(path.join(tempDir, 'clip.json'), JSON.stringify(buildStructuredTaggingJson('clip')));
 
-    const firstScan = await scanTagReviewDirectory({ directoryPath: tempDir });
-    const reviewItemId = firstScan.pairedItems[0]?.reviewItemId;
-    assert.ok(reviewItemId);
+    writeFileSync(path.join(tempDir, '_tag-review-state.json'), JSON.stringify({
+      version: 1,
+      source: 'legacy-external-review',
+      items: { obsolete: { status: '需修改' } }
+    }));
 
-    await writeTagReviewState({
-      directoryPath: tempDir,
-      syncedAt: '2026-06-11T00:00:00.000Z',
-      items: [
-        {
-          reviewItemId,
-          videoRelativePath: 'clip.mp4',
-          jsonRelativePath: 'clip.json',
-          labelStudioTaskId: 42,
-          status: '需修改',
-          note: '主体对象不准确',
-          syncedAt: '2026-06-11T00:00:00.000Z'
-        }
-      ]
-    });
+    const result = await scanTagReviewDirectory({ directoryPath: tempDir });
+    const item = result.pairedItems[0];
 
-    const secondScan = await scanTagReviewDirectory({ directoryPath: tempDir });
-
-    assert.equal(secondScan.pairedItems[0]?.reviewStatus, '需修改');
-    assert.equal(secondScan.pairedItems[0]?.reviewNote, '主体对象不准确');
-    assert.equal(secondScan.pairedItems[0]?.labelStudioTaskId, 42);
+    assert.ok(item);
+    assert.equal('reviewStatus' in item, false);
+    assert.equal('reviewNote' in item, false);
+    assert.equal('labelStudioTaskId' in item, false);
+    assert.deepEqual(result.orphanJsonFiles, []);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
 
-test('buildLabelStudioImportPackage preserves tag evidence in markdown tasks', async () => {
-  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-ls-'));
-
-  try {
-    writeFileSync(path.join(tempDir, 'clip.mp4'), 'video');
-    writeFileSync(path.join(tempDir, 'clip.json'), JSON.stringify(buildStructuredTaggingJson('clip')));
-
-    const scan = await scanTagReviewDirectory({ directoryPath: tempDir });
-    const payload = buildLabelStudioImportPackage({
-      directoryPath: tempDir,
-      mediaBaseUrl: 'http://127.0.0.1:4311/api/tag-review/media',
-      items: scan.pairedItems
-    });
-
-    assert.equal(payload.taskCount, 1);
-    assert.match(payload.labelConfig, /<Video name="video" value="\$video"/u);
-    assert.match(payload.labelConfig, /<Choices name="review_status"/u);
-    assert.match(payload.labelConfig, /<Choice value="通过"/u);
-    assert.equal(payload.tasks[0]?.data.review_item_id, scan.pairedItems[0]?.reviewItemId);
-    assert.match(String(payload.tasks[0]?.data.video), /directoryPath=/u);
-    assert.match(String(payload.tasks[0]?.data.video), /relativePath=clip\.mp4/u);
-    assert.match(String(payload.tasks[0]?.data.tag_markdown), /表现形式 > 社媒直播 > 个人创作/u);
-    assert.match(String(payload.tasks[0]?.data.tag_markdown), /视频展示个人收藏品/u);
-  } finally {
-    rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test('parseLabelStudioReviewExport extracts review choices and notes', () => {
-  const parsed = parseLabelStudioReviewExport([
-    {
-      id: 42,
-      data: {
-        review_item_id: 'review-1',
-        video_relative_path: 'clip.mp4',
-        json_relative_path: 'clip.json'
-      },
-      annotations: [
-        {
-          result: [
-            {
-              from_name: 'review_status',
-              type: 'choices',
-              value: { choices: ['需修改'] }
-            },
-            {
-              from_name: 'review_note',
-              type: 'textarea',
-              value: { text: ['主体对象不准确'] }
-            }
-          ]
-        }
-      ]
-    }
-  ], '2026-06-11T00:00:00.000Z');
-
-  assert.deepEqual(parsed, [
-    {
-      reviewItemId: 'review-1',
-      videoRelativePath: 'clip.mp4',
-      jsonRelativePath: 'clip.json',
-      labelStudioTaskId: 42,
-      status: '需修改',
-      note: '主体对象不准确',
-      syncedAt: '2026-06-11T00:00:00.000Z'
-    }
-  ]);
+test('tag review backend exposes no external review integration', () => {
+  assert.equal(tagReviewRouteSource.includes('/label-studio/'), false);
+  assert.equal(tagReviewSource.includes('TAG_REVIEW_STATE_FILE_NAME'), false);
+  assert.equal(tagReviewSource.includes("source: 'label-studio'"), false);
+  assert.equal(tagReviewSource.includes('buildLabelStudioImportPackage'), false);
+  assert.equal(tagReviewSource.includes('parseLabelStudioReviewExport'), false);
 });
 
 test('parseRangeHeader supports bounded ranges and rejects invalid ranges', () => {
@@ -334,7 +262,6 @@ test('scanTagReviewDirectory loads taxonomy snapshot and existing accepted resul
     assert.deepEqual(result.pairedItems[0]?.acceptedResult?.acceptedPaths, [
       '内容领域 > 商业营销 > 产品广告'
     ]);
-    assert.equal(result.pairedItems[0]?.reviewStatus, '通过');
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -368,7 +295,6 @@ test('scanTagReviewDirectory ignores accepted sidecars for another item or taxon
     const result = await scanTagReviewDirectory({ directoryPath: tempDir });
 
     assert.equal(result.pairedItems[0]?.acceptedResult, undefined);
-    assert.equal(result.pairedItems[0]?.reviewStatus, undefined);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

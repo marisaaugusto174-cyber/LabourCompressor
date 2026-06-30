@@ -1,24 +1,15 @@
 import { createReadStream } from 'node:fs';
-import path from 'node:path';
 import { type IncomingMessage, type ServerResponse } from 'node:http';
 
 import {
-  buildLabelStudioImportPackage,
-  parseLabelStudioReviewExport,
   parseRangeHeader,
   resolveTagReviewMediaPath,
   resolveTagReviewThumbnail,
   scanTagReviewDirectory,
-  writeAcceptedTagReviewResult,
-  writeTagReviewState
+  writeAcceptedTagReviewResult
 } from '../../tag-review.ts';
 import {
-  fetchLabelStudioExport,
-  importLabelStudioTasks
-} from '../../services/label-studio.ts';
-import {
   buildCorsHeaders,
-  buildLocalUrl,
   readJsonBody,
   readString,
   requireBodyString,
@@ -27,7 +18,7 @@ import {
   type WebRouteHandler
 } from '../http.ts';
 
-export const handleTagReviewRoutes: WebRouteHandler = async ({ request, response, url, context }) => {
+export const handleTagReviewRoutes: WebRouteHandler = async ({ request, response, url }) => {
   if (request.method === 'POST' && url.pathname === '/api/tag-review/scan') {
     const body = await readJsonBody(request);
     sendJson(
@@ -53,70 +44,6 @@ export const handleTagReviewRoutes: WebRouteHandler = async ({ request, response
         ...(reviewedAt.length === 0 ? {} : { reviewedAt })
       })
     );
-    return true;
-  }
-
-  if (request.method === 'POST' && url.pathname === '/api/tag-review/label-studio/package') {
-    const body = await readJsonBody(request);
-    const directoryPath = requireBodyString(body, 'directoryPath');
-    const scan = await scanTagReviewDirectory({ directoryPath });
-    sendJson(
-      response,
-      buildLabelStudioImportPackage({
-        directoryPath,
-        mediaBaseUrl: readString(body.mediaBaseUrl) || buildLocalUrl(request, context, '/api/tag-review/media'),
-        items: scan.pairedItems
-      })
-    );
-    return true;
-  }
-
-  if (request.method === 'POST' && url.pathname === '/api/tag-review/label-studio/import') {
-    const body = await readJsonBody(request);
-    const directoryPath = requireBodyString(body, 'directoryPath');
-    const scan = await scanTagReviewDirectory({ directoryPath });
-    const importPackage = buildLabelStudioImportPackage({
-      directoryPath,
-      mediaBaseUrl: readString(body.mediaBaseUrl) || buildLocalUrl(request, context, '/api/tag-review/media'),
-      items: scan.pairedItems
-    });
-
-    const projectId = readString(body.projectId);
-    sendJson(
-      response,
-      await importLabelStudioTasks({
-        labelStudioUrl: requireBodyString(body, 'labelStudioUrl'),
-        token: requireBodyString(body, 'token'),
-        ...(projectId.length === 0 ? {} : { projectId }),
-        projectTitle: readString(body.projectTitle) || `Tag Review ${new Date().toISOString()}`,
-        importPackage
-      })
-    );
-    return true;
-  }
-
-  if (request.method === 'POST' && url.pathname === '/api/tag-review/label-studio/sync') {
-    const body = await readJsonBody(request);
-    const directoryPath = requireBodyString(body, 'directoryPath');
-    const syncedAt = new Date().toISOString();
-    const exportPayload = await fetchLabelStudioExport({
-      labelStudioUrl: requireBodyString(body, 'labelStudioUrl'),
-      token: requireBodyString(body, 'token'),
-      projectId: requireBodyString(body, 'projectId')
-    });
-    const items = parseLabelStudioReviewExport(exportPayload, syncedAt);
-    const state = await writeTagReviewState({
-      directoryPath,
-      syncedAt,
-      items
-    });
-
-    sendJson(response, {
-      syncedAt,
-      updatedItems: items.length,
-      stateFilePath: path.join(path.resolve(directoryPath), '_tag-review-state.json'),
-      state
-    });
     return true;
   }
 
