@@ -411,7 +411,47 @@ test('archive stage preserves classified failures and persisted review rows', ()
     createArchiveRow('', '待复核：核心动作主动作缺失'),
     undefined
   ), true);
+  assert.equal(shouldSkipArchiveRow(createArchiveRow('', '打标失败'), undefined), true);
   assert.equal(shouldSkipArchiveRow(createArchiveRow(''), undefined), false);
+});
+
+test('archive stage routes manual review rows to the sibling review library', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'manual-review-stage-'));
+  const mediaPath = path.join(tempDir, 'review_720P_260630_000010.mp4');
+  const spreadsheetPath = path.join(tempDir, 'AfterEdit.xlsx');
+  try {
+    writeFileSync(mediaPath, 'review-video');
+    writeFileSync(path.join(tempDir, 'review_720P_260630_000010.manual-review.json'), JSON.stringify({
+      systemStatus: '待人工复查', taskId: 'task-review',
+      mediaAssetId: 'task-review::asset', sourceUrl: mediaPath, sourceRowNumber: 2,
+      modelFallbackTrace: {
+        primaryProfileId: 'qwen-3.7-plus', primaryErrorCode: 'DataInspectionFailed',
+        primaryErrorMessage: 'rejected', fallbackStatus: 'not-configured'
+      }
+    }));
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, xlsx.utils.aoa_to_sheet([
+      ['URL', '归档状态', '当前文件路径'],
+      [mediaPath, '待人工复查', mediaPath]
+    ]), 'Sheet1');
+    xlsx.writeFile(workbook, spreadsheetPath);
+
+    const result = await runLocalPipelineCommand({
+      options: {
+        spreadsheet: spreadsheetPath, downloadDir: tempDir,
+        taxonomy: path.join(tempDir, 'unused.md'), promptLibrary: path.join(tempDir, 'unused.md'),
+        archiveRoot: tempDir, pipelineStage: 'archive', writebackTarget: 'user'
+      },
+      report: () => undefined
+    });
+
+    assert.equal(result.results[0]?.archiveState, '待人工复查');
+    await access(path.join(tempDir, '待人工复查', path.basename(mediaPath)));
+    await access(path.join(tempDir, '待人工复查', '待人工复查总表.xlsx'));
+    await assert.rejects(access(path.join(tempDir, '视频数据归档库', path.basename(mediaPath))));
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('legacy content topic resolver remains an alias of the generic resolver', () => {

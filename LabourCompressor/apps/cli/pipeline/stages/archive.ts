@@ -1,11 +1,14 @@
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 import { archiveFileByPlans } from '../../../../packages/adapters/storage/filesystem/archive-file-operator.ts';
+import { archiveManualReviewItem } from '../../../../packages/adapters/storage/filesystem/manual-review-archive.ts';
 import { buildArchivePlacementPlans } from '../../../../packages/features/archive/domain/index.ts';
 import { buildContentTopicArchiveRoot } from '../../../../packages/features/tagging/domain/index.ts';
 import { type SpreadsheetTaskRow } from '../../../../packages/features/spreadsheet-tasks/domain/index.ts';
 import { waitForPipelineCheckpoint } from '../../pipeline-control.ts';
 import { pushStageFailure } from '../stage-failures.ts';
+import { buildFailure, createFailureRowState } from '../../local-pipeline-helpers.ts';
 import {
   createAssetFromRow,
   createBasicRowState,
@@ -26,6 +29,14 @@ export async function runArchiveStage(input: StageContext): Promise<void> {
   const spreadsheetDirectory = path.dirname(input.input.options.spreadsheet);
 
   for (const row of rows) {
+    if (row.values['归档状态']?.trim() === '待人工复查') {
+      await archiveManualReviewRow(input, row, spreadsheetDirectory);
+      continue;
+    }
+    if ((row.values['归档状态']?.trim() ?? '').startsWith('打标失败')) {
+      restoreTaggingFailure(input, row);
+      continue;
+    }
     if (shouldSkipArchiveRow(row, input.resultsByRow.get(row.rowNumber))) {
       continue;
     }
@@ -108,5 +119,73 @@ export function shouldSkipArchiveRow(
   existingResult: Readonly<{ readonly failure?: unknown }> | undefined
 ): boolean {
   return existingResult?.failure !== undefined ||
-    (row.values['归档状态']?.trim() ?? '').startsWith('待复核：');
+    (row.values['归档状态']?.trim() ?? '').startsWith('待复核：') ||
+    (row.values['归档状态']?.trim() ?? '').startsWith('打标失败');
+}
+
+async function archiveManualReviewRow(
+  input: StageContext,
+  row: SpreadsheetTaskRow,
+  spreadsheetDirectory: string
+): Promise<void> {
+  const filePath = resolveRowFilePath(row, spreadsheetDirectory);
+  if (filePath === undefined) {
+    input.resultsByRow.set(row.rowNumber, createSkippedRowState({
+      row, archiveState: '待人工复查', errorMessage: '人工复查视频文件缺失'
+    }));
+    return;
+  }
+  try {
+    const asset = createAssetFromRow({ row, filePath, startedAt: input.startedAt });
+    const sidecar = JSON.parse(await readFile(replaceExtension(filePath, '.manual-review.json'), 'utf8'));
+    const archived = await archiveManualReviewItem({
+      sourceFilePath: filePath,
+      archiveRoot: input.input.options.archiveRoot,
+      taskId: asset.taskId,
+      mediaAssetId: asset.mediaAssetId,
+      sourceRowNumber: row.rowNumber,
+      sourceSpreadsheet: path.basename(input.input.options.spreadsheet),
+      sourceUrl: row.url,
+      recordedAt: input.startedAt,
+      sidecar
+    });
+    input.resultsByRow.set(row.rowNumber, createBasicRowState({
+      row,
+      archiveState: '待人工复查',
+      sourceFilePath: resolveSourceFilePath(row, spreadsheetDirectory) ?? filePath,
+      currentFilePath: filePath,
+      archivePath: '待人工复查',
+      archiveFileName: path.basename(archived.filePath),
+      taggingJsonFileName: path.basename(replaceExtension(archived.filePath, '.json')),
+      taggingJsonArchivePath: '待人工复查'
+    }));
+  } catch (error) {
+    pushStageFailure({
+      context: {
+        options: input.input.options, startedAt: input.startedAt,
+        failures: input.failures, resultsByRow: input.resultsByRow
+      },
+      row, phase: 'archive', archiveState: '人工复查归档失败',
+      errorCode: 'manual-review-writeback-failed', error
+    });
+  }
+}
+
+function restoreTaggingFailure(input: StageContext, row: SpreadsheetTaskRow): void {
+  const message = row.values['失败信息']?.trim() || row.values['错误信息']?.trim() || '打标失败';
+  const failure = buildFailure({
+    row, phase: 'tagging',
+    errorCode: /备用模型/iu.test(message) ? 'model-fallback-failed' : 'tagging-failed',
+    errorMessage: message,
+    timestamp: input.startedAt
+  });
+  input.failures.push(failure);
+  input.resultsByRow.set(row.rowNumber, createFailureRowState({
+    row, archiveState: row.values['归档状态']?.trim() || '打标失败', failure
+  }));
+}
+
+function replaceExtension(filePath: string, extension: string): string {
+  const parsed = path.parse(filePath);
+  return path.join(parsed.dir, `${parsed.name}${extension}`);
 }

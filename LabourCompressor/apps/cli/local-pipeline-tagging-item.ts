@@ -73,7 +73,7 @@ export async function processTaggingItem(input: {
     const result = await normalizeAndPersist(context, candidatePaths, modelResult);
     emitItemSucceeded(context, result, input.completedCount());
   } catch (error) {
-    handleTaggingFailure(context, error, input.completedCount());
+    await handleTaggingFailure(context, error, input.completedCount());
   }
 }
 
@@ -367,7 +367,7 @@ function emitCacheIfPresent(context: ItemContext, cache: VideoTaggingCacheResult
   });
 }
 
-function handleTaggingFailure(context: ItemContext, error: unknown, completedCount: number): void {
+async function handleTaggingFailure(context: ItemContext, error: unknown, completedCount: number): Promise<void> {
   if (isVideoTooShortError(error)) {
     context.input.resultsByRow.set(context.row.rowNumber, {
       rowNumber: context.row.rowNumber, url: context.row.url,
@@ -383,17 +383,31 @@ function handleTaggingFailure(context: ItemContext, error: unknown, completedCou
     return;
   }
   if (error instanceof ManualReviewRequiredError) {
-    persistManualReviewState(context, error, completedCount);
+    await persistManualReviewState(context, error, completedCount);
     return;
   }
   persistTaggingFailure(context, error, completedCount);
 }
 
-function persistManualReviewState(
+async function persistManualReviewState(
   context: ItemContext,
   error: ManualReviewRequiredError,
   completedCount: number
-): void {
+): Promise<void> {
+  const sidecarFileName = replaceExtension(context.asset.fileName, '.manual-review.json');
+  const sidecarPayload = {
+    systemStatus: '待人工复查',
+    taskId: context.asset.taskId,
+    mediaAssetId: context.asset.mediaAssetId,
+    sourceUrl: context.asset.sourceUrl,
+    sourceRowNumber: context.row.rowNumber,
+    modelFallbackTrace: error.trace
+  } as const;
+  await writeFile(
+    replaceExtension(context.asset.filePath, '.manual-review.json'),
+    `${JSON.stringify(sidecarPayload, null, 2)}\n`,
+    'utf8'
+  );
   context.input.resultsByRow.set(context.row.rowNumber, {
     ...createFailureRowState({
       row: context.row,
@@ -406,6 +420,9 @@ function persistManualReviewState(
     failure: undefined,
     errorMessage: error.message,
     modelFallbackTrace: error.trace,
+    taggingJsonFileName: sidecarFileName,
+    taggingJsonArchivePath: '',
+    taggingJsonPayload: sidecarPayload,
     timings: buildTimings(context)
   });
   context.input.emit('tagging-item', 'succeeded', `${context.asset.fileName}: queued for manual review`, {
