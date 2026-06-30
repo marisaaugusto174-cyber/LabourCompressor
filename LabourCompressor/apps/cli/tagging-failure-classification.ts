@@ -2,6 +2,8 @@ import {
   ArchivePrimaryTagError,
   type ArchivePrimaryTagErrorCode
 } from '../../packages/features/tagging/domain/index.ts';
+import { ModelFallbackFailedError } from '../../packages/features/tagging/domain/index.ts';
+import { ModelProviderRequestError } from '../../packages/adapters/models/model-provider-error.ts';
 
 const ARCHIVE_PRIMARY_REVIEW_STATES: Readonly<Record<ArchivePrimaryTagErrorCode, string>> = Object.freeze({
   'archive-primary-tag-missing': '待复核：核心动作主动作缺失',
@@ -30,6 +32,10 @@ export function classifyTaggingError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Tagging failed.';
   if (error instanceof ArchivePrimaryTagError) {
     return error.code;
+  }
+  if (error instanceof ModelFallbackFailedError) return 'model-fallback-failed';
+  if (error instanceof ModelProviderRequestError && error.category === 'content-rejected') {
+    return 'model-content-rejected';
   }
   return /缺少内容题材/iu.test(message)
     ? 'missing-content-topic'

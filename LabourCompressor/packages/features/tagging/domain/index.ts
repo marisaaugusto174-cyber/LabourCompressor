@@ -1,4 +1,11 @@
 export {
+  ManualReviewRequiredError,
+  ModelFallbackFailedError,
+  runModelRequestWithFallback,
+  type ModelFallbackTrace
+} from './model-fallback.ts';
+
+export {
   createModelConnectionConfig,
   createModelOnboardingGuide,
   validateModelConnectionConfig

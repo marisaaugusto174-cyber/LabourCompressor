@@ -59,6 +59,11 @@ export async function runTagStage(input: StageContext): Promise<void> {
   );
   const promptLibrary = parsePromptLibraryMarkdown(await readFile(input.input.options.promptLibrary, 'utf8'));
   const candidateFixtures = await loadCandidateFixtures(input.input.options);
+  const providerConfigMap = input.input.options.taggingMode === 'qwen'
+    ? await loadLocalProviderConfigFile(
+        input.input.options.providerConfigPath ?? DEFAULT_PROVIDER_CONFIG_PATH
+      )
+    : undefined;
   const selectedVideoModelProfile =
     input.input.options.taggingMode === 'qwen'
       ? getVideoModelProfile(input.input.options.selectedModelProfileId)
@@ -66,13 +71,17 @@ export async function runTagStage(input: StageContext): Promise<void> {
   const realModelProviderConfig =
     input.input.options.taggingMode === 'qwen'
       ? getEnabledProviderConfig(
-          await loadLocalProviderConfigFile(
-            input.input.options.providerConfigPath ??
-              DEFAULT_PROVIDER_CONFIG_PATH
-          ),
+          requireValue(providerConfigMap, 'Provider config map is required.'),
           requireValue(selectedVideoModelProfile, 'Selected video model profile is required.').provider
         )
       : undefined;
+  const fallbackVideoModelProfile = selectedVideoModelProfile?.provider === 'qwen'
+    ? getVideoModelProfile('gemini-3.5-flash')
+    : undefined;
+  const googleConfig = providerConfigMap?.google;
+  const fallbackModelProviderConfig = googleConfig?.enabled === true && googleConfig.apiKey.trim().length > 0
+    ? googleConfig
+    : undefined;
   input.emit('taxonomy', 'succeeded', 'Taxonomy and prompt library loaded');
 
   await runTaggingBatch({
@@ -86,6 +95,8 @@ export async function runTagStage(input: StageContext): Promise<void> {
     taggingConcurrency: input.input.options.taggingConcurrency,
     selectedVideoModelProfile,
     realModelProviderConfig,
+    fallbackVideoModelProfile,
+    fallbackModelProviderConfig,
     candidateFixtures,
     taxonomyTree,
     promptLibrary,

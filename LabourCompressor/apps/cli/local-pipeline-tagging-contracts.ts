@@ -31,6 +31,8 @@ export interface RunTaggingBatchInput {
   readonly taggingConcurrency?: number | undefined;
   readonly selectedVideoModelProfile?: VideoModelProfile | undefined;
   readonly realModelProviderConfig?: LocalProviderConfig | undefined;
+  readonly fallbackVideoModelProfile?: VideoModelProfile | undefined;
+  readonly fallbackModelProviderConfig?: LocalProviderConfig | undefined;
   readonly candidateFixtures?: Record<string, readonly string[]> | undefined;
   readonly taxonomyTree: ParsedTaxonomyTree;
   readonly promptLibrary: PromptLibraryDocument;
@@ -40,6 +42,7 @@ export interface RunTaggingBatchInput {
   readonly archivePathPolicy?: ArchivePathPolicy | undefined;
   readonly modelResponseShape?: 'paths-json-array' | 'structured-json' | undefined;
   readonly generateModelCandidates?: (() => Promise<GenerateModelCandidatePathsResult>) | undefined;
+  readonly generateFallbackModelCandidates?: (() => Promise<GenerateModelCandidatePathsResult>) | undefined;
   readonly emit: (
     stage: string,
     status: CliStageEvent['status'],

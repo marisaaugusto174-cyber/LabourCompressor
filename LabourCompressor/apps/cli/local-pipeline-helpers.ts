@@ -10,6 +10,7 @@ import { type CliStageEvent } from './status-reporter.ts';
 import { type RunLocalPipelineOptions } from './local-pipeline-command.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type PipelineItemTimings } from './local-pipeline-tagging-contracts.ts';
+import { type ModelFallbackTrace } from '../../packages/features/tagging/domain/index.ts';
 import { DEFAULT_MASTER_SPREADSHEET_PATH } from './project-paths.ts';
 
 export const STANDARDIZED_VIDEO_FILE_NAME_PATTERN =
@@ -36,6 +37,7 @@ export interface PipelineRowState {
   readonly selectedContentTopicPath?: string | undefined;
   readonly timings?: PipelineItemTimings | undefined;
   readonly failure?: RunLocalPipelineFailure | undefined;
+  readonly modelFallbackTrace?: ModelFallbackTrace | undefined;
 }
 
 export function createStageEmitter(

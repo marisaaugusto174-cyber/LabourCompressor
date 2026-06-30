@@ -21,6 +21,7 @@ import {
   type StructuredTaggingResponse
 } from '../../../features/tagging/domain/index.ts';
 import { parseTaxonomyMarkdown } from '../../../features/taxonomy/domain/index.ts';
+import { ModelProviderRequestError } from '../../../adapters/models/model-provider-error.ts';
 
 const archivePolicy: ArchivePathPolicy = Object.freeze({
   dimension: '核心动作',
@@ -497,6 +498,41 @@ test('keeps the existing fallback for unknown tagging failures', () => {
     errorCode: 'tagging-failed',
     archiveState: '打标失败'
   });
+});
+
+test('routes Qwen content rejection without Gemini to manual review', async () => {
+  const resultsByRow = new Map();
+  const failures: Array<{ readonly errorCode: string }> = [];
+  await runTaggingBatch({
+    assets: [{
+      mediaAssetId: 'asset-review', taskId: 'task-review', rowNumber: 2,
+      sourceUrl: 'https://example.com/review', platform: 'direct',
+      filePath: '/tmp/review.mp4', fileName: 'review.mp4',
+      downloadedAt: '2026-06-30T00:00:00.000Z'
+    }],
+    rowByTaskId: new Map([['task-review', {
+      taskId: 'task-review', rowNumber: 2, url: 'https://example.com/review',
+      sourceKind: 'url' as const, values: {}
+    }]]),
+    resultsByRow,
+    failures,
+    startedAt: '2026-06-30T00:00:00.000Z',
+    taggingMode: 'qwen',
+    selectedModelProfileId: 'qwen-3.7-plus',
+    taxonomyTree: archiveTaxonomy,
+    promptLibrary: parsePromptLibraryMarkdown('# 提示\n\n## 规则\n- 仅合法路径\n'),
+    generateModelCandidates: async () => {
+      throw new ModelProviderRequestError({
+        provider: 'qwen', statusCode: 400, providerCode: 'DataInspectionFailed',
+        message: 'inappropriate content'
+      });
+    },
+    emit: () => undefined
+  });
+
+  assert.equal(failures.length, 0);
+  assert.equal(resultsByRow.get(2)?.archiveState, '待人工复查');
+  assert.equal(resultsByRow.get(2)?.modelFallbackTrace?.fallbackStatus, 'not-configured');
 });
 
 test('retries provider rate-limit errors a finite number of times', async () => {

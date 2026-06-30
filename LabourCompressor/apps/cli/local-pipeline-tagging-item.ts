@@ -8,6 +8,9 @@ import {
   buildStructuredLevelValues,
   generateContentTopicCandidatePaths,
   generateModelCandidatePaths,
+  ManualReviewRequiredError,
+  ModelFallbackFailedError,
+  runModelRequestWithFallback,
   runAutomaticTagging,
   type GenerateModelCandidatePathsResult
 } from '../../packages/features/tagging/domain/index.ts';
@@ -44,6 +47,8 @@ interface ItemContext {
     readonly fileName: string;
     readonly payload: unknown;
   }> | undefined;
+  modelFallbackTrace?: import('../../packages/features/tagging/domain/index.ts').ModelFallbackTrace | undefined;
+  useFallbackModel: boolean;
 }
 
 interface ProcessedTaggingResult {
@@ -87,7 +92,8 @@ function createItemContext(input: {
     taxonomyVersionId: input.batch.taxonomyVersionId ?? 'taxonomy-v1',
     archiveDimension: input.batch.archiveDimension ?? '内容题材',
     modelRequestMs: 0,
-    tagNormalizeMs: 0
+    tagNormalizeMs: 0,
+    useFallbackModel: false
   };
 }
 
@@ -104,9 +110,24 @@ async function requestInitialModelResult(
   if (context.input.taggingMode !== 'qwen') {
     return undefined;
   }
-  const result = await timeModelRequest(context, () => requestModelCandidates(context));
+  const requested = await runModelRequestWithFallback({
+    primaryProfileId: context.input.selectedModelProfileId ?? 'qwen-3.7-plus',
+    primary: () => timeModelRequest(context, () => requestModelCandidates(context)),
+    fallbackProfileId: context.input.fallbackVideoModelProfile?.id,
+    fallback: context.input.fallbackModelProviderConfig === undefined
+      ? undefined
+      : () => timeModelRequest(context, () => requestFallbackModelCandidates(context))
+  });
+  const result = requested.value;
+  context.modelFallbackTrace = requested.trace;
+  context.useFallbackModel = requested.trace?.fallbackStatus === 'succeeded';
   await persistLatestModelSidecar(context, result.parsedJson);
   return result;
+}
+
+function requestFallbackModelCandidates(context: ItemContext): Promise<GenerateModelCandidatePathsResult> {
+  return context.input.generateFallbackModelCandidates?.() ??
+    generateModelCandidatePaths(buildModelInput(context, true));
 }
 
 function requestModelCandidates(context: ItemContext): Promise<GenerateModelCandidatePathsResult> {
@@ -114,7 +135,13 @@ function requestModelCandidates(context: ItemContext): Promise<GenerateModelCand
     generateModelCandidatePaths(buildModelInput(context));
 }
 
-function buildModelInput(context: ItemContext) {
+function buildModelInput(context: ItemContext, forceFallback = context.useFallbackModel) {
+  const profile = forceFallback
+    ? requireValue(context.input.fallbackVideoModelProfile, 'Fallback profile is required.')
+    : requireValue(context.input.selectedVideoModelProfile, 'Selected profile is required.');
+  const providerConfig = forceFallback
+    ? requireValue(context.input.fallbackModelProviderConfig, 'Fallback provider config is required.')
+    : requireValue(context.input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.');
   return {
     mediaFilePath: context.asset.filePath,
     mediaAssetId: context.asset.mediaAssetId,
@@ -125,9 +152,9 @@ function buildModelInput(context: ItemContext) {
     archiveDimension: context.archiveDimension,
     archivePathPolicy: context.input.archivePathPolicy,
     modelResponseShape: context.input.modelResponseShape,
-    providerConfig: requireValue(context.input.realModelProviderConfig, 'The selected real-model provider config is required when tagging-mode=qwen.'),
+    providerConfig,
     videoCacheDirectory: DEFAULT_VIDEO_CACHE_DIRECTORY,
-    selectedModelProfileId: context.input.selectedModelProfileId
+    selectedModelProfileId: profile.id
   };
 }
 
@@ -355,7 +382,37 @@ function handleTaggingFailure(context: ItemContext, error: unknown, completedCou
     });
     return;
   }
+  if (error instanceof ManualReviewRequiredError) {
+    persistManualReviewState(context, error, completedCount);
+    return;
+  }
   persistTaggingFailure(context, error, completedCount);
+}
+
+function persistManualReviewState(
+  context: ItemContext,
+  error: ManualReviewRequiredError,
+  completedCount: number
+): void {
+  context.input.resultsByRow.set(context.row.rowNumber, {
+    ...createFailureRowState({
+      row: context.row,
+      archiveState: '待人工复查',
+      failure: buildFailure({
+        row: context.row, phase: 'tagging', errorCode: 'model-content-rejected',
+        errorMessage: error.message, timestamp: new Date().toISOString()
+      })
+    }),
+    failure: undefined,
+    errorMessage: error.message,
+    modelFallbackTrace: error.trace,
+    timings: buildTimings(context)
+  });
+  context.input.emit('tagging-item', 'succeeded', `${context.asset.fileName}: queued for manual review`, {
+    currentItem: context.asset.fileName,
+    progress: { current: completedCount, total: context.totalAssets },
+    details: { manualReview: true, fallbackStatus: error.trace.fallbackStatus }
+  });
 }
 
 function persistTaggingFailure(context: ItemContext, error: unknown, completedCount: number): void {
