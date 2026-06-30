@@ -108,6 +108,7 @@ In the Web UI:
 - Continuity analysis failures use a mechanical scene-and-duration fallback and write a compact `.segmentation/<asset>/continuity.json` diagnostic without frames, audio, credentials, or media payloads.
 - V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
 - Native video-level multimodal tagging with Qwen and Gemini provider profiles.
+- Qwen content-inspection rejections automatically retry once with configured Gemini. If Gemini is unavailable or also rejects the video, the item is copied to `<archiveRoot>/待人工复查/` with a JSON audit sidecar and an idempotent `待人工复查总表.xlsx`; transient Gemini failures remain retryable errors.
 - Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.
 - Multi-branch tag writeback. New `core-v0.3-drama` tasks require exactly one legal `核心动作/主动作`; all secondary actions and unrelated accepted tags remain in the result and sidecar.
 - Per-task result spreadsheet generation under `<downloadDir>/本次打标结果/`.
