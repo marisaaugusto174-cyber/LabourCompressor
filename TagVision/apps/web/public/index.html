@@ -3,22 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TagVision V0.1 macOS</title>
-    <link rel="stylesheet" href="/styles.css?v=tagvision-v0.1-macos" />
+    <title>TagVision</title>
+    <link rel="stylesheet" href="/styles.css?v=20260630-plyr" />
   </head>
   <body>
-    <main class="page review-page">
+    <main class="page review-page entry-page">
       <header class="page-header">
         <div>
-          <h1>TagVision V0.1 macOS</h1>
-          <p>本地审核入口：扫描片段视频、模型 JSON 和 taxonomy 快照，写出人工确认的 accepted sidecar。</p>
-          <p class="build-version">Release: TagVision V0.1 macOS</p>
+          <h1>TagVision</h1>
         </div>
         <div class="header-chip-list">
-          <a class="chip" href="/review.html">进入审核</a>
-          <span class="chip">Local sidecar JSON</span>
-          <span class="chip">Manual accepted result</span>
-          <span class="chip">Taxonomy snapshot</span>
+          <a class="chip" href="/review.html">检视台</a>
         </div>
       </header>
 
@@ -27,16 +22,8 @@
         <p>请使用 <a href="http://127.0.0.1:4312/">http://127.0.0.1:4312/</a> 打开本页。</p>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>审核入口</h2>
-            <p>TagVision V0.1 macOS 以片段级审核为单位，原模型 JSON 只作为候选证据，人工确认结果写入同目录的 <code>.accepted.json</code>。</p>
-          </div>
-          <div class="actions compact">
-            <a class="primary-link" href="/review.html">打开审核台</a>
-          </div>
-        </div>
+      <section class="panel entry-panel" aria-label="入口">
+        <a class="primary-link entry-action" href="/review.html">进入检视台</a>
       </section>
     </main>
   </body>

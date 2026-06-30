@@ -144,9 +144,20 @@ test('review controls and detail surfaces keep neutral glass without gradient bu
 
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
-  assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);
-  assert.equal(indexHtml.includes('进入审核'), true);
+  assert.match(indexHtml, /<h1>TagVision<\/h1>/u);
+  assert.equal(indexHtml.includes('进入检视台'), true);
   assert.equal(indexHtml.includes('Labour Compressor'), false);
+
+  for (const removedText of [
+    'TagVision V0.1 macOS',
+    '本地审核入口：扫描片段视频',
+    'Local sidecar JSON',
+    'Manual accepted result',
+    'Taxonomy snapshot',
+    '审核入口'
+  ]) {
+    assert.equal(indexHtml.includes(removedText), false, `unexpected entry copy: ${removedText}`);
+  }
 });
 
 test('release metadata names the local tool as TagVision V0.1 macOS', () => {
