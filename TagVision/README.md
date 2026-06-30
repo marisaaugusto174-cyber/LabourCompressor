@@ -130,9 +130,11 @@ LabourCompressor's partial sidecar writeback now checks for
   available for automatic tagging workflows.
 - The original model JSON remains available for audit and comparison.
 
-## Label Studio
+## Local Review Workflow
 
-Label Studio integration remains available as an optional external review
-channel. TagVision's own UI can complete the V0.1 macOS review loop without
-Label Studio by selecting paths from the taxonomy snapshot and saving the
-accepted sidecar directly.
+TagVision V0.1 completes the review loop locally. Select a directory, inspect
+the paired videos and model tags, edit paths from the taxonomy snapshot, and
+save the confirmed result directly as `<stem>.accepted.json`.
+
+The application does not require an external review service. Existing legacy
+`_tag-review-state.json` files are ignored and are never modified or deleted.
