@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TagVision V0.1 macOS · 打标结果质检</title>
-    <link rel="stylesheet" href="/styles.css?v=20260515-review" />
+    <link rel="stylesheet" href="/vendor/plyr.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260630-plyr" />
   </head>
   <body>
     <main class="page review-page">
@@ -127,26 +128,33 @@
               <button id="close-detail" type="button">关闭详情</button>
             </div>
           </div>
-          <div class="review-detail-layout">
-            <div class="review-player">
+          <div id="review-detail-layout" class="review-detail-layout" data-video-orientation="landscape">
+            <div id="review-player-stage" class="review-player">
               <video id="detail-video" controls playsinline preload="metadata"></video>
             </div>
             <div class="review-tag-panel">
               <section class="review-accepted-editor">
-                <h3>人工 accepted 路径</h3>
-                <p>只能保存 taxonomy 快照中存在的路径。保存后生成同名 <code>.accepted.json</code>。</p>
+                <div class="accepted-editor-heading">
+                  <h3>人工 accepted 路径</h3>
+                  <span>保存后生成同名 <code>.accepted.json</code></span>
+                </div>
                 <div id="accepted-path-list" class="accepted-path-list empty-state">
                   <p>未选择 accepted 路径。</p>
                 </div>
                 <div class="accepted-path-control">
                   <select id="accepted-path-select"></select>
                   <button id="add-accepted-path" class="secondary-button" type="button">添加路径</button>
-                </div>
-                <div class="actions compact">
                   <button id="save-accepted-result" type="button">保存 accepted result</button>
                 </div>
               </section>
               <div id="detail-tags"></div>
+              <section id="tag-evidence-overlay" class="tag-evidence-overlay hidden" aria-label="标签证据详情">
+                <div class="tag-evidence-header">
+                  <h3>标签证据</h3>
+                  <button id="close-tag-evidence" class="secondary-button" type="button">关闭</button>
+                </div>
+                <div id="tag-evidence-content"></div>
+              </section>
             </div>
           </div>
           <div class="review-detail-nav">
@@ -171,6 +179,7 @@
         <pre id="review-output" class="output log"></pre>
       </section>
     </main>
-    <script type="module" src="/tag-review.js?v=20260611"></script>
+    <script src="/vendor/plyr.js"></script>
+    <script type="module" src="/tag-review.js?v=20260630-plyr"></script>
   </body>
 </html>

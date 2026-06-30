@@ -46,6 +46,7 @@ const packageJson = JSON.parse(
   readonly description?: string;
   readonly scripts?: Record<string, string>;
   readonly files?: readonly string[];
+  readonly dependencies?: Record<string, string>;
 };
 
 test('review ui exposes directory scan and Label Studio controls', () => {
@@ -114,6 +115,22 @@ test('review detail exposes keyboard shortcuts', () => {
   assert.equal(reviewHtml.includes('← 上一个　空格 播放/暂停　→ 下一个　Esc 关闭'), true);
 });
 
+test('review detail integrates Plyr and adaptive one-screen layout', () => {
+  assert.equal(reviewHtml.includes('href="/vendor/plyr.css"'), true);
+  assert.equal(reviewHtml.includes('src="/vendor/plyr.js"'), true);
+  assert.equal(reviewHtml.includes('id="review-player-stage"'), true);
+  assert.equal(reviewHtml.includes('id="tag-evidence-overlay"'), true);
+  assert.match(reviewJs, /createReviewPlayer/u);
+  assert.match(reviewJs, /classifyVideoOrientation/u);
+  assert.match(reviewJs, /fitVideoSize/u);
+  assert.match(reviewJs, /ResizeObserver/u);
+  assert.match(reviewJs, /data-video-orientation/u);
+  assert.match(reviewJs, /review-tag-compact/u);
+  assert.match(stylesCss, /--review-player-width/u);
+  assert.match(stylesCss, /--review-player-height/u);
+  assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*overflow:\s*auto/su);
+});
+
 test('review cards use thumbnail images instead of mounting videos', () => {
   assert.match(reviewJs, /function thumbnailUrl/u);
   assert.match(reviewJs, /\/api\/tag-review\/thumbnail/u);
@@ -158,6 +175,14 @@ test('review runtime dependencies are present for module imports', () => {
   assert.match(apiClientJs, /export async function apiPost/u);
   assert.match(apiClientJs, /export function buildDebugJson/u);
   assert.match(formStateJs, /export function escapeHtml/u);
+});
+
+test('review serves Plyr from an offline runtime dependency through exact routes', () => {
+  assert.equal(packageJson.dependencies?.plyr, '3.8.4');
+  assert.match(serverTs, /\/vendor\/plyr\.js/u);
+  assert.match(serverTs, /\/vendor\/plyr\.css/u);
+  assert.match(serverTs, /\/vendor\/plyr\.svg/u);
+  assert.doesNotMatch(serverTs, /url\.pathname.*node_modules/u);
 });
 
 test('local folder chooser activates Finder before opening mac dialog', () => {

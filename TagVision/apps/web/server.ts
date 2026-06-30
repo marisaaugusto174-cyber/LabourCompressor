@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,6 +11,13 @@ const WEB_PORT = Number(process.env.TAGVISION_WEB_PORT ?? '4312');
 const WEB_HOST = process.env.TAGVISION_WEB_HOST ?? '127.0.0.1';
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const DEFAULT_REVIEW_DIRECTORY = process.env.TAGVISION_REVIEW_DIR ?? '';
+const require = createRequire(import.meta.url);
+const PLYR_DIST_DIR = path.dirname(require.resolve('plyr'));
+const PLYR_ASSETS: Readonly<Record<string, readonly [fileName: string, contentType: string]>> = Object.freeze({
+  '/vendor/plyr.js': ['plyr.min.js', 'text/javascript; charset=utf-8'],
+  '/vendor/plyr.css': ['plyr.css', 'text/css; charset=utf-8'],
+  '/vendor/plyr.svg': ['plyr.svg', 'image/svg+xml']
+});
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? `${WEB_HOST}:${WEB_PORT}`}`);
@@ -55,6 +63,12 @@ const server = createServer(async (request, response) => {
 
     if (url.pathname === '/review.html') {
       await serveStatic(response, PUBLIC_DIR, 'review.html', 'text/html; charset=utf-8');
+      return;
+    }
+
+    const plyrAsset = PLYR_ASSETS[url.pathname];
+    if (plyrAsset !== undefined) {
+      await serveStatic(response, PLYR_DIST_DIR, plyrAsset[0], plyrAsset[1]);
       return;
     }
 

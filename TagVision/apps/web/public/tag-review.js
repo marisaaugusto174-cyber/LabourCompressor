@@ -1,5 +1,7 @@
 import { apiGet, apiPost, buildDebugJson } from './api-client.js';
 import { escapeHtml } from './form-state.js';
+import { classifyVideoOrientation, fitVideoSize } from './review-layout.js';
+import { createReviewPlayer } from './review-player.js';
 import { handleReviewShortcut } from './review-shortcuts.js';
 
 const INITIAL_RENDER_COUNT = 36;
@@ -25,6 +27,8 @@ const refs = {
   reviewGrid: document.querySelector('#review-grid'),
   loadMore: document.querySelector('#load-more'),
   detailView: document.querySelector('#detail-view'),
+  detailLayout: document.querySelector('#review-detail-layout'),
+  playerStage: document.querySelector('#review-player-stage'),
   detailTitle: document.querySelector('#detail-title'),
   detailSubtitle: document.querySelector('#detail-subtitle'),
   detailVideo: document.querySelector('#detail-video'),
@@ -37,6 +41,9 @@ const refs = {
   previousDetail: document.querySelector('#previous-detail'),
   nextDetail: document.querySelector('#next-detail'),
   closeDetail: document.querySelector('#close-detail'),
+  tagEvidenceOverlay: document.querySelector('#tag-evidence-overlay'),
+  tagEvidenceContent: document.querySelector('#tag-evidence-content'),
+  closeTagEvidence: document.querySelector('#close-tag-evidence'),
   openCurrentLabelStudioTask: document.querySelector('#open-current-ls-task'),
   diagnosticsList: document.querySelector('#diagnostics-list'),
   reviewOutput: document.querySelector('#review-output')
@@ -48,6 +55,8 @@ let renderedCount = 0;
 let selectedIndex = -1;
 let thumbnailObserver = null;
 let selectedAcceptedPaths = [];
+let reviewPlayer = null;
+let playerResizeObserver = null;
 
 boot().catch((error) => {
   showDiagnostics([{ severity: 'error', message: error.message }]);
@@ -63,6 +72,10 @@ async function boot() {
   refs.reviewDirectory.value = defaultsPayload.defaults?.reviewDirectory ?? '';
   refs.labelStudioUrl.value = localStorage.getItem('tagReviewLabelStudioUrl') ?? 'http://127.0.0.1:8080';
   refs.labelStudioProjectTitle.value = 'Tag Review AfterEdit';
+  reviewPlayer = createReviewPlayer(refs.detailVideo, window.Plyr);
+  reviewPlayer.onLoadedMetadata(updatePlayerLayout);
+  playerResizeObserver = new ResizeObserver(updatePlayerLayout);
+  playerResizeObserver.observe(refs.playerStage);
   bindActions();
 }
 
@@ -76,6 +89,7 @@ function bindActions() {
   refs.previousDetail.addEventListener('click', () => openDetail(selectedIndex - 1));
   refs.nextDetail.addEventListener('click', () => openDetail(selectedIndex + 1));
   refs.closeDetail.addEventListener('click', closeDetail);
+  refs.closeTagEvidence.addEventListener('click', closeTagEvidence);
   refs.addAcceptedPath.addEventListener('click', addAcceptedPath);
   refs.saveAcceptedResult.addEventListener('click', () => wrapAction(saveAcceptedResult));
   refs.detailView.addEventListener('click', (event) => {
@@ -93,7 +107,7 @@ function bindActions() {
       detailOpen: isDetailOpen(),
       selectedIndex,
       itemCount: currentItems.length,
-      video: refs.detailVideo,
+      video: reviewPlayer ?? refs.detailVideo,
       openDetail,
       closeDetail
     });
@@ -322,12 +336,18 @@ function openDetail(index) {
   refs.detailView.classList.remove('hidden');
   refs.detailTitle.textContent = item.videoFileName;
   refs.detailSubtitle.textContent = `${item.videoRelativePath} · JSON ${item.jsonRelativePath}`;
-  refs.detailVideo.pause();
-  refs.detailVideo.src = mediaUrl(item);
+  closeTagEvidence();
+  reviewPlayer?.pause();
+  reviewPlayer?.setSource({
+    src: mediaUrl(item),
+    type: mediaContentType(item.videoFileName),
+    title: item.videoFileName
+  });
   selectedAcceptedPaths = [...(item.acceptedResult?.acceptedPaths ?? item.tagging?.tags?.map((tag) => (tag.labelPath ?? []).join(' > ')).filter(Boolean) ?? [])];
   renderAcceptedPathOptions();
   renderAcceptedPaths();
   refs.detailTags.innerHTML = renderDetailTags(item);
+  bindTagEvidenceButtons(item);
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
@@ -337,9 +357,9 @@ function openDetail(index) {
 }
 
 function closeDetail() {
-  refs.detailVideo.pause();
-  refs.detailVideo.removeAttribute('src');
-  refs.detailVideo.load();
+  reviewPlayer?.pause();
+  reviewPlayer?.clearSource();
+  closeTagEvidence();
   refs.detailView.classList.add('hidden');
   document.body.classList.remove('is-review-modal-open');
 }
@@ -352,33 +372,74 @@ function renderDetailTags(item) {
   const tagging = item.tagging ?? {};
   const tags = tagging.tags ?? [];
   return `
-    <div class="review-state-box">
-      <div>
-        <span class="status-label">LS 同步状态</span>
-        <strong>${escapeHtml(item.reviewStatus ?? '未同步')}</strong>
-      </div>
-      <div>
-        <span class="status-label">备注</span>
-        <p>${escapeHtml(item.reviewNote ?? '—')}</p>
-      </div>
-    </div>
-    <div class="review-state-box">
+    <div class="review-state-summary">
+      <div><span class="status-label">LS 状态</span><strong>${escapeHtml(item.reviewStatus ?? '未同步')}</strong></div>
       <div><span class="status-label">Taxonomy</span><strong>${escapeHtml(tagging.taxonomyVersion ?? '—')}</strong></div>
       <div><span class="status-label">模型复核</span><strong>${tagging.reviewRequired ? '需要' : '不需要'}</strong></div>
-      <div><span class="status-label">复核原因</span><p>${escapeHtml(tagging.reviewReason ?? '—')}</p></div>
+      <div><span class="status-label">标签数</span><strong>${tags.length}</strong></div>
     </div>
     <div class="review-tag-list">
       ${tags.length === 0 ? '<p>JSON 中没有 tags。</p>' : tags.map((tag, index) => `
-        <section class="review-tag-item">
-          <h3>${index + 1}. ${escapeHtml(tag.dimension || '未命名维度')}</h3>
-          <p><strong>路径</strong> ${escapeHtml((tag.labelPath ?? []).join(' > ') || '—')}</p>
-          <p><strong>角色</strong> ${escapeHtml(tag.tagRole || '—')} · <strong>层级</strong> ${escapeHtml(tag.selectedLevel || '—')}</p>
-          <p><strong>证据</strong> ${escapeHtml(tag.evidenceType || '—')} · <strong>置信度</strong> ${escapeHtml(tag.confidenceScore ?? '—')}</p>
-          <p>${escapeHtml(tag.evidenceNote || '—')}</p>
-        </section>
+        <button class="review-tag-compact" type="button" data-tag-evidence-index="${index}">
+          <strong>${index + 1}. ${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</strong>
+          <span>${escapeHtml(tag.tagRole || '—')} · ${escapeHtml(tag.selectedLevel || '—')} · 置信度 ${escapeHtml(tag.confidenceScore ?? '—')}</span>
+        </button>
       `).join('')}
     </div>
   `;
+}
+
+function bindTagEvidenceButtons(item) {
+  const tags = item.tagging?.tags ?? [];
+  for (const button of refs.detailTags.querySelectorAll('[data-tag-evidence-index]')) {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.tagEvidenceIndex);
+      const tag = tags[index];
+      if (tag) showTagEvidence(tag, index);
+    });
+  }
+}
+
+function showTagEvidence(tag, index) {
+  refs.tagEvidenceContent.innerHTML = `
+    <p><strong>${index + 1}. ${escapeHtml(tag.dimension || '未命名维度')}</strong></p>
+    <p><span class="status-label">完整路径</span>${escapeHtml((tag.labelPath ?? []).join(' > ') || '—')}</p>
+    <p><span class="status-label">角色／层级</span>${escapeHtml(tag.tagRole || '—')} · ${escapeHtml(tag.selectedLevel || '—')}</p>
+    <p><span class="status-label">证据／置信度</span>${escapeHtml(tag.evidenceType || '—')} · ${escapeHtml(tag.confidenceScore ?? '—')}</p>
+    <p><span class="status-label">证据说明</span>${escapeHtml(tag.evidenceNote || '—')}</p>
+  `;
+  refs.tagEvidenceOverlay.classList.remove('hidden');
+  refs.closeTagEvidence.focus();
+}
+
+function closeTagEvidence() {
+  refs.tagEvidenceOverlay.classList.add('hidden');
+}
+
+function updatePlayerLayout() {
+  if (!refs.playerStage || refs.playerStage.clientWidth <= 0 || refs.playerStage.clientHeight <= 0) return;
+  const media = reviewPlayer?.media ?? refs.detailVideo;
+  const orientation = classifyVideoOrientation(media.videoWidth, media.videoHeight);
+  refs.detailLayout.setAttribute('data-video-orientation', orientation);
+  const fitted = fitVideoSize({
+    videoWidth: media.videoWidth,
+    videoHeight: media.videoHeight,
+    availableWidth: refs.playerStage.clientWidth,
+    availableHeight: refs.playerStage.clientHeight
+  });
+  refs.playerStage.style.setProperty('--review-player-width', `${fitted.width}px`);
+  refs.playerStage.style.setProperty('--review-player-height', `${fitted.height}px`);
+}
+
+function mediaContentType(fileName) {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  return ({
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+    mkv: 'video/x-matroska',
+    avi: 'video/x-msvideo'
+  })[extension] ?? 'application/octet-stream';
 }
 
 function renderAcceptedPathOptions() {
