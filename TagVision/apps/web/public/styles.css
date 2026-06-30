@@ -1,10 +1,25 @@
+:root {
+  --page-ink: #0f172a;
+  --page-muted: #64748b;
+  --glass-surface: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.58));
+  --glass-strong: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --glass-shadow: 0 22px 70px rgba(59, 93, 148, 0.14), 0 6px 24px rgba(15, 23, 42, 0.08);
+  --glass-inner: inset 0 1px 0 rgba(255, 255, 255, 0.82), inset 0 -1px 0 rgba(147, 197, 253, 0.14);
+  --aurora-blue: rgba(96, 165, 250, 0.36);
+  --aurora-pink: rgba(244, 114, 182, 0.30);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
   background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 24%),
-    linear-gradient(180deg, #eef3f8 0%, #f7f8fb 100%);
-  color: #111827;
+    radial-gradient(circle at 16% 18%, var(--aurora-blue), transparent 32%),
+    radial-gradient(circle at 82% 12%, var(--aurora-pink), transparent 34%),
+    radial-gradient(circle at 62% 78%, rgba(125, 211, 252, 0.22), transparent 38%),
+    linear-gradient(135deg, #f8fbff 0%, #ffffff 44%, #f7f9ff 100%);
+  background-attachment: fixed;
+  color: var(--page-ink);
 }
 
 a { color: #2563eb; }
@@ -77,11 +92,39 @@ code { font-family: "SF Mono", Menlo, Consolas, monospace; }
 }
 
 .panel,
-.subpanel {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(209, 213, 219, 0.9);
-  border-radius: 18px;
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
+.subpanel,
+.status-card,
+.review-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  box-shadow: var(--glass-shadow), var(--glass-inner);
+  backdrop-filter: blur(24px) saturate(1.45);
+  -webkit-backdrop-filter: blur(24px) saturate(1.45);
+}
+
+.panel::before,
+.subpanel::before,
+.status-card::before,
+.review-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.70), transparent 38%);
+  opacity: 0.56;
+}
+
+@supports not ((backdrop-filter: blur(1px))) {
+  .panel,
+  .subpanel,
+  .status-card,
+  .review-card {
+    background: rgba(255, 255, 255, 0.96);
+  }
 }
 
 .panel {

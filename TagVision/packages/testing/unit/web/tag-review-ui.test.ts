@@ -107,6 +107,20 @@ test('review page removes descriptive marketing and section copy', () => {
   assert.match(reviewHtml, /<section id="review-diagnostics-panel" class="panel review-diagnostics-panel hidden"/u);
 });
 
+test('review page uses static white Liquid Glass with blue pink aurora background', () => {
+  assert.match(stylesCss, /--glass-surface:/u);
+  assert.match(stylesCss, /--glass-border:/u);
+  assert.match(stylesCss, /--aurora-blue:/u);
+  assert.match(stylesCss, /--aurora-pink:/u);
+  assert.match(stylesCss, /body\s*\{[\s\S]*radial-gradient\(circle at 16% 18%,\s*var\(--aurora-blue\)/u);
+  assert.match(stylesCss, /body\s*\{[\s\S]*background-attachment:\s*fixed/su);
+  assert.match(stylesCss, /\.panel,\s*\.subpanel,\s*\.status-card,\s*\.review-card\s*\{[\s\S]*backdrop-filter:\s*blur\(24px\) saturate\(1\.45\)/u);
+  assert.match(stylesCss, /\.panel::before,\s*\.subpanel::before,\s*\.status-card::before,\s*\.review-card::before/u);
+  assert.match(stylesCss, /@supports\s+not\s+\(\(backdrop-filter:\s*blur\(1px\)\)\)\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.96\)/u);
+  assert.doesNotMatch(stylesCss, /animation:\s*aurora/u);
+  assert.doesNotMatch(stylesCss, /canvas/i);
+});
+
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
   assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);
