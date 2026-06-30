@@ -131,6 +131,17 @@ test('review diagnostics panel is hidden until anomalies or action errors occur'
   assert.match(reviewHtml, /id="review-diagnostics-panel"[^>]*hidden/u);
 });
 
+test('review controls and detail surfaces keep neutral glass without gradient button fills', () => {
+  assert.match(stylesCss, /button\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.62\)/u);
+  assert.match(stylesCss, /button\s*\{[\s\S]*backdrop-filter:\s*blur\(18px\) saturate\(1\.35\)/u);
+  assert.match(stylesCss, /\.review-card-video\s*\{[\s\S]*background:\s*#0f172a/su);
+  assert.match(stylesCss, /\.review-card-video\s+img\s*\{[\s\S]*object-fit:\s*cover/su);
+  assert.match(stylesCss, /\.review-player\s*\{[\s\S]*background:\s*rgba\(15,\s*23,\s*42,\s*0\.94\)/u);
+  assert.match(stylesCss, /\.review-tag-compact\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.74\)/u);
+  assert.match(stylesCss, /\.accepted-path-row\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.72\)/u);
+  assert.doesNotMatch(stylesCss, /button\s*\{[^}]*linear-gradient/su);
+});
+
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
   assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);
@@ -181,7 +192,7 @@ test('review detail exposes accepted path editor and save action', () => {
   assert.match(stylesCss, /\.review-accepted-editor\s+h3\s*\{[^}]*font-size:\s*13px/su);
   assert.match(stylesCss, /\.accepted-path-list\s*\{[^}]*flex-wrap:\s*wrap/su);
   assert.match(stylesCss, /\.accepted-path-list\.empty-state\s+p\s*\{[^}]*font-size:\s*12px/su);
-  assert.match(stylesCss, /\.accepted-path-row\s*\{[^}]*border:\s*1px solid #dbe3ee/su);
+  assert.match(stylesCss, /\.accepted-path-row\s*\{[^}]*border:\s*1px solid rgba\(148,\s*163,\s*184,\s*0\.24\)/su);
   assert.match(stylesCss, /\.accepted-path-row\s+span\s*\{[^}]*font-size:\s*12px/su);
   assert.match(stylesCss, /\.accepted-path-row\s+button\s*\{[^}]*font-size:\s*12px/su);
   assert.doesNotMatch(stylesCss, /\.accepted-path-list\s*\{[^}]*overflow-x:\s*auto/su);
