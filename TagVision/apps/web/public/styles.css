@@ -802,9 +802,7 @@ button:disabled {
 
 .review-tag-panel {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
+  display: block;
   min-height: 0;
   max-height: 100%;
   overflow: auto;
@@ -815,6 +813,7 @@ button:disabled {
 .review-accepted-editor {
   display: grid;
   gap: 8px;
+  margin-top: 12px;
   padding: 10px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;

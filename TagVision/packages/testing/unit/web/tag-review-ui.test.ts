@@ -107,6 +107,13 @@ test('review detail exposes accepted path editor and save action', () => {
 
   assert.equal(reviewJs.includes("apiPost('/api/tag-review/accepted'"), true);
   assert.equal(reviewJs.includes('renderAcceptedPathOptions'), true);
+  assert.ok(
+    reviewHtml.indexOf('id="detail-tags"') < reviewHtml.indexOf('class="review-accepted-editor"'),
+    'detail tags should render before the accepted path editor'
+  );
+  assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*display:\s*block/su);
+  assert.doesNotMatch(stylesCss, /#detail-tags\s*\{[^}]*flex:/su);
+  assert.match(stylesCss, /\.review-accepted-editor\s*\{[^}]*margin-top:\s*12px/su);
   assert.match(stylesCss, /\.accepted-path-list\s*\{[^}]*flex-wrap:\s*wrap/su);
   assert.doesNotMatch(stylesCss, /\.accepted-path-list\s*\{[^}]*overflow-x:\s*auto/su);
   assert.doesNotMatch(stylesCss, /\.accepted-path-list\s*\{[^}]*white-space:\s*nowrap/su);
