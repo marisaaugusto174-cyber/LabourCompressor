@@ -45,7 +45,7 @@
 
 ### Task 3: Safe launcher restart
 
-- [ ] Write a failing test that asserts the launcher contains `stop_existing_tagvision_servers`, `is_tagvision_server_process`, `npm install --no-audit --no-fund`, `nohup npm run web`, refuses non-TagVision port owners, and no longer opens existing stale service.
+- [ ] Write a failing test that asserts the launcher contains `stop_existing_tagvision_servers`, `is_tagvision_server_process`, deterministic dependency sync via `npm ci --omit=dev` with `npm install --omit=dev` fallback, `nohup npm run web`, refuses non-TagVision port owners, and no longer opens existing stale service.
 - [ ] Run focused test and verify failure.
 - [ ] Rewrite the launcher logic to stop only verified TagVision servers and then start the current folder server detached.
 - [ ] Run focused test and verify pass.

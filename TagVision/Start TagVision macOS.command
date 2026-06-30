@@ -96,6 +96,17 @@ stop_existing_tagvision_servers() {
   done
 }
 
+sync_dependencies() {
+  echo "Syncing TagVision V0.1 macOS dependencies..."
+
+  if [ -f "$SCRIPT_DIR/package-lock.json" ]; then
+    npm ci --omit=dev --no-audit --no-fund
+    return 0
+  fi
+
+  npm install --omit=dev --no-audit --no-fund
+}
+
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js was not found. Install Node.js first, then run this launcher again."
   pause_on_error
@@ -104,8 +115,7 @@ fi
 
 stop_existing_tagvision_servers
 
-echo "Syncing TagVision V0.1 macOS dependencies..."
-npm install --no-audit --no-fund
+sync_dependencies
 
 echo "Starting local server..."
 : >"$LOG_FILE"

@@ -290,7 +290,9 @@ test('mac launcher starts TagVision from its own directory and opens review ui',
   assert.match(launcherScript, /cd "\$SCRIPT_DIR"/u);
   assert.match(launcherScript, /\/opt\/homebrew\/bin/u);
   assert.match(launcherScript, /\/usr\/local\/bin/u);
-  assert.match(launcherScript, /npm install --no-audit --no-fund/u);
+  assert.match(launcherScript, /sync_dependencies\(\)/u);
+  assert.match(launcherScript, /npm ci --omit=dev --no-audit --no-fund/u);
+  assert.match(launcherScript, /npm install --omit=dev --no-audit --no-fund/u);
   assert.match(launcherScript, /TAGVISION_WEB_HOST:-127\.0\.0\.1/u);
   assert.match(launcherScript, /TAGVISION_WEB_PORT:-4312/u);
   assert.match(launcherScript, /curl -fsS "\$TAGVISION_URL"/u);
