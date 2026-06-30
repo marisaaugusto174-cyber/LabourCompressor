@@ -121,6 +121,16 @@ test('review page uses static white Liquid Glass with blue pink aurora backgroun
   assert.doesNotMatch(stylesCss, /canvas/i);
 });
 
+test('review diagnostics panel is hidden until anomalies or action errors occur', () => {
+  assert.match(reviewJs, /diagnosticsPanel:\s*document\.querySelector\('#review-diagnostics-panel'\)/u);
+  assert.match(reviewJs, /function hideDiagnosticsPanel\(\)\s*\{[\s\S]*refs\.diagnosticsPanel\.classList\.add\('hidden'\)/u);
+  assert.match(reviewJs, /function showDiagnosticsPanel\(\)\s*\{[\s\S]*refs\.diagnosticsPanel\.classList\.remove\('hidden'\)/u);
+  assert.match(reviewJs, /if \(rows\.length === 0\)\s*\{[\s\S]*hideDiagnosticsPanel\(\);[\s\S]*return;/u);
+  assert.match(reviewJs, /refs\.diagnosticsPanel\.classList\.remove\('hidden'\)/u);
+  assert.match(reviewJs, /showDiagnostics\(\[\{ severity: 'error', message: error\.message \}\]\)/u);
+  assert.match(reviewHtml, /id="review-diagnostics-panel"[^>]*hidden/u);
+});
+
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
   assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);

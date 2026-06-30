@@ -36,6 +36,7 @@ const refs = {
   tagEvidenceOverlay: document.querySelector('#tag-evidence-overlay'),
   tagEvidenceContent: document.querySelector('#tag-evidence-content'),
   closeTagEvidence: document.querySelector('#close-tag-evidence'),
+  diagnosticsPanel: document.querySelector('#review-diagnostics-panel'),
   diagnosticsList: document.querySelector('#diagnostics-list'),
   reviewOutput: document.querySelector('#review-output')
 };
@@ -165,11 +166,13 @@ function renderDiagnostics(payload) {
   ];
 
   if (rows.length === 0) {
+    hideDiagnosticsPanel();
     refs.diagnosticsList.classList.add('empty-state');
     refs.diagnosticsList.innerHTML = '<p>未发现未配对或无效文件。</p>';
     return;
   }
 
+  showDiagnosticsPanel();
   refs.diagnosticsList.classList.remove('empty-state');
   refs.diagnosticsList.innerHTML = `
     <div class="task-list-header review-diagnostics-header">
@@ -185,6 +188,26 @@ function renderDiagnostics(payload) {
       </div>
     `).join('')}
   `;
+}
+
+function hideDiagnosticsPanel() {
+  refs.diagnosticsPanel.classList.add('hidden');
+}
+
+function showDiagnosticsPanel() {
+  refs.diagnosticsPanel.classList.remove('hidden');
+}
+
+function showDiagnostics(items) {
+  showDiagnosticsPanel();
+  refs.diagnosticsList.classList.remove('empty-state');
+  refs.diagnosticsList.innerHTML = items.map((item) => `
+    <div class="task-list-row review-diagnostics-row">
+      <strong>${escapeHtml(item.severity ?? 'error')}</strong>
+      <span>${escapeHtml(item.message ?? String(item))}</span>
+      <span>—</span>
+    </div>
+  `).join('');
 }
 
 function resetGrid() {
@@ -526,6 +549,8 @@ async function wrapAction(action) {
   try {
     await action();
   } catch (error) {
-    refs.reviewOutput.textContent = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
+    refs.reviewOutput.textContent = message;
+    showDiagnostics([{ severity: 'error', message }]);
   }
 }
