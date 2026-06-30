@@ -429,6 +429,7 @@ function updatePlayerLayout() {
   });
   refs.playerStage.style.setProperty('--review-player-width', `${fitted.width}px`);
   refs.playerStage.style.setProperty('--review-player-height', `${fitted.height}px`);
+  refs.playerStage.style.setProperty('--review-player-ratio', fitted.ratio);
 }
 
 function mediaContentType(fileName) {

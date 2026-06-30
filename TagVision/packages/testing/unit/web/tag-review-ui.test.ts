@@ -128,6 +128,9 @@ test('review detail integrates Plyr and adaptive one-screen layout', () => {
   assert.match(reviewJs, /review-tag-compact/u);
   assert.match(stylesCss, /--review-player-width/u);
   assert.match(stylesCss, /--review-player-height/u);
+  assert.match(stylesCss, /--review-player-ratio/u);
+  assert.match(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*fill/su);
+  assert.match(stylesCss, /\.review-player\s+\.plyr__poster\s*\{[^}]*display:\s*none/su);
   assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*overflow:\s*auto/su);
 });
 

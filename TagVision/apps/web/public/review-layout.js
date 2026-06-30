@@ -14,7 +14,8 @@ export function fitVideoSize(input) {
 
   return {
     width: Math.round(videoWidth * scale),
-    height: Math.round(videoHeight * scale)
+    height: Math.round(videoHeight * scale),
+    ratio: `${videoWidth} / ${videoHeight}`
   };
 }
 

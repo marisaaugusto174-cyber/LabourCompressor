@@ -20,14 +20,14 @@ test('review layout fits video inside the available area without changing its ra
     videoHeight: 1080,
     availableWidth: 1000,
     availableHeight: 800
-  }), { width: 1000, height: 563 });
+  }), { width: 1000, height: 563, ratio: '1920 / 1080' });
 
   assert.deepEqual(fitVideoSize({
     videoWidth: 1080,
     videoHeight: 1920,
     availableWidth: 700,
     availableHeight: 800
-  }), { width: 450, height: 800 });
+  }), { width: 450, height: 800, ratio: '1080 / 1920' });
 });
 
 test('review layout uses safe fallback dimensions for missing metadata', () => {
@@ -36,5 +36,18 @@ test('review layout uses safe fallback dimensions for missing metadata', () => {
     videoHeight: 0,
     availableWidth: 640,
     availableHeight: 360
-  }), { width: 640, height: 360 });
+  }), { width: 640, height: 360, ratio: '640 / 360' });
+});
+
+test('review layout exposes CSS ratio for exact player fitting', () => {
+  assert.deepEqual(fitVideoSize({
+    videoWidth: 1080,
+    videoHeight: 1920,
+    availableWidth: 700,
+    availableHeight: 900
+  }), {
+    width: 506,
+    height: 900,
+    ratio: '1080 / 1920'
+  });
 });
