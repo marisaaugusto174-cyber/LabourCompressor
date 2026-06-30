@@ -836,16 +836,16 @@ button:disabled {
 
 .accepted-path-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
+  align-items: flex-start;
 }
 
 .accepted-path-row {
   display: inline-grid;
-  grid-template-columns: minmax(150px, 240px) auto;
-  flex: 0 0 auto;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  flex: 1 1 260px;
+  max-width: 100%;
   gap: 5px;
   align-items: center;
   padding: 4px 6px;
