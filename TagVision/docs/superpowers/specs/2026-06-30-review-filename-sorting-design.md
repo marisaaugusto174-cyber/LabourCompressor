@@ -1,31 +1,37 @@
-# TagVision review filename sorting design
+# TagVision 检视列表按文件名排序设计
 
-## Goal
+## 目标
 
-Make review cards for videos with the same filename appear consecutively even when the files are stored in different archive directories. This reduces navigation during manual review.
+即使视频存放在不同的归档目录中，只要文件名相同，也应在检视列表中连续显示，减少人工检视时来回查找和切换的成本。
 
-## Sorting rule
+## 排序规则
 
-The scan result's paired review items will be ordered using two keys:
+扫描得到的配对检视项使用两个排序条件：
 
-1. Compare `videoFileName` in ascending order with the existing `zh-Hans-CN` locale.
-2. When filenames are equal, compare `videoRelativePath` in ascending order with the same locale to provide deterministic ordering.
+1. 首先按照 `videoFileName`（视频文件名）升序排列，继续使用现有的简体中文 `zh-Hans-CN` 比较规则。
+2. 文件名相同时，再按照 `videoRelativePath`（视频相对路径）升序排列，保证每次扫描的结果顺序固定。
 
-The implementation will compare complete filenames. It will not parse source names, strip segment suffixes, or perform numeric segment grouping.
+实现只比较完整文件名，不解析原始素材名称，不移除片段编号后缀，也不额外识别数字片段分组。这样处理最直接，速度最快，并可避免错误分组。
 
-## Scope
+## 修改范围
 
-The change applies only to paired items displayed in the review grid and detail navigation. Diagnostic collections for unpaired videos, orphan JSON files, and invalid JSON files retain their current relative-path ordering.
+本次只改变检视卡片列表以及详情页“上一个／下一个”的顺序。
 
-The source implementation and the packaged macOS application must use the same rule. The browser continues to render items in API response order without client-side sorting.
+以下诊断列表继续使用现有的相对路径排序，不作修改：
 
-## Verification
+- 没有 JSON 的视频；
+- 没有配对视频的孤立 JSON；
+- 无法解析的 JSON。
 
-Unit coverage will demonstrate that:
+源码和打包后的 macOS 应用必须使用相同规则。浏览器前端不增加二次排序，仍然按照后端接口返回的顺序显示。
 
-- identical filenames in different directories are adjacent;
-- filename ordering takes precedence over directory ordering;
-- equal filenames use relative path as a deterministic tie-breaker;
-- existing pairing and diagnostic behavior remains unchanged.
+## 验证要求
 
-After rebuilding the macOS package, the running review page will be checked to confirm the packaged application serves the new order.
+自动化测试需要证明：
+
+- 不同目录下的同名视频会连续排列；
+- 文件名排序优先于目录排序；
+- 文件名相同时使用相对路径决定顺序；
+- 现有文件配对和诊断列表行为不受影响。
+
+重新生成 macOS 运行包后，还要检查实际运行的检视页面，确认打包版本已经使用新的排序顺序。
