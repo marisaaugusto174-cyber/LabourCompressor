@@ -125,6 +125,13 @@ function renderResultRow(item) {
 
 function deriveNextStepText(item) {
   if (item.archiveState === '待人工复查') {
+    const fallbackStatus = item.modelFallbackTrace?.fallbackStatus;
+    if (fallbackStatus === 'not-configured') {
+      return 'Qwen 审核拒绝，Gemini 未配置；打开待人工复查库完成标注。';
+    }
+    if (fallbackStatus === 'rejected') {
+      return 'Qwen 与 Gemini 均审核拒绝；打开待人工复查库完成标注。';
+    }
     return '打开待人工复查库完成标注。';
   }
   if (item.archiveState === '已下载待剪辑') {

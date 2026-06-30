@@ -32,7 +32,8 @@ const manualReview = {
   rowNumber: 5,
   archiveFileName: '复查.mp4',
   archivePath: '待人工复查',
-  archiveState: '待人工复查'
+  archiveState: '待人工复查',
+  modelFallbackTrace: { fallbackStatus: 'not-configured' }
 };
 
 test('classifies successful, failed, and pending results', () => {
@@ -48,6 +49,7 @@ test('renders manual review as a separate terminal group', () => {
   assert.match(html, /人工复查项 \(1\)/u);
   assert.doesNotMatch(html, /待处理\s*1/u);
   assert.match(html, /打开待人工复查库完成标注/u);
+  assert.match(html, /Gemini 未配置/u);
 });
 
 test('keeps successful complete results collapsed with no empty next-step label', () => {

@@ -149,7 +149,8 @@ async function archiveManualReviewRow(
       recordedAt: input.startedAt,
       sidecar
     });
-    input.resultsByRow.set(row.rowNumber, createBasicRowState({
+    input.resultsByRow.set(row.rowNumber, {
+      ...createBasicRowState({
       row,
       archiveState: '待人工复查',
       sourceFilePath: resolveSourceFilePath(row, spreadsheetDirectory) ?? filePath,
@@ -158,7 +159,9 @@ async function archiveManualReviewRow(
       archiveFileName: path.basename(archived.filePath),
       taggingJsonFileName: path.basename(replaceExtension(archived.filePath, '.json')),
       taggingJsonArchivePath: '待人工复查'
-    }));
+      }),
+      modelFallbackTrace: sidecar.modelFallbackTrace
+    });
   } catch (error) {
     pushStageFailure({
       context: {

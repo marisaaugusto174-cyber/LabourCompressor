@@ -375,7 +375,8 @@ export function toResultItem(state: PipelineRowState): RunLocalPipelineItemResul
     selectedContentTopicPath: state.selectedContentTopicPath,
     acceptedPaths: state.acceptedPaths,
     timings: state.timings,
-    failure: state.failure
+    failure: state.failure,
+    modelFallbackTrace: state.modelFallbackTrace
   });
 }
 

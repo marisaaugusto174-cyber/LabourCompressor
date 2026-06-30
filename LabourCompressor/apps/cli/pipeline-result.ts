@@ -25,6 +25,7 @@ export interface RunLocalPipelineItemResult {
     readonly totalMs: number;
   }> | undefined;
   readonly failure?: RunLocalPipelineFailure | undefined;
+  readonly modelFallbackTrace?: import('../../packages/features/tagging/domain/index.ts').ModelFallbackTrace | undefined;
 }
 
 export interface RunLocalPipelineResult {
