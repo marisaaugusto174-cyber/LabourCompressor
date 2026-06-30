@@ -290,13 +290,20 @@ test('mac launcher starts TagVision from its own directory and opens review ui',
   assert.match(launcherScript, /cd "\$SCRIPT_DIR"/u);
   assert.match(launcherScript, /\/opt\/homebrew\/bin/u);
   assert.match(launcherScript, /\/usr\/local\/bin/u);
-  assert.match(launcherScript, /npm install/u);
+  assert.match(launcherScript, /npm install --no-audit --no-fund/u);
   assert.match(launcherScript, /TAGVISION_WEB_HOST:-127\.0\.0\.1/u);
   assert.match(launcherScript, /TAGVISION_WEB_PORT:-4312/u);
   assert.match(launcherScript, /curl -fsS "\$TAGVISION_URL"/u);
   assert.match(launcherScript, /TagVision V0\.1 macOS is ready/u);
   assert.match(launcherScript, /open "\$TAGVISION_URL"/u);
-  assert.match(launcherScript, /npm run web/u);
+  assert.match(launcherScript, /nohup npm run web/u);
+  assert.match(launcherScript, /stop_existing_tagvision_servers\(\)/u);
+  assert.match(launcherScript, /is_tagvision_server_process\(\)/u);
+  assert.match(launcherScript, /node apps\/web\/server\.ts/u);
+  assert.match(launcherScript, /tagvision-macos/u);
+  assert.match(launcherScript, /Refusing to stop non-TagVision process/u);
+  assert.doesNotMatch(launcherScript, /Opening existing TagVision URL/u);
+  assert.doesNotMatch(launcherScript, /wait "\$SERVER_PID"/u);
 });
 
 test('server does not write json errors after response headers were sent', () => {
