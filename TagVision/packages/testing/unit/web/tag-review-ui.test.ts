@@ -197,7 +197,7 @@ test('review detail opens as a fixed fullscreen modal and disables page autoload
   assert.match(stylesCss, /\.is-review-modal-open\s*\{[^}]*overflow:\s*hidden/su);
   assert.equal(reviewJs.includes("document.body.classList.add('is-review-modal-open')"), true);
   assert.match(reviewJs, /function maybeAutoLoadMore\(\)\s*\{[\s\S]*?if \(isDetailOpen\(\)\) \{/u);
-  assert.equal(reviewJs.includes('scrollIntoView'), false);
+  assert.doesNotMatch(reviewJs, /function openDetail\(index\)\s*\{[\s\S]*?scrollIntoView/u);
 });
 
 test('review detail exposes accepted path editor and save action', () => {
@@ -289,6 +289,54 @@ test('review cards expose a compact cover layout with stable tag overflow', () =
   assert.match(stylesCss, /\.review-card-video::after/u);
   assert.match(stylesCss, /\.review-card-title strong/u);
   assert.match(stylesCss, /text-overflow: ellipsis/u);
+});
+
+test('review page exposes a minimal fixed tick scroll ruler preview', () => {
+  assert.match(reviewHtml, /id="review-scroll-ruler"/u);
+  assert.match(reviewHtml, /id="review-scroll-ruler-track"/u);
+  assert.match(reviewHtml, /id="review-scroll-ruler-tooltip"/u);
+  assert.doesNotMatch(reviewHtml, /快捷目录/u);
+  assert.match(reviewJs, /const REVIEW_RULER_TARGET_TICK_GAP = 26/u);
+  assert.match(reviewJs, /const REVIEW_RULER_MAX_VISIBLE_TICK_COUNT = 24/u);
+  assert.match(reviewJs, /const REVIEW_RULER_RESPONSE_SEGMENTS_PER_TICK = 4/u);
+  assert.match(reviewJs, /function renderScrollRuler/u);
+  assert.match(reviewJs, /function calculateScrollRulerVisibleTickCount/u);
+  assert.match(reviewJs, /function readScrollRulerPointerState/u);
+  assert.match(reviewJs, /function updateScrollRulerHoverFromPointer/u);
+  assert.match(reviewJs, /function buildScrollRulerTickRange/u);
+  assert.match(reviewJs, /function buildScrollRulerPointerRange/u);
+  assert.match(reviewJs, /function jumpToScrollRulerPointerPosition/u);
+  assert.match(reviewJs, /function ensureRenderedThrough/u);
+  assert.match(reviewJs, /refs\.scrollRulerTrack\.addEventListener\('pointermove', updateScrollRulerHoverFromPointer\)/u);
+  assert.match(reviewJs, /refs\.scrollRulerTrack\.addEventListener\('click', jumpToScrollRulerPointerPosition\)/u);
+  assert.match(reviewJs, /window\.addEventListener\('scroll', updateScrollRulerActiveState/u);
+  assert.match(reviewJs, /scrollIntoView\(\{ block: 'start', behavior: 'smooth' \}\)/u);
+  assert.doesNotMatch(reviewJs, /findScrollRulerTick\(event\.target\)/u);
+  assert.match(stylesCss, /\.review-scroll-ruler\s*\{[^}]*position:\s*fixed/su);
+  assert.match(stylesCss, /--review-ruler-reserve:\s*calc\(var\(--review-ruler-right\) \+ var\(--review-ruler-width\)\)/u);
+  assert.match(stylesCss, /--review-ruler-content-gap:\s*clamp\(18px,\s*2vw,\s*28px\)/u);
+  assert.match(stylesCss, /--review-ruler-right:\s*clamp\(36px,\s*3\.2vw,\s*52px\)/u);
+  assert.match(stylesCss, /--review-ruler-width:\s*clamp\(64px,\s*5vw,\s*86px\)/u);
+  assert.match(stylesCss, /--review-ruler-track-width:\s*clamp\(44px,\s*3\.8vw,\s*58px\)/u);
+  assert.match(stylesCss, /\.review-page\s*\{[^}]*max-width:\s*calc\(1320px \+ var\(--review-ruler-reserve\) \+ var\(--review-ruler-content-gap\)\)/su);
+  assert.match(stylesCss, /\.review-page\s*\{[^}]*padding-right:\s*calc\(var\(--review-ruler-reserve\) \+ var\(--review-ruler-content-gap\)\)/su);
+  assert.match(stylesCss, /\.review-page\s*\{[^}]*box-sizing:\s*border-box/su);
+  assert.match(stylesCss, /\.review-scroll-ruler\s*\{[^}]*right:\s*var\(--review-ruler-right\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler\s*\{[^}]*width:\s*var\(--review-ruler-width\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-track\s*\{[^}]*width:\s*var\(--review-ruler-track-width\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-track\s*\{[^}]*height:\s*clamp\(420px,\s*72vh,\s*640px\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-tick\s*\{[^}]*width:\s*14px/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-tick:hover,\s*\.review-scroll-ruler-tick\.is-hovered\s*\{[^}]*width:\s*38px/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-tooltip\s*\{[^}]*position:\s*absolute/su);
+  assert.match(stylesCss, /--ruler-tick-level-1:\s*rgba\(15,\s*23,\s*42,\s*0\.18\)/u);
+  assert.match(stylesCss, /--ruler-tick-level-2:\s*rgba\(15,\s*23,\s*42,\s*0\.44\)/u);
+  assert.match(stylesCss, /--ruler-tick-level-3:\s*rgba\(15,\s*23,\s*42,\s*0\.76\)/u);
+  assert.match(stylesCss, /\.review-scroll-ruler-tick::before\s*\{[^}]*background:\s*var\(--ruler-tick-level-1\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-tick\.is-active::before\s*\{[^}]*background:\s*var\(--ruler-tick-level-2\)/su);
+  assert.match(stylesCss, /\.review-scroll-ruler-tick:hover::before,\s*\.review-scroll-ruler-tick\.is-hovered::before\s*\{[^}]*background:\s*var\(--ruler-tick-level-3\)/su);
+  assert.match(stylesCss, /@media \(max-width:\s*860px\)\s*\{[\s\S]*\.review-page\s*\{[^}]*padding-right:\s*16px/su);
+  assert.doesNotMatch(stylesCss, /\.review-scroll-ruler-tick\.is-active::before\s*\{[^}]*rgba\(37,\s*99,\s*235/su);
+  assert.doesNotMatch(stylesCss, /\.review-scroll-ruler-tick:hover::before,[\s\S]*rgba\(30,\s*64,\s*175/su);
 });
 
 test('mac launcher starts TagVision from its own directory and opens review ui', () => {

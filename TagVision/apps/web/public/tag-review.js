@@ -6,6 +6,10 @@ import { handleReviewShortcut } from './review-shortcuts.js';
 
 const INITIAL_RENDER_COUNT = 36;
 const RENDER_BATCH_SIZE = 24;
+const REVIEW_RULER_TARGET_TICK_GAP = 26;
+const REVIEW_RULER_MIN_VISIBLE_TICK_COUNT = 12;
+const REVIEW_RULER_MAX_VISIBLE_TICK_COUNT = 24;
+const REVIEW_RULER_RESPONSE_SEGMENTS_PER_TICK = 4;
 
 const refs = {
   fileProtocolWarning: document.querySelector('#file-protocol-warning'),
@@ -18,6 +22,9 @@ const refs = {
   summaryInvalidJson: document.querySelector('#summary-invalid-json'),
   reviewGrid: document.querySelector('#review-grid'),
   loadMore: document.querySelector('#load-more'),
+  scrollRuler: document.querySelector('#review-scroll-ruler'),
+  scrollRulerTrack: document.querySelector('#review-scroll-ruler-track'),
+  scrollRulerTooltip: document.querySelector('#review-scroll-ruler-tooltip'),
   detailView: document.querySelector('#detail-view'),
   detailLayout: document.querySelector('#review-detail-layout'),
   playerStage: document.querySelector('#review-player-stage'),
@@ -49,6 +56,7 @@ let thumbnailObserver = null;
 let selectedAcceptedPaths = [];
 let reviewPlayer = null;
 let playerResizeObserver = null;
+let visibleRulerTickCount = REVIEW_RULER_MAX_VISIBLE_TICK_COUNT;
 
 boot().catch((error) => {
   showDiagnostics([{ severity: 'error', message: error.message }]);
@@ -73,6 +81,12 @@ function bindActions() {
   refs.chooseReviewDirectory.addEventListener('click', () => wrapAction(chooseReviewDirectory));
   refs.scanButton.addEventListener('click', () => wrapAction(scanDirectory));
   refs.loadMore.addEventListener('click', () => renderMoreItems());
+  refs.scrollRulerTrack.addEventListener('pointermove', updateScrollRulerHoverFromPointer);
+  refs.scrollRulerTrack.addEventListener('click', jumpToScrollRulerPointerPosition);
+  refs.scrollRulerTrack.addEventListener('pointerleave', () => {
+    clearScrollRulerHoveredTick();
+    refs.scrollRulerTooltip.classList.remove('is-visible');
+  });
   refs.previousDetail.addEventListener('click', () => openDetail(selectedIndex - 1));
   refs.nextDetail.addEventListener('click', () => openDetail(selectedIndex + 1));
   refs.closeDetail.addEventListener('click', closeDetail);
@@ -96,6 +110,8 @@ function bindActions() {
     });
   });
   window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
+  window.addEventListener('scroll', updateScrollRulerActiveState, { passive: true });
+  window.addEventListener('resize', renderScrollRuler);
 }
 
 async function chooseReviewDirectory() {
@@ -129,6 +145,7 @@ async function scanDirectory() {
   renderDiagnostics(payload);
   resetGrid();
   renderMoreItems(INITIAL_RENDER_COUNT);
+  renderScrollRuler();
   updateActionState();
   refs.reviewOutput.textContent = buildDebugJson({
     directoryPath: payload.directoryPath,
@@ -237,6 +254,199 @@ function renderMoreItems(count = RENDER_BATCH_SIZE) {
   refs.reviewGrid.appendChild(fragment);
   renderedCount = end;
   updateActionState();
+  updateScrollRulerActiveState();
+}
+
+function renderScrollRuler() {
+  if (currentItems.length === 0) {
+    refs.scrollRuler.classList.add('hidden');
+    refs.scrollRulerTrack.innerHTML = '';
+    refs.scrollRulerTooltip.textContent = '';
+    return;
+  }
+
+  refs.scrollRuler.classList.remove('hidden');
+  visibleRulerTickCount = calculateScrollRulerVisibleTickCount();
+  const ticks = [];
+
+  for (let tickIndex = 0; tickIndex < visibleRulerTickCount; tickIndex += 1) {
+    const range = buildScrollRulerTickRange(tickIndex);
+    ticks.push(`
+      <button
+        class="review-scroll-ruler-tick"
+        type="button"
+        data-ruler-tick-index="${tickIndex}"
+        data-range="${range.label}"
+        aria-label="${range.label}">
+      </button>
+    `);
+  }
+
+  refs.scrollRulerTrack.innerHTML = ticks.join('');
+  updateScrollRulerActiveState();
+}
+
+function calculateScrollRulerVisibleTickCount() {
+  const trackHeight = refs.scrollRulerTrack.clientHeight || 620;
+  const calculatedCount = Math.round(trackHeight / REVIEW_RULER_TARGET_TICK_GAP);
+
+  return Math.min(
+    REVIEW_RULER_MAX_VISIBLE_TICK_COUNT,
+    Math.max(REVIEW_RULER_MIN_VISIBLE_TICK_COUNT, calculatedCount)
+  );
+}
+
+function buildScrollRulerTickRange(tickIndex) {
+  const itemCount = currentItems.length;
+  const tickCount = Math.max(visibleRulerTickCount, 1);
+  const start = Math.floor((tickIndex / tickCount) * itemCount) + 1;
+  const end = Math.max(
+    start,
+    Math.ceil(((tickIndex + 1) / tickCount) * itemCount)
+  );
+  const boundedStart = Math.min(Math.max(start, 1), itemCount);
+  const boundedEnd = Math.min(Math.max(end, boundedStart), itemCount);
+
+  return {
+    start: boundedStart,
+    end: boundedEnd,
+    label: `#${boundedStart} - #${boundedEnd}`
+  };
+}
+
+function buildScrollRulerPointerRange(pointerRatio) {
+  const itemCount = currentItems.length;
+  const segmentCount = Math.max(
+    1,
+    visibleRulerTickCount * REVIEW_RULER_RESPONSE_SEGMENTS_PER_TICK
+  );
+  const segmentIndex = Math.min(
+    segmentCount - 1,
+    Math.floor(Math.min(Math.max(pointerRatio, 0), 1) * segmentCount)
+  );
+  const start = Math.floor((segmentIndex / segmentCount) * itemCount) + 1;
+  const end = Math.max(
+    start,
+    Math.ceil(((segmentIndex + 1) / segmentCount) * itemCount)
+  );
+  const boundedStart = Math.min(Math.max(start, 1), itemCount);
+  const boundedEnd = Math.min(Math.max(end, boundedStart), itemCount);
+
+  return {
+    start: boundedStart,
+    end: boundedEnd,
+    label: `#${boundedStart} - #${boundedEnd}`
+  };
+}
+
+function readScrollRulerPointerState(event) {
+  const trackRect = refs.scrollRulerTrack.getBoundingClientRect();
+  const rulerRect = refs.scrollRuler.getBoundingClientRect();
+  const pointerY = Math.min(
+    Math.max(event.clientY - trackRect.top, 0),
+    Math.max(trackRect.height, 1)
+  );
+  const pointerRatio = pointerY / Math.max(trackRect.height, 1);
+  const tickCount = Math.max(visibleRulerTickCount, 1);
+  const tickIndex = Math.min(
+    tickCount - 1,
+    Math.round(pointerRatio * Math.max(tickCount - 1, 0))
+  );
+  const range = buildScrollRulerPointerRange(pointerRatio);
+
+  return {
+    range,
+    targetIndex: range.start - 1,
+    tickIndex,
+    tooltipY: event.clientY - rulerRect.top
+  };
+}
+
+function updateScrollRulerHoverFromPointer(event) {
+  if (currentItems.length === 0) {
+    return;
+  }
+
+  const pointerState = readScrollRulerPointerState(event);
+  markScrollRulerHoveredTick(pointerState.tickIndex);
+  refs.scrollRulerTooltip.textContent = pointerState.range.label;
+  refs.scrollRulerTooltip.style.setProperty(
+    '--scroll-ruler-tooltip-y',
+    `${pointerState.tooltipY}px`
+  );
+  refs.scrollRulerTooltip.classList.add('is-visible');
+}
+
+function markScrollRulerHoveredTick(activeTickIndex) {
+  clearScrollRulerHoveredTick();
+  const activeTick = refs.scrollRulerTrack.querySelector(
+    `[data-ruler-tick-index="${activeTickIndex}"]`
+  );
+
+  if (activeTick instanceof HTMLElement) {
+    activeTick.classList.add('is-hovered');
+  }
+}
+
+function clearScrollRulerHoveredTick() {
+  for (const tick of refs.scrollRulerTrack.querySelectorAll('.review-scroll-ruler-tick.is-hovered')) {
+    tick.classList.remove('is-hovered');
+  }
+}
+
+function jumpToScrollRulerPointerPosition(event) {
+  if (currentItems.length === 0) {
+    return;
+  }
+
+  const targetIndex = readScrollRulerPointerState(event).targetIndex;
+  ensureRenderedThrough(targetIndex);
+  const targetCard = refs.reviewGrid.querySelector(`[data-index="${targetIndex}"]`);
+
+  if (targetCard instanceof HTMLElement) {
+    targetCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    updateScrollRulerActiveState(targetIndex);
+  }
+}
+
+function ensureRenderedThrough(targetIndex) {
+  if (targetIndex < renderedCount) {
+    return;
+  }
+
+  renderMoreItems(targetIndex - renderedCount + 1);
+}
+
+function updateScrollRulerActiveState(forcedIndex) {
+  if (currentItems.length === 0 || refs.scrollRuler.classList.contains('hidden')) {
+    return;
+  }
+
+  const activeIndex = typeof forcedIndex === 'number' ? forcedIndex : readCurrentVisibleCardIndex();
+  const tickCount = Math.max(visibleRulerTickCount, 1);
+  const activeTickIndex = Math.min(
+    tickCount - 1,
+    Math.round((Math.max(activeIndex, 0) / Math.max(currentItems.length - 1, 1)) * Math.max(tickCount - 1, 0))
+  );
+
+  for (const tick of refs.scrollRulerTrack.querySelectorAll('.review-scroll-ruler-tick')) {
+    tick.classList.toggle('is-active', tick.dataset.rulerTickIndex === String(activeTickIndex));
+  }
+}
+
+function readCurrentVisibleCardIndex() {
+  const viewportAnchor = 180;
+  const cards = refs.reviewGrid.querySelectorAll('.review-card');
+
+  for (const card of cards) {
+    const rect = card.getBoundingClientRect();
+
+    if (rect.bottom >= viewportAnchor) {
+      return Number.parseInt(card.dataset.index ?? '0', 10) || 0;
+    }
+  }
+
+  return Math.max(0, renderedCount - 1);
 }
 
 function buildCard(item, index) {
