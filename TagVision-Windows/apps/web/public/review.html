@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TagVision · 打标结果质检</title>
+    <link rel="stylesheet" href="/vendor/plyr.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260630-plyr" />
+  </head>
+  <body>
+    <main class="page review-page">
+      <header class="page-header">
+        <div>
+          <h1>TagVision</h1>
+        </div>
+        <div class="header-chip-list">
+          <a class="chip" href="/">入口</a>
+        </div>
+      </header>
+
+      <section id="file-protocol-warning" class="panel warning hidden">
+        <h2>请通过本地服务打开</h2>
+        <p>请使用 <a href="http://127.0.0.1:4312/review.html">http://127.0.0.1:4312/review.html</a> 打开本页。</p>
+      </section>
+
+      <section class="panel">
+        <div class="review-source-bar">
+          <div class="path-meta">
+            <label class="sr-only" for="review-directory">待检文件夹</label>
+          </div>
+          <div class="path-control">
+            <input id="review-directory" name="reviewDirectory" />
+            <button id="choose-review-directory" class="secondary-button" type="button">选择目录</button>
+            <button id="scan-button" type="button">扫描目录</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-shell review-summary" aria-label="扫描摘要">
+        <div class="status-card">
+          <span class="status-label">配对结果</span>
+          <strong id="summary-paired">—</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">无 JSON 视频</span>
+          <strong id="summary-unpaired-videos">—</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">孤儿 JSON</span>
+          <strong id="summary-orphan-json">—</strong>
+        </div>
+        <div class="status-card">
+          <span class="status-label">无效 JSON</span>
+          <strong id="summary-invalid-json">—</strong>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="review-toolbar">
+          <button id="load-more" class="secondary-button" type="button" disabled>加载更多</button>
+        </div>
+        <div id="review-grid" class="review-grid empty-state">
+          <p>请选择目录并扫描。</p>
+        </div>
+      </section>
+
+      <section id="detail-view" class="review-detail-modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+        <div class="panel review-detail-card">
+          <div class="panel-header">
+            <div>
+              <h2 id="detail-title">结果详情</h2>
+              <p id="detail-subtitle">—</p>
+            </div>
+            <div class="actions compact">
+              <button id="close-detail" type="button">关闭详情</button>
+            </div>
+          </div>
+          <div id="review-detail-layout" class="review-detail-layout" data-video-orientation="landscape">
+            <div id="review-player-stage" class="review-player">
+              <video id="detail-video" controls playsinline preload="metadata"></video>
+            </div>
+            <div class="review-tag-panel">
+              <div id="detail-tags"></div>
+              <section class="review-accepted-editor">
+                <div class="accepted-editor-heading">
+                  <h3>人工 accepted 路径</h3>
+                  <span>保存后生成同名 <code>.accepted.json</code></span>
+                </div>
+                <div id="accepted-path-list" class="accepted-path-list empty-state">
+                  <p>未选择 accepted 路径。</p>
+                </div>
+                <div class="accepted-path-control">
+                  <select id="accepted-path-select"></select>
+                  <button id="add-accepted-path" class="secondary-button" type="button">添加路径</button>
+                  <button id="save-accepted-result" type="button">保存 accepted result</button>
+                </div>
+              </section>
+              <section id="tag-evidence-overlay" class="tag-evidence-overlay hidden" aria-label="标签证据详情">
+                <div class="tag-evidence-header">
+                  <h3>标签证据</h3>
+                  <button id="close-tag-evidence" class="secondary-button" type="button">关闭</button>
+                </div>
+                <div id="tag-evidence-content"></div>
+              </section>
+            </div>
+          </div>
+          <div class="review-detail-nav">
+            <button id="previous-detail" class="secondary-button" type="button" hidden>上一个</button>
+            <span id="detail-position">—</span>
+            <button id="next-detail" class="secondary-button" type="button" hidden>下一个</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="review-diagnostics-panel" class="panel review-diagnostics-panel hidden" aria-label="诊断">
+        <div id="diagnostics-list" class="task-list empty-state">
+          <p>暂无诊断信息。</p>
+        </div>
+        <pre id="review-output" class="output log"></pre>
+      </section>
+    </main>
+    <script src="/vendor/plyr.js"></script>
+    <script type="module" src="/tag-review.js?v=20260630-plyr"></script>
+  </body>
+</html>

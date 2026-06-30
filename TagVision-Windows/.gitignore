@@ -1,0 +1,14 @@
+.DS_Store
+*.log
+*.local.json
+*.cookies.txt
+cookies.txt
+*.cookie
+*.har
+tagvision-windows-server.pid
+node_modules
+dist
+.runtime-state
+.runtime-uploads
+.runtime-credentials
+.superpowers/
