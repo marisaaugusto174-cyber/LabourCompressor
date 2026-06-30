@@ -523,8 +523,21 @@ button:disabled {
   max-width: 1480px;
 }
 
-.review-control-layout {
-  grid-template-columns: minmax(420px, 0.9fr) minmax(520px, 1.1fr);
+.review-source-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.review-source-bar .path-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
 }
 
 .review-summary {
@@ -1027,7 +1040,12 @@ button:disabled {
 
   .inline-grid,
   .dual-output,
-  .status-shell {
+  .status-shell,
+  .review-source-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .review-source-bar .path-control {
     grid-template-columns: 1fr;
   }
 

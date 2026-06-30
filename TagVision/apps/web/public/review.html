@@ -17,9 +17,8 @@
         </div>
         <div class="header-chip-list">
           <a class="chip" href="/">入口</a>
-          <span class="chip">Local sidecar JSON</span>
-          <span class="chip">Manual accepted result</span>
-          <span class="chip">Label Studio</span>
+          <span class="chip">本地检视</span>
+          <span class="chip">人工 accepted 结果</span>
         </div>
       </header>
 
@@ -34,51 +33,18 @@
             <h2>检视来源</h2>
             <p>只读取并扫描目录，不会改名、不改原始 JSON。人工确认后写入同名 <code>.accepted.json</code>。</p>
           </div>
-          <div class="actions compact">
-            <button id="scan-button" type="button">扫描目录</button>
-            <button id="download-ls-package" class="secondary-button" type="button" disabled>下载 LS 导入包</button>
-          </div>
         </div>
 
-        <div class="layout review-control-layout">
-          <section class="subpanel">
-            <h3>目录</h3>
-            <div class="path-field is-filled">
-              <div class="path-meta">
-                <label for="review-directory">待检文件夹</label>
-                <span>递归扫描视频与同目录同名 JSON。</span>
-              </div>
-              <div class="path-control">
-                <input id="review-directory" name="reviewDirectory" />
-                <button id="choose-review-directory" class="picker-button" type="button">选择目录</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="subpanel">
-            <h3>Label Studio</h3>
-            <div class="inline-grid compact-grid">
-              <label>LS 地址
-                <input id="ls-url" placeholder="http://127.0.0.1:8080" />
-              </label>
-              <label>Project ID
-                <input id="ls-project-id" placeholder="留空则新建项目" />
-              </label>
-            </div>
-            <div class="inline-grid compact-grid">
-              <label>Token
-                <input id="ls-token" type="password" placeholder="Label Studio API token" />
-              </label>
-              <label>项目标题
-                <input id="ls-project-title" placeholder="Tag Review AfterEdit" />
-              </label>
-            </div>
-            <div class="actions">
-              <button id="import-ls" type="button" disabled>导入 / 更新 LS</button>
-              <button id="sync-ls" class="secondary-button" type="button" disabled>同步 LS 结论</button>
-              <a id="ls-project-link" class="text-button hidden" href="#" target="_blank" rel="noreferrer">打开 LS 项目</a>
-            </div>
-          </section>
+        <div class="review-source-bar">
+          <div class="path-meta">
+            <label for="review-directory">待检文件夹</label>
+            <span>递归扫描视频、同名 JSON 和 taxonomy 快照。</span>
+          </div>
+          <div class="path-control">
+            <input id="review-directory" name="reviewDirectory" />
+            <button id="choose-review-directory" class="secondary-button" type="button">选择目录</button>
+            <button id="scan-button" type="button">扫描目录</button>
+          </div>
         </div>
       </section>
 
@@ -124,7 +90,6 @@
               <p id="detail-subtitle">—</p>
             </div>
             <div class="actions compact">
-              <button id="open-current-ls-task" class="secondary-button" type="button">在 LS 打开</button>
               <button id="close-detail" type="button">关闭详情</button>
             </div>
           </div>

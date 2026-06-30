@@ -12,14 +12,6 @@ const refs = {
   reviewDirectory: document.querySelector('#review-directory'),
   chooseReviewDirectory: document.querySelector('#choose-review-directory'),
   scanButton: document.querySelector('#scan-button'),
-  downloadLabelStudioPackage: document.querySelector('#download-ls-package'),
-  labelStudioUrl: document.querySelector('#ls-url'),
-  labelStudioToken: document.querySelector('#ls-token'),
-  labelStudioProjectId: document.querySelector('#ls-project-id'),
-  labelStudioProjectTitle: document.querySelector('#ls-project-title'),
-  importLabelStudio: document.querySelector('#import-ls'),
-  syncLabelStudio: document.querySelector('#sync-ls'),
-  labelStudioProjectLink: document.querySelector('#ls-project-link'),
   summaryPaired: document.querySelector('#summary-paired'),
   summaryUnpairedVideos: document.querySelector('#summary-unpaired-videos'),
   summaryOrphanJson: document.querySelector('#summary-orphan-json'),
@@ -44,7 +36,6 @@ const refs = {
   tagEvidenceOverlay: document.querySelector('#tag-evidence-overlay'),
   tagEvidenceContent: document.querySelector('#tag-evidence-content'),
   closeTagEvidence: document.querySelector('#close-tag-evidence'),
-  openCurrentLabelStudioTask: document.querySelector('#open-current-ls-task'),
   diagnosticsList: document.querySelector('#diagnostics-list'),
   reviewOutput: document.querySelector('#review-output')
 };
@@ -70,8 +61,6 @@ async function boot() {
 
   const defaultsPayload = await apiGet('/api/defaults');
   refs.reviewDirectory.value = defaultsPayload.defaults?.reviewDirectory ?? '';
-  refs.labelStudioUrl.value = localStorage.getItem('tagReviewLabelStudioUrl') ?? 'http://127.0.0.1:8080';
-  refs.labelStudioProjectTitle.value = 'Tag Review AfterEdit';
   reviewPlayer = createReviewPlayer(refs.detailVideo, window.Plyr);
   reviewPlayer.onLoadedMetadata(updatePlayerLayout);
   playerResizeObserver = new ResizeObserver(updatePlayerLayout);
@@ -82,9 +71,6 @@ async function boot() {
 function bindActions() {
   refs.chooseReviewDirectory.addEventListener('click', () => wrapAction(chooseReviewDirectory));
   refs.scanButton.addEventListener('click', () => wrapAction(scanDirectory));
-  refs.downloadLabelStudioPackage.addEventListener('click', () => wrapAction(downloadLabelStudioPackage));
-  refs.importLabelStudio.addEventListener('click', () => wrapAction(importIntoLabelStudio));
-  refs.syncLabelStudio.addEventListener('click', () => wrapAction(syncLabelStudio));
   refs.loadMore.addEventListener('click', () => renderMoreItems());
   refs.previousDetail.addEventListener('click', () => openDetail(selectedIndex - 1));
   refs.nextDetail.addEventListener('click', () => openDetail(selectedIndex + 1));
@@ -97,10 +83,6 @@ function bindActions() {
       closeDetail();
     }
   });
-  refs.openCurrentLabelStudioTask.addEventListener('click', openCurrentLabelStudioTask);
-  refs.labelStudioProjectId.addEventListener('input', updateActionState);
-  refs.labelStudioUrl.addEventListener('input', updateActionState);
-  refs.labelStudioToken.addEventListener('input', updateActionState);
   window.addEventListener('keydown', (event) => {
     handleReviewShortcut({
       event,
@@ -152,8 +134,7 @@ async function scanDirectory() {
     pairedItems: payload.pairedItems?.length ?? 0,
     unpairedVideos: payload.unpairedVideos?.length ?? 0,
     orphanJsonFiles: payload.orphanJsonFiles?.length ?? 0,
-    invalidJsonFiles: payload.invalidJsonFiles?.length ?? 0,
-    stateItems: payload.state?.items ? Object.keys(payload.state.items).length : 0
+    invalidJsonFiles: payload.invalidJsonFiles?.length ?? 0
   });
 }
 
@@ -169,7 +150,7 @@ function renderDiagnostics(payload) {
     ...(payload.unpairedVideos ?? []).map((item) => ({
       kind: '无 JSON 视频',
       path: item.relativePath,
-      detail: '当前不会进入 Label Studio 质检任务'
+      detail: '未找到同目录同 stem JSON'
     })),
     ...(payload.orphanJsonFiles ?? []).map((item) => ({
       kind: '孤儿 JSON',
@@ -247,7 +228,6 @@ function buildCard(item, index) {
       <img alt="" loading="lazy" data-src="${escapeHtml(thumbnailUrl(item))}" />
       <div class="review-card-cover-bar">
         <span>#${index + 1}</span>
-        ${renderReviewStatus(item)}
       </div>
       <span class="review-card-media-type">${escapeHtml(item.videoFileName.split('.').pop()?.toUpperCase() ?? 'VIDEO')}</span>
     </div>
@@ -277,20 +257,6 @@ function buildCard(item, index) {
     thumbnailObserver?.observe(thumbnail);
   }
   return card;
-}
-
-function renderReviewStatus(item) {
-  const status = item.reviewStatus;
-  if (!status) {
-    return '<span class="stage-pill stage-running">未同步</span>';
-  }
-  if (status === '通过') {
-    return '<span class="stage-pill stage-succeeded">通过</span>';
-  }
-  if (status === '需修改') {
-    return '<span class="stage-pill stage-failed">需修改</span>';
-  }
-  return `<span class="stage-pill stage-running">${escapeHtml(status)}</span>`;
 }
 
 function handleThumbnailIntersection(entries) {
@@ -351,7 +317,6 @@ function openDetail(index) {
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
-  refs.openCurrentLabelStudioTask.disabled = !canOpenLabelStudioTask(item);
   updateAcceptedSaveState();
   refs.closeDetail.focus();
 }
@@ -373,7 +338,6 @@ function renderDetailTags(item) {
   const tags = tagging.tags ?? [];
   return `
     <div class="review-state-summary">
-      <div><span class="status-label">LS 状态</span><strong>${escapeHtml(item.reviewStatus ?? '未同步')}</strong></div>
       <div><span class="status-label">Taxonomy</span><strong>${escapeHtml(tagging.taxonomyVersion ?? '—')}</strong></div>
       <div><span class="status-label">模型复核</span><strong>${tagging.reviewRequired ? '需要' : '不需要'}</strong></div>
       <div><span class="status-label">标签数</span><strong>${tags.length}</strong></div>
@@ -519,99 +483,10 @@ async function saveAcceptedResult() {
   });
   currentItems[selectedIndex] = {
     ...item,
-    reviewStatus: acceptedResult.status,
     acceptedResult
   };
   renderAcceptedPaths();
   refs.reviewOutput.textContent = buildDebugJson(acceptedResult);
-}
-
-async function downloadLabelStudioPackage() {
-  const payload = await buildLabelStudioPackage();
-  downloadText('label-studio-tag-review-tasks.json', JSON.stringify(payload.tasks, null, 2));
-  downloadText('label-studio-tag-review-config.xml', payload.labelConfig);
-  refs.reviewOutput.textContent = [
-    `已生成 Label Studio 导入包：${payload.taskCount} 个任务。`,
-    '',
-    'Label config:',
-    payload.labelConfig
-  ].join('\n');
-}
-
-async function importIntoLabelStudio() {
-  const body = buildLabelStudioRequestBody();
-  refs.reviewOutput.textContent = '正在导入 Label Studio...';
-  const payload = await apiPost('/api/tag-review/label-studio/import', body);
-  refs.labelStudioProjectId.value = String(payload.projectId ?? refs.labelStudioProjectId.value);
-  localStorage.setItem('tagReviewLabelStudioUrl', refs.labelStudioUrl.value.trim());
-  renderLabelStudioLink(payload.projectUrl);
-  updateActionState();
-  refs.reviewOutput.textContent = buildDebugJson(payload);
-}
-
-async function syncLabelStudio() {
-  const body = buildLabelStudioRequestBody({ requireProjectId: true });
-  refs.reviewOutput.textContent = '正在同步 Label Studio 审核结论...';
-  const payload = await apiPost('/api/tag-review/label-studio/sync', body);
-  refs.reviewOutput.textContent = buildDebugJson(payload);
-  await scanDirectory();
-}
-
-async function buildLabelStudioPackage() {
-  return apiPost('/api/tag-review/label-studio/package', {
-    directoryPath: requireDirectoryPath()
-  });
-}
-
-function buildLabelStudioRequestBody(options = {}) {
-  const labelStudioUrl = refs.labelStudioUrl.value.trim();
-  const token = refs.labelStudioToken.value.trim();
-  const projectId = refs.labelStudioProjectId.value.trim();
-
-  if (!labelStudioUrl || !token) {
-    throw new Error('请先填写 Label Studio 地址和 Token。');
-  }
-
-  if (options.requireProjectId && !projectId) {
-    throw new Error('同步前请填写 Label Studio Project ID。');
-  }
-
-  return {
-    directoryPath: requireDirectoryPath(),
-    labelStudioUrl,
-    token,
-    projectId,
-    projectTitle: refs.labelStudioProjectTitle.value.trim() || undefined
-  };
-}
-
-function openCurrentLabelStudioTask() {
-  const item = currentItems[selectedIndex];
-  if (!item || !canOpenLabelStudioTask(item)) {
-    return;
-  }
-
-  const baseUrl = refs.labelStudioUrl.value.trim().replace(/\/+$/u, '');
-  const projectId = refs.labelStudioProjectId.value.trim();
-  window.open(`${baseUrl}/projects/${encodeURIComponent(projectId)}/data?task=${encodeURIComponent(item.labelStudioTaskId)}`, '_blank');
-}
-
-function canOpenLabelStudioTask(item) {
-  return Boolean(
-    item?.labelStudioTaskId &&
-    refs.labelStudioUrl.value.trim() &&
-    refs.labelStudioProjectId.value.trim()
-  );
-}
-
-function renderLabelStudioLink(projectUrl) {
-  if (!projectUrl) {
-    refs.labelStudioProjectLink.classList.add('hidden');
-    return;
-  }
-
-  refs.labelStudioProjectLink.href = projectUrl;
-  refs.labelStudioProjectLink.classList.remove('hidden');
 }
 
 function mediaUrl(item) {
@@ -629,11 +504,6 @@ function thumbnailUrl(item) {
 }
 
 function updateActionState() {
-  const hasItems = currentItems.length > 0;
-  const hasProjectId = refs.labelStudioProjectId.value.trim().length > 0;
-  refs.downloadLabelStudioPackage.disabled = !hasItems;
-  refs.importLabelStudio.disabled = !hasItems;
-  refs.syncLabelStudio.disabled = !hasItems || !hasProjectId;
   refs.loadMore.disabled = renderedCount >= currentItems.length;
 }
 
@@ -643,17 +513,6 @@ function requireDirectoryPath() {
     throw new Error('请先选择待检文件夹。');
   }
   return directoryPath;
-}
-
-function downloadText(fileName, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 function disconnectThumbnailObserver() {

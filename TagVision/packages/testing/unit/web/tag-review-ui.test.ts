@@ -49,22 +49,41 @@ const packageJson = JSON.parse(
   readonly dependencies?: Record<string, string>;
 };
 
-test('review ui exposes directory scan and Label Studio controls', () => {
+test('review ui exposes a compact local-only scan workflow', () => {
   for (const id of [
     'review-directory',
     'scan-button',
-    'download-ls-package',
-    'ls-url',
-    'ls-token',
-    'ls-project-id',
-    'import-ls',
-    'sync-ls',
+    'choose-review-directory',
     'review-grid',
     'detail-view'
   ]) {
     assert.equal(reviewHtml.includes(`id="${id}"`), true, `missing #${id}`);
   }
 
+  for (const removedText of [
+    'Label Studio',
+    'download-ls-package',
+    'ls-url',
+    'ls-token',
+    'ls-project-id',
+    'import-ls',
+    'sync-ls',
+    'open-current-ls-task'
+  ]) {
+    assert.equal(reviewHtml.includes(removedText), false, `unexpected ${removedText} UI`);
+  }
+
+  for (const removedScriptText of [
+    'labelStudio',
+    '/label-studio/',
+    'downloadLabelStudioPackage',
+    'importIntoLabelStudio',
+    'syncLabelStudio'
+  ]) {
+    assert.equal(reviewJs.includes(removedScriptText), false, `unexpected ${removedScriptText} browser logic`);
+  }
+
+  assert.match(reviewHtml, /class="review-source-bar"[\s\S]*id="review-directory"[\s\S]*id="choose-review-directory"[\s\S]*id="scan-button"/u);
   assert.equal(reviewHtml.includes('src="/tag-review.js'), true);
 });
 
