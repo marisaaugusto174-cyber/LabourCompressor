@@ -177,7 +177,7 @@ export async function scanTagReviewDirectory(input: {
   const unpairedVideos: TagReviewFileEntry[] = [];
   const pairedJsonKeys = new Set<string>();
 
-  for (const video of sortByRelativePath(videos)) {
+  for (const video of sortReviewVideos(videos)) {
     const json = jsonByKey.get(video.matchKey);
 
     if (json === undefined) {
@@ -941,6 +941,15 @@ function sortByRelativePath<T extends { readonly relativePath: string }>(items: 
   return [...items].sort((left, right) =>
     left.relativePath.localeCompare(right.relativePath, 'zh-Hans-CN')
   );
+}
+
+function sortReviewVideos(items: readonly ScannedVideoFile[]): readonly ScannedVideoFile[] {
+  return [...items].sort((left, right) => {
+    const fileNameOrder = left.fileName.localeCompare(right.fileName, 'zh-Hans-CN');
+    return fileNameOrder === 0
+      ? left.relativePath.localeCompare(right.relativePath, 'zh-Hans-CN')
+      : fileNameOrder;
+  });
 }
 
 function toPortableRelativePath(rootDirectory: string, filePath: string): string {

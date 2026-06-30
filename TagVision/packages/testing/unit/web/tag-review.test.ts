@@ -58,6 +58,43 @@ test('scanTagReviewDirectory pairs valid same-directory video and json stems', a
   }
 });
 
+test('scanTagReviewDirectory sorts paired review items by filename before relative path', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-filename-sort-'));
+
+  try {
+    for (const relativeDirectory of ['a-directory', 'b-directory', 'c-directory']) {
+      mkdirSync(path.join(tempDir, relativeDirectory), { recursive: true });
+    }
+
+    writeFileSync(path.join(tempDir, 'a-directory', 'z-video.mp4'), 'video');
+    writeFileSync(
+      path.join(tempDir, 'a-directory', 'z-video.json'),
+      JSON.stringify(buildStructuredTaggingJson('z-video'))
+    );
+
+    for (const relativeDirectory of ['b-directory', 'c-directory']) {
+      writeFileSync(path.join(tempDir, relativeDirectory, 'same-video.mp4'), 'video');
+      writeFileSync(
+        path.join(tempDir, relativeDirectory, 'same-video.json'),
+        JSON.stringify(buildStructuredTaggingJson('same-video'))
+      );
+    }
+
+    const result = await scanTagReviewDirectory({ directoryPath: tempDir });
+
+    assert.deepEqual(
+      result.pairedItems.map((item) => item.videoRelativePath),
+      [
+        'b-directory/same-video.mp4',
+        'c-directory/same-video.mp4',
+        'a-directory/z-video.mp4'
+      ]
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('scanTagReviewDirectory overlays existing mirrored review state', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'tag-review-state-'));
 
