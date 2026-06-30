@@ -121,6 +121,20 @@ test('review page uses static white Liquid Glass with blue pink aurora backgroun
   assert.doesNotMatch(stylesCss, /canvas/i);
 });
 
+test('review page uses rounder shared radius tokens for glass modules', () => {
+  assert.match(stylesCss, /--radius-surface:\s*32px/u);
+  assert.match(stylesCss, /--radius-card:\s*28px/u);
+  assert.match(stylesCss, /--radius-inner:\s*22px/u);
+  assert.match(stylesCss, /--radius-control:\s*18px/u);
+  assert.match(stylesCss, /\.panel,\s*\.subpanel\s*\{[\s\S]*border-radius:\s*var\(--radius-surface\)/u);
+  assert.match(stylesCss, /\.status-card,\s*\.review-card\s*\{[\s\S]*border-radius:\s*var\(--radius-card\)/u);
+  assert.match(stylesCss, /button\s*\{[\s\S]*border-radius:\s*var\(--radius-control\)/u);
+  assert.match(stylesCss, /input,\s*select\s*\{[\s\S]*border-radius:\s*var\(--radius-control\)/u);
+  assert.match(stylesCss, /\.review-source-bar\s*\{[\s\S]*border-radius:\s*var\(--radius-card\)/u);
+  assert.match(stylesCss, /\.review-player\s*\{[\s\S]*border-radius:\s*var\(--radius-card\)/u);
+  assert.match(stylesCss, /\.review-tag-compact\s*\{[\s\S]*border-radius:\s*var\(--radius-inner\)/u);
+});
+
 test('review diagnostics panel is hidden until anomalies or action errors occur', () => {
   assert.match(reviewJs, /diagnosticsPanel:\s*document\.querySelector\('#review-diagnostics-panel'\)/u);
   assert.match(reviewJs, /function hideDiagnosticsPanel\(\)\s*\{[\s\S]*refs\.diagnosticsPanel\.classList\.add\('hidden'\)/u);
