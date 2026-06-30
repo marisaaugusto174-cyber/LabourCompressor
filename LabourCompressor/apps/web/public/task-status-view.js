@@ -1,3 +1,5 @@
+import { hasManualReviewResult, isPendingResultState } from './task-review-status.js';
+
 let refs = {};
 let getDefaults = () => null;
 let getFieldValue = () => '';
@@ -252,6 +254,8 @@ function inferTaskPlatformLabel(task) {
 function inferNextAction(task) {
   const results = task?.result?.results ?? [];
 
+  if (hasManualReviewResult(results)) return '打开待人工复查库';
+
   if (results.some((item) => item.archiveState === '已下载待剪辑')) {
     return '等待人工剪辑';
   }
@@ -410,6 +414,8 @@ function deriveOverallStatusFromEvent(event) {
 function deriveOverallStatusFromTask(task) {
   const results = task?.result?.results ?? [];
 
+  if (hasManualReviewResult(results)) return '存在待人工复查项';
+
   if (results.some((item) => item.archiveState === '自动分割待处理')) {
     return '自动分割待处理';
   }
@@ -456,10 +462,7 @@ function deriveOverallStatusFromTask(task) {
 }
 
 function isPendingResult(item) {
-  return !item?.failure && ![
-    '已归档',
-    '已跳过：视频过短'
-  ].includes(item?.archiveState);
+  return isPendingResultState(item);
 }
 
 function renderProgress(event) {

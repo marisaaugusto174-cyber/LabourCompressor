@@ -45,6 +45,9 @@ export function renderResultCards(results, resultsList, currentRunSpreadsheetPat
 }
 
 export function classifyResult(item) {
+  if (item.archiveState === '待人工复查') {
+    return 'manual-review';
+  }
   if (item.failure || item.archiveState === '下载失败') {
     return 'failed';
   }
@@ -62,7 +65,8 @@ export function buildResultWorkbenchHtml(results, currentRunSpreadsheetPath = ''
   const groups = {
     succeeded: results.filter((item) => classifyResult(item) === 'succeeded'),
     failed: results.filter((item) => classifyResult(item) === 'failed'),
-    pending: results.filter((item) => classifyResult(item) === 'pending')
+    pending: results.filter((item) => classifyResult(item) === 'pending'),
+    manualReview: results.filter((item) => classifyResult(item) === 'manual-review')
   };
   const problems = [...groups.failed, ...groups.pending];
 
@@ -71,8 +75,15 @@ export function buildResultWorkbenchHtml(results, currentRunSpreadsheetPath = ''
       <span>总数 ${results.length}</span>
       <span>成功 ${groups.succeeded.length}</span>
       <span>失败 ${groups.failed.length}</span>
+      <span>待人工复查 ${groups.manualReview.length}</span>
       <span>待处理 ${groups.pending.length}</span>
     </div>
+    ${groups.manualReview.length > 0 ? `
+      <details class="result-problems" open>
+        <summary>人工复查项 (${groups.manualReview.length})</summary>
+        <div class="result-table">${renderResultTable(groups.manualReview)}</div>
+      </details>
+    ` : ''}
     ${problems.length > 0 ? `
       <details class="result-problems" open>
         <summary>异常与人工处理 (${problems.length})</summary>
@@ -113,6 +124,9 @@ function renderResultRow(item) {
 }
 
 function deriveNextStepText(item) {
+  if (item.archiveState === '待人工复查') {
+    return '打开待人工复查库完成标注。';
+  }
   if (item.archiveState === '已下载待剪辑') {
     return '等待你把剪辑后的导出文件放进 AfterEdit 目录。';
   }
@@ -191,6 +205,9 @@ function stageClassName(item) {
   if (item.archiveState === '已跳过：视频过短') {
     return 'succeeded';
   }
+  if (item.archiveState === '待人工复查') {
+    return 'running';
+  }
   return 'running';
 }
 
@@ -215,6 +232,10 @@ function humanizeFailureCode(errorCode, phase) {
     'output-not-detected': '未识别到下载产物',
     'download-failed': '下载失败',
     'tagging-failed': '打标失败',
+    'model-content-rejected': '模型内容审核拒绝',
+    'model-fallback-unavailable': 'Gemini 未配置',
+    'model-fallback-failed': 'Gemini 备用模型调用失败',
+    'manual-review-writeback-failed': '人工复查归档失败',
     'missing-content-topic': '缺少内容题材',
     'archive-primary-tag-missing': '待复核：核心动作主动作缺失',
     'archive-primary-tag-conflict': '待复核：存在多个核心动作主动作',

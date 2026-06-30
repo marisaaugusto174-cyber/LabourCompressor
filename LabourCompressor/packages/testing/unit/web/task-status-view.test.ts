@@ -131,6 +131,17 @@ test('completed task with unfinished rows reports pending work instead of archiv
   assert.equal(refs.statusNextAction.hidden, false);
 });
 
+test('completed task reports manual review as a terminal action', () => {
+  const refs = createRefs();
+  initTaskStatusView(createOptions(refs));
+  renderTaskStatus({
+    id: 'task-review', status: 'succeeded', options: {},
+    result: { results: [{ archiveState: '待人工复查' }] }
+  });
+  assert.equal(refs.statusOverall.textContent, '存在待人工复查项');
+  assert.equal(refs.statusNextAction.textContent, '打开待人工复查库');
+});
+
 test('task status view displays download count, speed and eta', () => {
   const refs = createRefs();
   initTaskStatusView({
