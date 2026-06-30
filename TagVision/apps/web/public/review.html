@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TagVision V0.1 macOS · 打标结果质检</title>
+    <title>TagVision · 打标结果质检</title>
     <link rel="stylesheet" href="/vendor/plyr.css" />
     <link rel="stylesheet" href="/styles.css?v=20260630-plyr" />
   </head>
@@ -11,14 +11,10 @@
     <main class="page review-page">
       <header class="page-header">
         <div>
-          <h1>TagVision V0.1 macOS</h1>
-          <p>扫描片段视频、模型 JSON 和 taxonomy 快照，回看并写出人工确认的 accepted sidecar。</p>
-          <p class="build-version">Release: TagVision V0.1 macOS</p>
+          <h1>TagVision</h1>
         </div>
         <div class="header-chip-list">
           <a class="chip" href="/">入口</a>
-          <span class="chip">本地检视</span>
-          <span class="chip">人工 accepted 结果</span>
         </div>
       </header>
 
@@ -28,17 +24,9 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>检视来源</h2>
-            <p>只读取并扫描目录，不会改名、不改原始 JSON。人工确认后写入同名 <code>.accepted.json</code>。</p>
-          </div>
-        </div>
-
         <div class="review-source-bar">
           <div class="path-meta">
-            <label for="review-directory">待检文件夹</label>
-            <span>递归扫描视频、同名 JSON 和 taxonomy 快照。</span>
+            <label class="sr-only" for="review-directory">待检文件夹</label>
           </div>
           <div class="path-control">
             <input id="review-directory" name="reviewDirectory" />
@@ -68,14 +56,8 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>多视频预览</h2>
-            <p>滚动时增量加载卡片，视频只在接近视口时挂载。</p>
-          </div>
-          <div class="actions compact">
-            <button id="load-more" class="secondary-button" type="button" disabled>加载更多</button>
-          </div>
+        <div class="review-toolbar">
+          <button id="load-more" class="secondary-button" type="button" disabled>加载更多</button>
         </div>
         <div id="review-grid" class="review-grid empty-state">
           <p>请选择目录并扫描。</p>
@@ -130,13 +112,7 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <h2>诊断与日志</h2>
-            <p>未配对文件和接口结果显示在这里。</p>
-          </div>
-        </div>
+      <section id="review-diagnostics-panel" class="panel review-diagnostics-panel hidden" aria-label="诊断">
         <div id="diagnostics-list" class="task-list empty-state">
           <p>暂无诊断信息。</p>
         </div>

@@ -87,6 +87,26 @@ test('review ui exposes a compact local-only scan workflow', () => {
   assert.equal(reviewHtml.includes('src="/tag-review.js'), true);
 });
 
+test('review page removes descriptive marketing and section copy', () => {
+  for (const removedText of [
+    '扫描片段视频、模型 JSON 和 taxonomy 快照，回看并写出人工确认的 accepted sidecar。',
+    '只读取并扫描目录，不会改名、不改原始 JSON。',
+    '递归扫描视频、同名 JSON 和 taxonomy 快照。',
+    '滚动时增量加载卡片，视频只在接近视口时挂载。',
+    '诊断与日志',
+    '检视来源',
+    '多视频预览',
+    '本地检视',
+    '人工 accepted 结果'
+  ]) {
+    assert.equal(reviewHtml.includes(removedText), false, `unexpected descriptive copy: ${removedText}`);
+  }
+
+  assert.match(reviewHtml, /<h1>TagVision<\/h1>/u);
+  assert.match(reviewHtml, /<a class="chip" href="\/">入口<\/a>/u);
+  assert.match(reviewHtml, /<section id="review-diagnostics-panel" class="panel review-diagnostics-panel hidden"/u);
+});
+
 test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('href="/review.html"'), true);
   assert.equal(indexHtml.includes('TagVision V0.1 macOS'), true);
@@ -101,8 +121,9 @@ test('release metadata names the local tool as TagVision V0.1 macOS', () => {
   assert.equal(packageJson.scripts?.['pack:macos:v0.1'], 'bash scripts/pack-macos.sh');
   assert.equal(packageJson.files?.includes('apps/'), true);
   assert.equal(packageJson.files?.includes('Start TagVision macOS.command'), true);
-  assert.equal(reviewHtml.includes('TagVision V0.1 macOS'), true);
-  assert.equal(reviewHtml.includes('Release: TagVision V0.1 macOS'), true);
+  assert.equal(reviewHtml.includes('TagVision'), true);
+  assert.equal(reviewHtml.includes('TagVision V0.1 macOS'), false);
+  assert.equal(reviewHtml.includes('Release: TagVision V0.1 macOS'), false);
 });
 
 test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {
