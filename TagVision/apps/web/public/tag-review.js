@@ -10,6 +10,11 @@ const REVIEW_RULER_TARGET_TICK_GAP = 26;
 const REVIEW_RULER_MIN_VISIBLE_TICK_COUNT = 12;
 const REVIEW_RULER_MAX_VISIBLE_TICK_COUNT = 24;
 const REVIEW_RULER_RESPONSE_SEGMENTS_PER_TICK = 4;
+const REVIEW_RULER_DOCK_MAGNIFICATION_RADIUS = 4;
+const REVIEW_RULER_DOCK_BASE_TICK_WIDTH = 24;
+const REVIEW_RULER_DOCK_MAX_TICK_WIDTH = 72;
+const REVIEW_RULER_DOCK_BASE_LINE_HEIGHT = 2;
+const REVIEW_RULER_DOCK_MAX_LINE_HEIGHT = 5;
 
 const refs = {
   fileProtocolWarning: document.querySelector('#file-protocol-warning'),
@@ -81,11 +86,14 @@ function bindActions() {
   refs.chooseReviewDirectory.addEventListener('click', () => wrapAction(chooseReviewDirectory));
   refs.scanButton.addEventListener('click', () => wrapAction(scanDirectory));
   refs.loadMore.addEventListener('click', () => renderMoreItems());
-  refs.scrollRulerTrack.addEventListener('pointermove', updateScrollRulerHoverFromPointer);
-  refs.scrollRulerTrack.addEventListener('click', jumpToScrollRulerPointerPosition);
-  refs.scrollRulerTrack.addEventListener('pointerleave', () => {
+  refs.scrollRuler.addEventListener('pointerenter', () => setScrollRulerExpandedState(true));
+  refs.scrollRuler.addEventListener('pointermove', updateScrollRulerHoverFromPointer);
+  refs.scrollRuler.addEventListener('click', jumpToScrollRulerPointerPosition);
+  refs.scrollRuler.addEventListener('pointerleave', () => {
     clearScrollRulerHoveredTick();
+    resetScrollRulerDockMagnification();
     refs.scrollRulerTooltip.classList.remove('is-visible');
+    setScrollRulerExpandedState(false);
   });
   refs.previousDetail.addEventListener('click', () => openDetail(selectedIndex - 1));
   refs.nextDetail.addEventListener('click', () => openDetail(selectedIndex + 1));
@@ -112,6 +120,7 @@ function bindActions() {
   window.addEventListener('scroll', maybeAutoLoadMore, { passive: true });
   window.addEventListener('scroll', updateScrollRulerActiveState, { passive: true });
   window.addEventListener('resize', renderScrollRuler);
+  window.addEventListener('pointermove', collapseScrollRulerIfPointerOutside, { passive: true });
 }
 
 async function chooseReviewDirectory() {
@@ -260,6 +269,7 @@ function renderMoreItems(count = RENDER_BATCH_SIZE) {
 function renderScrollRuler() {
   if (currentItems.length === 0) {
     refs.scrollRuler.classList.add('hidden');
+    setScrollRulerExpandedState(false);
     refs.scrollRulerTrack.innerHTML = '';
     refs.scrollRulerTooltip.textContent = '';
     return;
@@ -356,6 +366,7 @@ function readScrollRulerPointerState(event) {
 
   return {
     range,
+    pointerRatio,
     targetIndex: range.start - 1,
     tickIndex,
     tooltipY: event.clientY - rulerRect.top
@@ -367,7 +378,9 @@ function updateScrollRulerHoverFromPointer(event) {
     return;
   }
 
+  setScrollRulerExpandedState(true);
   const pointerState = readScrollRulerPointerState(event);
+  applyScrollRulerDockMagnification(pointerState.pointerRatio);
   markScrollRulerHoveredTick(pointerState.tickIndex);
   refs.scrollRulerTooltip.textContent = pointerState.range.label;
   refs.scrollRulerTooltip.style.setProperty(
@@ -375,6 +388,58 @@ function updateScrollRulerHoverFromPointer(event) {
     `${pointerState.tooltipY}px`
   );
   refs.scrollRulerTooltip.classList.add('is-visible');
+}
+
+function setScrollRulerExpandedState(isExpanded) {
+  refs.scrollRuler.classList.toggle('is-expanded', isExpanded);
+}
+
+function applyScrollRulerDockMagnification(pointerRatio) {
+  const ticks = Array.from(refs.scrollRulerTrack.querySelectorAll('.review-scroll-ruler-tick'));
+  const maxTickIndex = Math.max(ticks.length - 1, 0);
+  const center = Math.min(Math.max(pointerRatio, 0), 1) * maxTickIndex;
+
+  for (const tick of ticks) {
+    const tickIndex = Number(tick.dataset.rulerTickIndex);
+    const distance = Math.abs(tickIndex - center);
+    const rawInfluence = Math.max(0, 1 - (distance / REVIEW_RULER_DOCK_MAGNIFICATION_RADIUS));
+    const smoothInfluence = rawInfluence * rawInfluence * (3 - (2 * rawInfluence));
+    const width = REVIEW_RULER_DOCK_BASE_TICK_WIDTH
+      + ((REVIEW_RULER_DOCK_MAX_TICK_WIDTH - REVIEW_RULER_DOCK_BASE_TICK_WIDTH) * smoothInfluence);
+    const lineHeight = REVIEW_RULER_DOCK_BASE_LINE_HEIGHT
+      + ((REVIEW_RULER_DOCK_MAX_LINE_HEIGHT - REVIEW_RULER_DOCK_BASE_LINE_HEIGHT) * smoothInfluence);
+
+    tick.style.setProperty('--scroll-ruler-dock-width', `${width.toFixed(2)}px`);
+    tick.style.setProperty('--scroll-ruler-dock-line-height', `${lineHeight.toFixed(2)}px`);
+  }
+}
+
+function resetScrollRulerDockMagnification() {
+  for (const tick of refs.scrollRulerTrack.querySelectorAll('.review-scroll-ruler-tick')) {
+    tick.style.removeProperty('--scroll-ruler-dock-width');
+    tick.style.removeProperty('--scroll-ruler-dock-line-height');
+  }
+}
+
+function collapseScrollRulerIfPointerOutside(event) {
+  if (!refs.scrollRuler.classList.contains('is-expanded')) {
+    return;
+  }
+
+  const rulerRect = refs.scrollRuler.getBoundingClientRect();
+  const isPointerInsideRuler = event.clientX >= rulerRect.left
+    && event.clientX <= rulerRect.right
+    && event.clientY >= rulerRect.top
+    && event.clientY <= rulerRect.bottom;
+
+  if (isPointerInsideRuler) {
+    return;
+  }
+
+  clearScrollRulerHoveredTick();
+  resetScrollRulerDockMagnification();
+  refs.scrollRulerTooltip.classList.remove('is-visible');
+  setScrollRulerExpandedState(false);
 }
 
 function markScrollRulerHoveredTick(activeTickIndex) {
