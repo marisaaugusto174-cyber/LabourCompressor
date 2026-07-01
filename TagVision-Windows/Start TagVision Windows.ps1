@@ -7,6 +7,7 @@ $env:TAGVISION_WEB_HOST = if ($env:TAGVISION_WEB_HOST) { $env:TAGVISION_WEB_HOST
 $env:TAGVISION_WEB_PORT = if ($env:TAGVISION_WEB_PORT) { $env:TAGVISION_WEB_PORT } else { "4312" }
 $TagVisionUrl = "http://$($env:TAGVISION_WEB_HOST):$($env:TAGVISION_WEB_PORT)/review.html"
 $LogFile = Join-Path $ScriptDir "tagvision-windows-launcher.log"
+$ErrorLogFile = Join-Path $ScriptDir "tagvision-windows-launcher.error.log"
 $PidFile = Join-Path $ScriptDir "tagvision-windows-server.pid"
 $ServerEntry = Join-Path $ScriptDir "apps\web\server.ts"
 $BundledNode = Join-Path $ScriptDir "runtime\node\node.exe"
@@ -15,9 +16,22 @@ $BundledNpm = Join-Path $ScriptDir "runtime\node\npm.cmd"
 Write-Host "Starting TagVision V0.5 Windows from: $ScriptDir"
 Write-Host "TagVision URL: $TagVisionUrl"
 Write-Host "Launcher log: $LogFile"
+Write-Host "Launcher error log: $ErrorLogFile"
 
 function Pause-OnError {
   Read-Host "Press Enter to close" | Out-Null
+}
+
+function Show-ServerLogs {
+  if (Test-Path -LiteralPath $LogFile) {
+    Write-Host "stdout log:"
+    Get-Content -LiteralPath $LogFile -Tail 40
+  }
+
+  if (Test-Path -LiteralPath $ErrorLogFile) {
+    Write-Host "stderr log:"
+    Get-Content -LiteralPath $ErrorLogFile -Tail 40
+  }
 }
 
 function Convert-ToComparablePathText {
@@ -230,9 +244,9 @@ Sync-Dependencies
 
 Write-Host "Starting local server..."
 Set-Content -LiteralPath $LogFile -Value "" -Encoding utf8
+Set-Content -LiteralPath $ErrorLogFile -Value "" -Encoding utf8
 
-$ServerCommand = "`"$NodeCommand`" `"$ServerEntry`" > `"$LogFile`" 2>&1"
-$ServerProcess = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $ServerCommand) -WorkingDirectory $ScriptDir -PassThru -WindowStyle Hidden
+$ServerProcess = Start-Process -FilePath $NodeCommand -ArgumentList @($ServerEntry) -WorkingDirectory $ScriptDir -PassThru -WindowStyle Hidden -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
 Set-Content -LiteralPath $PidFile -Value $ServerProcess.Id -Encoding utf8
 
 for ($Index = 0; $Index -lt 40; $Index += 1) {
@@ -245,9 +259,7 @@ for ($Index = 0; $Index -lt 40; $Index += 1) {
   } catch {
     if ($ServerProcess.HasExited) {
       Write-Host "TagVision server exited before becoming ready. Last log lines:"
-      if (Test-Path -LiteralPath $LogFile) {
-        Get-Content -LiteralPath $LogFile -Tail 40
-      }
+      Show-ServerLogs
       Pause-OnError
       exit 1
     }
@@ -257,9 +269,7 @@ for ($Index = 0; $Index -lt 40; $Index += 1) {
 }
 
 Write-Host "Timed out waiting for TagVision. Last log lines:"
-if (Test-Path -LiteralPath $LogFile) {
-  Get-Content -LiteralPath $LogFile -Tail 40
-}
+Show-ServerLogs
 Stop-Process -Id $ServerProcess.Id -ErrorAction SilentlyContinue
 Pause-OnError
 exit 1
