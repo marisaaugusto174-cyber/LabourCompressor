@@ -176,7 +176,7 @@ test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('Labour Compressor'), false);
 
   for (const removedText of [
-    'TagVision V0.1 Windows',
+    'TagVision V0.5 Windows',
     '本地审核入口：扫描片段视频',
     'Local sidecar JSON',
     'Manual accepted result',
@@ -187,17 +187,17 @@ test('main web ui links to the tag review page', () => {
   }
 });
 
-test('release metadata names the local tool as TagVision V0.1 Windows', () => {
+test('release metadata names the local tool as TagVision V0.5 Windows', () => {
   assert.equal(packageJson.name, 'tagvision-windows');
-  assert.equal(packageJson.version, '0.1.0');
-  assert.match(packageJson.description ?? '', /TagVision V0\.1 Windows/u);
-  assert.equal(packageJson.scripts?.['pack:windows:v0.1'], 'node scripts/pack-windows.mjs');
+  assert.equal(packageJson.version, '0.5.0');
+  assert.match(packageJson.description ?? '', /TagVision V0\.5 Windows/u);
+  assert.equal(packageJson.scripts?.['pack:windows:v0.5'], 'node scripts/pack-windows.mjs');
   assert.equal(packageJson.files?.includes('apps/'), true);
   assert.equal(packageJson.files?.includes('Start TagVision Windows.bat'), true);
   assert.equal(packageJson.files?.includes('Start TagVision Windows.ps1'), true);
   assert.equal(reviewHtml.includes('TagVision'), true);
-  assert.equal(reviewHtml.includes('TagVision V0.1 Windows'), false);
-  assert.equal(reviewHtml.includes('Release: TagVision V0.1 Windows'), false);
+  assert.equal(reviewHtml.includes('TagVision V0.5 Windows'), false);
+  assert.equal(reviewHtml.includes('Release: TagVision V0.5 Windows'), false);
 });
 
 test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {
@@ -206,7 +206,7 @@ test('review detail opens as a fixed fullscreen modal and disables page autoload
   assert.match(stylesCss, /\.is-review-modal-open\s*\{[^}]*overflow:\s*hidden/su);
   assert.equal(reviewJs.includes("document.body.classList.add('is-review-modal-open')"), true);
   assert.match(reviewJs, /function maybeAutoLoadMore\(\)\s*\{[\s\S]*?if \(isDetailOpen\(\)\) \{/u);
-  assert.equal(reviewJs.includes('scrollIntoView'), false);
+  assert.doesNotMatch(reviewJs, /function openDetail\(index\)\s*\{[\s\S]*?scrollIntoView/u);
 });
 
 test('review detail exposes accepted path editor and save action', () => {
@@ -306,17 +306,22 @@ test('windows launcher starts TagVision from its own directory and opens review 
   assert.match(powershellLauncherScript, /\$PSScriptRoot/u);
   assert.match(powershellLauncherScript, /Set-Location \$ScriptDir/u);
   assert.match(powershellLauncherScript, /Sync-Dependencies/u);
-  assert.match(powershellLauncherScript, /npm ci --omit=dev --no-audit --no-fund/u);
-  assert.match(powershellLauncherScript, /npm install --omit=dev --no-audit --no-fund/u);
+  assert.match(powershellLauncherScript, /Resolve-NpmCommand/u);
+  assert.match(powershellLauncherScript, /& \$NpmCommand ci --omit=dev --no-audit --no-fund/u);
+  assert.match(powershellLauncherScript, /& \$NpmCommand install --omit=dev --no-audit --no-fund/u);
   assert.match(powershellLauncherScript, /TAGVISION_WEB_HOST/u);
   assert.match(powershellLauncherScript, /TAGVISION_WEB_PORT/u);
   assert.match(powershellLauncherScript, /Invoke-WebRequest -UseBasicParsing -Uri \$TagVisionUrl/u);
-  assert.match(powershellLauncherScript, /TagVision V0\.1 Windows is ready/u);
+  assert.match(powershellLauncherScript, /TagVision V0\.5 Windows is ready/u);
   assert.match(powershellLauncherScript, /Start-Process \$TagVisionUrl/u);
   assert.match(powershellLauncherScript, /Start-Process -FilePath "cmd\.exe"/u);
   assert.match(powershellLauncherScript, /Stop-ExistingTagVisionServers/u);
   assert.match(powershellLauncherScript, /Test-TagVisionServerProcess/u);
-  assert.match(powershellLauncherScript, /node `"\$ServerEntry`"/u);
+  assert.match(powershellLauncherScript, /Resolve-NodeCommand/u);
+  assert.match(powershellLauncherScript, /runtime\\node\\node\.exe/u);
+  assert.match(powershellLauncherScript, /Using bundled Node\.js runtime/u);
+  assert.match(powershellLauncherScript, /\$NodeCommand = Resolve-NodeCommand/u);
+  assert.match(powershellLauncherScript, /`"\$NodeCommand`" `"\$ServerEntry`"/u);
   assert.match(powershellLauncherScript, /tagvision-windows/u);
   assert.match(powershellLauncherScript, /Refusing to stop non-TagVision process/u);
   assert.doesNotMatch(powershellLauncherScript, /Opening existing TagVision URL/u);
@@ -327,6 +332,32 @@ test('launcher runtime pid file is ignored and excluded from Windows package', (
   assert.match(gitignore, /^tagvision-windows-server\.pid$/mu);
   assert.match(packWindowsMjs, /tagvision-windows-server\.pid/u);
   assert.match(packWindowsPs1, /pack-windows\.mjs/u);
+});
+
+test('windows distribution includes one-click and manual terminal startup assets', () => {
+  const manualStartGuide = readFileSync(
+    path.join(process.cwd(), 'TagVision Windows Manual Terminal Startup.txt'),
+    'utf8'
+  );
+
+  assert.match(manualStartGuide, /Start TagVision Windows\.bat/u);
+  assert.match(manualStartGuide, /不需要预先安装 Node\.js/u);
+  assert.match(manualStartGuide, /npm run web/u);
+  assert.match(manualStartGuide, /http:\/\/127\.0\.0\.1:4312\/review\.html/u);
+  assert.match(manualStartGuide, /TagVision-Windows-V0\.5\.zip/u);
+  assert.equal(packageJson.files?.includes('TagVision Windows Manual Terminal Startup.txt'), true);
+  assert.match(packWindowsMjs, /'TagVision Windows Manual Terminal Startup\.txt'/u);
+  assert.match(packWindowsMjs, /TagVision-Windows-V0\.5/u);
+  assert.match(packWindowsMjs, /installProductionDependencies/u);
+  assert.match(packWindowsMjs, /NODE_VERSION = '24\.18\.0'/u);
+  assert.match(packWindowsMjs, /downloadPortableNodeRuntime/u);
+  assert.match(packWindowsMjs, /verifyNodeRuntimeArchive/u);
+  assert.match(packWindowsMjs, /node-v\$\{NODE_VERSION\}-win-x64\.zip/u);
+  assert.match(packWindowsMjs, /runtime', 'node'/u);
+  assert.match(packWindowsMjs, /node\.exe/u);
+  assert.match(packWindowsMjs, /node_modules/u);
+  assert.match(powershellLauncherScript, /Test-DependenciesReady/u);
+  assert.match(powershellLauncherScript, /Using bundled TagVision dependencies/u);
 });
 
 test('server does not write json errors after response headers were sent', () => {

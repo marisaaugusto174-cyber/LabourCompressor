@@ -1,17 +1,18 @@
 {
   "name": "tagvision-macos",
-  "description": "TagVision V0.1 macOS local review tool for accepted video tag sidecars",
+  "description": "TagVision V0.5 macOS local review tool for accepted video tag sidecars",
   "private": true,
   "type": "module",
   "scripts": {
     "web": "node apps/web/server.ts",
     "test": "node --test packages/testing/unit/web/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "pack:macos:v0.1": "bash scripts/pack-macos.sh"
+    "pack:macos:v0.5": "bash scripts/pack-macos.sh"
   },
-  "version": "0.1.0",
+  "version": "0.5.0",
   "files": [
     "README.md",
+    "TagVision macOS Manual Terminal Startup.txt",
     "Start TagVision macOS.command",
     "apps/",
     "packages/testing/unit/web/",

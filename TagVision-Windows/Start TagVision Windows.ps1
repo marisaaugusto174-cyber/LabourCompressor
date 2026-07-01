@@ -9,8 +9,10 @@ $TagVisionUrl = "http://$($env:TAGVISION_WEB_HOST):$($env:TAGVISION_WEB_PORT)/re
 $LogFile = Join-Path $ScriptDir "tagvision-windows-launcher.log"
 $PidFile = Join-Path $ScriptDir "tagvision-windows-server.pid"
 $ServerEntry = Join-Path $ScriptDir "apps\web\server.ts"
+$BundledNode = Join-Path $ScriptDir "runtime\node\node.exe"
+$BundledNpm = Join-Path $ScriptDir "runtime\node\npm.cmd"
 
-Write-Host "Starting TagVision V0.1 Windows from: $ScriptDir"
+Write-Host "Starting TagVision V0.5 Windows from: $ScriptDir"
 Write-Host "TagVision URL: $TagVisionUrl"
 Write-Host "Launcher log: $LogFile"
 
@@ -159,43 +161,84 @@ function Stop-ExistingTagVisionServers {
   }
 }
 
-function Sync-Dependencies {
-  Write-Host "Syncing TagVision V0.1 Windows dependencies..."
+function Resolve-NodeCommand {
+  if (Test-Path -LiteralPath $BundledNode) {
+    Write-Host "Using bundled Node.js runtime."
+    return $BundledNode
+  }
 
-  if (Test-Path -LiteralPath (Join-Path $ScriptDir "package-lock.json")) {
-    npm ci --omit=dev --no-audit --no-fund
+  $SystemNode = Get-Command node -ErrorAction SilentlyContinue
+  if ($SystemNode) {
+    return $SystemNode.Source
+  }
+
+  Write-Host "Node.js was not found and bundled runtime is missing."
+  Write-Host "Use the full TagVision Windows package with runtime\\node\\node.exe, or install Node.js LTS."
+  Pause-OnError
+  exit 1
+}
+
+function Resolve-NpmCommand {
+  if (Test-Path -LiteralPath $BundledNpm) {
+    return $BundledNpm
+  }
+
+  $SystemNpm = Get-Command npm -ErrorAction SilentlyContinue
+  if ($SystemNpm) {
+    return $SystemNpm.Source
+  }
+
+  return ""
+}
+
+function Sync-Dependencies {
+  Write-Host "Syncing TagVision V0.5 Windows dependencies..."
+
+  if (Test-DependenciesReady) {
+    Write-Host "Using bundled TagVision dependencies."
     return
   }
 
-  npm install --omit=dev --no-audit --no-fund
+  $NpmCommand = Resolve-NpmCommand
+  if (-not $NpmCommand) {
+    Write-Host "npm was not found and bundled npm is missing. Use the full TagVision Windows package or install Node.js LTS with npm."
+    Pause-OnError
+    exit 1
+  }
+
+  if (Test-Path -LiteralPath (Join-Path $ScriptDir "package-lock.json")) {
+    & $NpmCommand ci --omit=dev --no-audit --no-fund
+    return
+  }
+
+  & $NpmCommand install --omit=dev --no-audit --no-fund
 }
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-  Write-Host "Node.js was not found. Install Node.js first, then run this launcher again."
-  Pause-OnError
-  exit 1
+function Test-DependenciesReady {
+  $PlyrDistDir = Join-Path $ScriptDir "node_modules\plyr\dist"
+
+  return (
+    (Test-Path -LiteralPath (Join-Path $PlyrDistDir "plyr.min.js")) -and
+    (Test-Path -LiteralPath (Join-Path $PlyrDistDir "plyr.css")) -and
+    (Test-Path -LiteralPath (Join-Path $PlyrDistDir "plyr.svg"))
+  )
 }
 
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  Write-Host "npm was not found. Reinstall Node.js with npm enabled, then run this launcher again."
-  Pause-OnError
-  exit 1
-}
-
+$NodeCommand = Resolve-NodeCommand
 Stop-ExistingTagVisionServers
 Sync-Dependencies
 
 Write-Host "Starting local server..."
 Set-Content -LiteralPath $LogFile -Value "" -Encoding utf8
 
-$ServerCommand = "node `"$ServerEntry`" > `"$LogFile`" 2>&1"
+$ServerCommand = "`"$NodeCommand`" `"$ServerEntry`" > `"$LogFile`" 2>&1"
 $ServerProcess = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $ServerCommand) -WorkingDirectory $ScriptDir -PassThru -WindowStyle Hidden
 Set-Content -LiteralPath $PidFile -Value $ServerProcess.Id -Encoding utf8
 
 for ($Index = 0; $Index -lt 40; $Index += 1) {
   try {
     Invoke-WebRequest -UseBasicParsing -Uri $TagVisionUrl -TimeoutSec 1 | Out-Null
-    Write-Host "TagVision V0.1 Windows is ready."
+    Write-Host "TagVision V0.5 Windows is ready."
     Write-Host "Server process: $($ServerProcess.Id)"
     Start-Process $TagVisionUrl
     exit 0

@@ -1,17 +1,18 @@
 {
   "name": "tagvision-windows",
-  "description": "TagVision V0.1 Windows local review tool for accepted video tag sidecars",
+  "description": "TagVision V0.5 Windows local review tool for accepted video tag sidecars",
   "private": true,
   "type": "module",
   "scripts": {
     "web": "node apps/web/server.ts",
     "test": "node --test packages/testing/unit/web/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "pack:windows:v0.1": "node scripts/pack-windows.mjs"
+    "pack:windows:v0.5": "node scripts/pack-windows.mjs"
   },
-  "version": "0.1.0",
+  "version": "0.5.0",
   "files": [
     "README.md",
+    "TagVision Windows Manual Terminal Startup.txt",
     "Start TagVision Windows.bat",
     "Start TagVision Windows.ps1",
     "apps/",

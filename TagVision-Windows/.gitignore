@@ -8,6 +8,7 @@ cookies.txt
 tagvision-windows-server.pid
 node_modules
 dist
+.runtime-cache
 .runtime-state
 .runtime-uploads
 .runtime-credentials
