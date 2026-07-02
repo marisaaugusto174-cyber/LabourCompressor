@@ -611,7 +611,6 @@ function openDetail(index) {
   renderAcceptedPathOptions();
   renderAcceptedPaths();
   refs.detailTags.innerHTML = renderDetailTags(item);
-  bindTagEvidenceButtons(item);
   refs.detailPosition.textContent = `${index + 1} / ${currentItems.length}`;
   refs.previousDetail.disabled = index === 0;
   refs.nextDetail.disabled = index === currentItems.length - 1;
@@ -642,36 +641,14 @@ function renderDetailTags(item) {
     </div>
     <div class="review-tag-list">
       ${tags.length === 0 ? '<p>JSON 中没有 tags。</p>' : tags.map((tag, index) => `
-        <button class="review-tag-compact" type="button" data-tag-evidence-index="${index}">
+        <article class="review-tag-compact">
           <strong>${index + 1}. ${escapeHtml((tag.labelPath ?? []).join(' > ') || tag.dimension || '未命名标签')}</strong>
           <span>${escapeHtml(tag.tagRole || '—')} · ${escapeHtml(tag.selectedLevel || '—')} · 置信度 ${escapeHtml(tag.confidenceScore ?? '—')}</span>
-        </button>
+          <span class="review-tag-reason"><span class="review-tag-reason-label">标注理由</span>${escapeHtml(tag.evidenceNote || '—')}</span>
+        </article>
       `).join('')}
     </div>
   `;
-}
-
-function bindTagEvidenceButtons(item) {
-  const tags = item.tagging?.tags ?? [];
-  for (const button of refs.detailTags.querySelectorAll('[data-tag-evidence-index]')) {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.tagEvidenceIndex);
-      const tag = tags[index];
-      if (tag) showTagEvidence(tag, index);
-    });
-  }
-}
-
-function showTagEvidence(tag, index) {
-  refs.tagEvidenceContent.innerHTML = `
-    <p><strong>${index + 1}. ${escapeHtml(tag.dimension || '未命名维度')}</strong></p>
-    <p><span class="status-label">完整路径</span>${escapeHtml((tag.labelPath ?? []).join(' > ') || '—')}</p>
-    <p><span class="status-label">角色／层级</span>${escapeHtml(tag.tagRole || '—')} · ${escapeHtml(tag.selectedLevel || '—')}</p>
-    <p><span class="status-label">证据／置信度</span>${escapeHtml(tag.evidenceType || '—')} · ${escapeHtml(tag.confidenceScore ?? '—')}</p>
-    <p><span class="status-label">证据说明</span>${escapeHtml(tag.evidenceNote || '—')}</p>
-  `;
-  refs.tagEvidenceOverlay.classList.remove('hidden');
-  refs.closeTagEvidence.focus();
 }
 
 function closeTagEvidence() {

@@ -1006,7 +1006,7 @@ button:disabled {
   height: 100%;
   display: block;
   background: #000;
-  object-fit: fill;
+  object-fit: contain;
 }
 
 .review-player .plyr__video-wrapper,
@@ -1020,7 +1020,13 @@ button:disabled {
 .review-player .plyr__video-wrapper video {
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
+}
+
+.review-player .plyr--fullscreen video,
+.review-player .plyr:fullscreen video,
+.review-player video:fullscreen {
+  object-fit: contain;
 }
 
 .review-player .plyr__poster { display: none; }

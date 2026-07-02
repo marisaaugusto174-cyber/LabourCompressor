@@ -258,9 +258,16 @@ test('review detail integrates Plyr and adaptive one-screen layout', () => {
   assert.match(stylesCss, /--review-player-width/u);
   assert.match(stylesCss, /--review-player-height/u);
   assert.match(stylesCss, /--review-player-ratio/u);
-  assert.match(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*fill/su);
+  assert.match(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*contain/su);
   assert.match(stylesCss, /\.review-player\s+\.plyr__poster\s*\{[^}]*display:\s*none/su);
   assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*overflow:\s*auto/su);
+});
+
+test('review player keeps the source aspect ratio when fullscreen', () => {
+  assert.match(stylesCss, /\.review-player\s+\.plyr__video-wrapper\s+video\s*\{[^}]*object-fit:\s*contain/su);
+  assert.match(stylesCss, /\.review-player\s+\.plyr--fullscreen\s+video,\s*\.review-player\s+\.plyr:fullscreen\s+video,\s*\.review-player\s+video:fullscreen\s*\{[^}]*object-fit:\s*contain/su);
+  assert.doesNotMatch(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*fill/su);
+  assert.doesNotMatch(stylesCss, /\.review-player\s+\.plyr__video-wrapper\s+video\s*\{[^}]*object-fit:\s*fill/su);
 });
 
 test('review detail tags show full paths and adapt column count to available panel width', () => {
@@ -271,6 +278,17 @@ test('review detail tags show full paths and adapt column count to available pan
   assert.doesNotMatch(stylesCss, /\.review-tag-compact\s+strong,\s*\.review-tag-compact\s+span\s*\{[^}]*text-overflow:\s*ellipsis/su);
   assert.doesNotMatch(stylesCss, /\.review-tag-list\s*\{[^}]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/su);
   assert.match(stylesCss, /@container\s*\(max-width:\s*620px\)/u);
+});
+
+test('review detail tag cards show evidence notes without opening overlay', () => {
+  assert.match(reviewJs, /class="review-tag-reason"/u);
+  assert.match(reviewJs, /tag\.evidenceNote/u);
+  assert.match(reviewJs, /标注理由/u);
+  assert.doesNotMatch(reviewJs, /data-tag-evidence-index/u);
+  assert.doesNotMatch(reviewJs, /bindTagEvidenceButtons/u);
+  assert.match(stylesCss, /\.review-tag-reason\s*\{[^}]*white-space:\s*normal/su);
+  assert.match(stylesCss, /\.review-tag-reason\s*\{[^}]*overflow-wrap:\s*anywhere/su);
+  assert.doesNotMatch(stylesCss, /\.review-tag-reason\s*\{[^}]*text-overflow:\s*ellipsis/su);
 });
 
 test('review cards use thumbnail images instead of mounting videos', () => {

@@ -1006,7 +1006,7 @@ button:disabled {
   height: 100%;
   display: block;
   background: #000;
-  object-fit: fill;
+  object-fit: contain;
 }
 
 .review-player .plyr__video-wrapper,
@@ -1020,7 +1020,13 @@ button:disabled {
 .review-player .plyr__video-wrapper video {
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
+}
+
+.review-player .plyr--fullscreen video,
+.review-player .plyr:fullscreen video,
+.review-player video:fullscreen {
+  object-fit: contain;
 }
 
 .review-player .plyr__poster { display: none; }
@@ -1150,7 +1156,7 @@ button:disabled {
   display: grid;
   gap: 4px;
   min-width: 0;
-  min-height: 52px;
+  min-height: 72px;
   padding: 7px 9px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: var(--radius-inner);
@@ -1172,6 +1178,28 @@ button:disabled {
 }
 .review-tag-compact strong { font-size: 12px; }
 .review-tag-compact span { color: #64748b; font-size: 11px; }
+
+.review-tag-reason {
+  display: block;
+  margin-top: 2px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.review-tag-reason-label {
+  display: inline;
+  margin-right: 6px;
+  color: #334155;
+  font-weight: 800;
+}
 
 @container (max-width: 620px) {
   .review-tag-list {

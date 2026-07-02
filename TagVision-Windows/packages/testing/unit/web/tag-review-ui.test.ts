@@ -266,9 +266,16 @@ test('review detail integrates Plyr and adaptive one-screen layout', () => {
   assert.match(stylesCss, /--review-player-width/u);
   assert.match(stylesCss, /--review-player-height/u);
   assert.match(stylesCss, /--review-player-ratio/u);
-  assert.match(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*fill/su);
+  assert.match(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*contain/su);
   assert.match(stylesCss, /\.review-player\s+\.plyr__poster\s*\{[^}]*display:\s*none/su);
   assert.match(stylesCss, /\.review-tag-panel\s*\{[^}]*overflow:\s*auto/su);
+});
+
+test('review player keeps the source aspect ratio when fullscreen', () => {
+  assert.match(stylesCss, /\.review-player\s+\.plyr__video-wrapper\s+video\s*\{[^}]*object-fit:\s*contain/su);
+  assert.match(stylesCss, /\.review-player\s+\.plyr--fullscreen\s+video,\s*\.review-player\s+\.plyr:fullscreen\s+video,\s*\.review-player\s+video:fullscreen\s*\{[^}]*object-fit:\s*contain/su);
+  assert.doesNotMatch(stylesCss, /\.review-player\s+video\s*\{[^}]*object-fit:\s*fill/su);
+  assert.doesNotMatch(stylesCss, /\.review-player\s+\.plyr__video-wrapper\s+video\s*\{[^}]*object-fit:\s*fill/su);
 });
 
 test('review detail tags show full paths and adapt column count to available panel width', () => {
