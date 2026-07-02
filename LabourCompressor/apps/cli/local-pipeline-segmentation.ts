@@ -8,7 +8,8 @@ import {
   type CandidateShot,
   type ContinuityAnalyzerPort,
   type SegmentTimeRange,
-  type SegmentationProfileId
+  type SegmentationProfileId,
+  type ShotBoundaryRefinerPort
 } from '../../packages/features/segmentation/domain/index.ts';
 import { type SpreadsheetTaskRow } from '../../packages/features/spreadsheet-tasks/domain/index.ts';
 import {
@@ -19,6 +20,7 @@ import {
 } from './local-pipeline-helpers.ts';
 import { resolveSegmentationDependencies } from './local-pipeline-segmentation-dependencies.ts';
 import { resolveContinuitySegmentation } from './local-pipeline-continuity.ts';
+import { resolveShotBoundaryRefinement } from './local-pipeline-shot-refinement.ts';
 import {
   resolveSegmentationProfileRules,
   type SegmentationProfileRules
@@ -46,6 +48,7 @@ export interface AutoSegmentationDependencies {
     }): Promise<{ readonly outputFilePath: string }>;
   };
   readonly continuityAnalyzer?: ContinuityAnalyzerPort;
+  readonly shotBoundaryRefiner?: ShotBoundaryRefinerPort;
 }
 
 export interface AutoSegmentationStageResult {
@@ -117,7 +120,17 @@ async function segmentAsset(input: {
   try {
     const mediaInfo = await input.dependencies.mediaInfoReader.readMediaInfo(input.asset.filePath);
     const workspacePath = resolveSegmentationWorkspacePath(input.asset.filePath, input.asset.fileName);
-    const shots = await detectNormalizedShots({ input, mediaInfo, workspacePath });
+    const candidateShots = await detectNormalizedShots({ input, mediaInfo, workspacePath });
+    const refinement = await resolveShotBoundaryRefinement({
+      filePath: input.asset.filePath,
+      shots: candidateShots,
+      durationSeconds: mediaInfo.durationSeconds,
+      frameRate: mediaInfo.frameRate,
+      refiner: input.dependencies.shotBoundaryRefiner,
+      diagnosticsDirectoryPath: workspacePath,
+      ...(input.input.signal === undefined ? {} : { signal: input.input.signal })
+    });
+    const shots = refinement.result.shots;
     const continuity = await resolveContinuitySegmentation({
       filePath: input.asset.filePath,
       shots,

@@ -4,6 +4,7 @@ import { createFfmpegSegmentExporter } from '../../packages/adapters/media/ffmpe
 import { createFfprobeMediaInfoReader } from '../../packages/adapters/media/ffprobe-media-info.ts';
 import { createPySceneDetectBoundaryDetector } from '../../packages/adapters/media/pyscenedetect-boundary-detector.ts';
 import { createLocalContinuityAnalyzer } from '../../packages/adapters/media/local-continuity-analyzer.ts';
+import { createLocalShotBoundaryRefiner } from '../../packages/adapters/media/local-shot-boundary-refiner.ts';
 import { type AutoSegmentationDependencies } from './local-pipeline-segmentation.ts';
 import {
   resolveContinuityPythonPath,
@@ -24,6 +25,10 @@ export function resolveSegmentationDependencies(
     continuityAnalyzer: dependencies?.continuityAnalyzer ?? createLocalContinuityAnalyzer({
       pythonPath: resolveContinuityPythonPath(PROJECT_ROOT),
       scriptPath: path.join(PROJECT_ROOT, 'scripts', 'analyze-boundary-continuity.py')
+    }),
+    shotBoundaryRefiner: dependencies?.shotBoundaryRefiner ?? createLocalShotBoundaryRefiner({
+      pythonPath: resolveContinuityPythonPath(PROJECT_ROOT),
+      scriptPath: path.join(PROJECT_ROOT, 'scripts', 'refine-shot-boundaries.py')
     }),
     segmentExporter: dependencies?.segmentExporter ?? createFfmpegSegmentExporter()
   });

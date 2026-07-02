@@ -142,6 +142,102 @@ test('auto segmentation records and uses mechanical fallback when continuity ana
   }
 });
 
+test('auto segmentation sends refined shots to continuity analysis', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-refined-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000042.mp4');
+  let analyzedBoundary = 0;
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    const result = await runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad',
+      startedAt: '2026-05-12T00:00:00.000Z',
+      emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 42, width: 1920, height: 1080, frameRate: 10 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 18 }, { startSeconds: 18, endSeconds: 42 }
+        ]; } },
+        shotBoundaryRefiner: { async refineShots() { return {
+          algorithmVersion: 'test-refiner',
+          shots: [{ startSeconds: 0, endSeconds: 20 }, { startSeconds: 20, endSeconds: 42 }],
+          boundaries: [{ originalSeconds: 18, refinedSeconds: 20, refinedFrame: 200, accepted: true, reason: 'confirmed', metrics: {} }]
+        }; } },
+        continuityAnalyzer: { async analyzeBoundaries(input) {
+          analyzedBoundary = input.shots[0]?.endSeconds ?? 0;
+          return [createContinuityDecision(20, 'strong-continuity')];
+        } },
+        segmentExporter: { async exportSegment(input) {
+          mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
+          writeFileSync(input.outputFilePath, `${input.startSeconds}-${input.endSeconds}`);
+          return { outputFilePath: input.outputFilePath };
+        } }
+      }
+    });
+
+    assert.equal(analyzedBoundary, 20);
+    assert.equal(result.failures.length, 0);
+    const diagnostic = JSON.parse(await readFile(path.join(
+      tempDir, '.segmentation', 'Sample_A_720P_260512_000042', 'boundary-refinement.json'
+    ), 'utf8')) as { fallbackApplied?: boolean; finalShots?: unknown };
+    assert.equal(diagnostic.fallbackApplied, false);
+    assert.deepEqual(diagnostic.finalShots, [{ startSeconds: 0, endSeconds: 20 }, { startSeconds: 20, endSeconds: 42 }]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('auto segmentation falls back to detected shots when boundary refinement fails', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-refine-fallback-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000030.mp4');
+  let analyzedBoundary = 0;
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    const result = await runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad',
+      startedAt: '2026-05-12T00:00:00.000Z',
+      emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 30, width: 1920, height: 1080, frameRate: 10 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 12 }, { startSeconds: 12, endSeconds: 30 }
+        ]; } },
+        shotBoundaryRefiner: { async refineShots() { throw new Error('refiner failed /private/source.mp4'); } },
+        continuityAnalyzer: { async analyzeBoundaries(input) {
+          analyzedBoundary = input.shots[0]?.endSeconds ?? 0;
+          return [createContinuityDecision(12, 'strong-continuity')];
+        } },
+        segmentExporter: { async exportSegment(input) {
+          mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
+          writeFileSync(input.outputFilePath, `${input.startSeconds}-${input.endSeconds}`);
+          return { outputFilePath: input.outputFilePath };
+        } }
+      }
+    });
+
+    assert.equal(analyzedBoundary, 12);
+    assert.equal(result.failures.length, 0);
+    const diagnosticText = await readFile(path.join(
+      tempDir, '.segmentation', 'Sample_A_720P_260512_000030', 'boundary-refinement.json'
+    ), 'utf8');
+    const diagnostic = JSON.parse(diagnosticText) as { fallbackApplied?: boolean; fallbackReason?: string };
+    assert.equal(diagnostic.fallbackApplied, true);
+    assert.equal(diagnostic.fallbackReason, 'boundary-refinement-failed');
+    assert.doesNotMatch(diagnosticText, /private\/source/u);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('auto segmentation propagates cancellation instead of creating a problem clip', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-cancel-'));
   const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000010.mp4');
