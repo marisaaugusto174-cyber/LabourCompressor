@@ -99,13 +99,14 @@ In the Web UI:
 - Web user-sheet tasks create a writable copy and a task cache beside the selected sheet before launch. They are named `<原名>_任务副本_<时间>_<任务ID前8位>` and `<原名>_视频下载缓存_<任务ID前8位>`. The source sheet stays unchanged; downloads, segmentation output, `AfterEdit`, `ProblemClips`, and per-task result sheets use the task cache. The source directory must be writable, and task workspaces remain available after failure or cancellation.
 - Platform download flow based on `yt-dlp` and `ffmpeg`, with platform-level credential references.
 - Xiaohongshu single-video notes use `yt-dlp` first and automatically fall back to local note-page parsing when the extractor returns no formats.
-- Continuity-first automatic segmentation before tagging: PySceneDetect proposes shots, then local visual, motion, and audio algorithms assemble `5-60s` ranges with `5-30s` preferred. No AI model or OCR participates in segmentation.
+- Continuity-first automatic segmentation before tagging: PySceneDetect proposes candidate shots, local OpenCV refinement moves confirmed cut points to frame-level peaks and filters false brightness/motion boundaries, then visual, motion, and audio algorithms assemble `5-60s` ranges with `5-30s` preferred. No AI model or OCR participates in segmentation.
 - Effective-content coverage target is about `80%`; pure heads/tails, blank screens, posters, and small cutting loss are acceptable.
 - Original downloaded full videos remain in the download cache, but only accepted segmented clips enter tagging and archive.
 - `AfterEdit` receives generated clips such as `原名_720P_260512_000023_01.mp4`.
 - `ProblemClips` receives exceptional clips, with problem categories limited to `无法满足 5-60s`, `导出失败`, and `检测结果异常`.
 - Strongly continuous `30-60s` groups remain intact. Segments over `60s` prefer the weakest detected boundary and use mathematical splitting only when no internal boundary exists.
-- Continuity analysis failures use a mechanical scene-and-duration fallback and write a compact `.segmentation/<asset>/continuity.json` diagnostic without frames, audio, credentials, or media payloads.
+- Boundary refinement failures fall back to detected scene boundaries and write `.segmentation/<asset>/boundary-refinement.json`; continuity analysis failures use a mechanical scene-and-duration fallback and write `.segmentation/<asset>/continuity.json`. Diagnostics do not store frames, audio, credentials, or media payloads.
+- Final automatic segmentation export uses precise local H.264/AAC re-encoding. A half-frame end guard applies only to non-final assembled clips, so computed ranges and atomic boundaries remain unchanged while exported files avoid boundary residue.
 - V0.2 manual `AfterEdit` flow remains available by disabling automatic segmentation.
 - Native video-level multimodal tagging with Qwen and Gemini provider profiles.
 - Standardized video tagging cache before model delivery: `360p`, original frame rate, `650 kbps` video, `AAC 64 kbps` audio, hash-based reuse.
