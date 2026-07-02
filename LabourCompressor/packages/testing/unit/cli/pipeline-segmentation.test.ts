@@ -238,6 +238,63 @@ test('auto segmentation falls back to detected shots when boundary refinement fa
   }
 });
 
+test('auto segmentation applies half-frame guard only to non-final accepted clips', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-guard-'));
+  const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000042.mp4');
+  const writes: {
+    startSeconds: number;
+    endSeconds: number;
+    mode?: string | undefined;
+    endGuardSeconds?: number | undefined;
+  }[] = [];
+
+  try {
+    writeFileSync(sourcePath, 'source-video', 'utf8');
+    const result = await runAutoSegmentationStage({
+      downloadedAssets: [createAsset({ sourcePath })],
+      rowByTaskId: new Map([['task-1', createRow()]]),
+      afterEditDirectoryPath: path.join(tempDir, 'AfterEdit'),
+      problemClipsDirectoryPath: path.join(tempDir, 'ProblemClips'),
+      profileId: 'standard_ad',
+      startedAt: '2026-05-12T00:00:00.000Z',
+      emit: () => undefined,
+      dependencies: {
+        mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 42, width: 1920, height: 1080, frameRate: 10 }; } },
+        boundaryDetector: { async detectShots() { return [
+          { startSeconds: 0, endSeconds: 18 }, { startSeconds: 18, endSeconds: 42 }
+        ]; } },
+        shotBoundaryRefiner: { async refineShots(input) { return {
+          algorithmVersion: 'test-refiner',
+          shots: input.shots,
+          boundaries: []
+        }; } },
+        continuityAnalyzer: { async analyzeBoundaries() {
+          return [createContinuityDecision(18, 'strong-boundary')];
+        } },
+        segmentExporter: { async exportSegment(input) {
+          writes.push({
+            startSeconds: input.startSeconds,
+            endSeconds: input.endSeconds,
+            mode: input.mode,
+            endGuardSeconds: input.endGuardSeconds
+          });
+          mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
+          writeFileSync(input.outputFilePath, 'clip');
+          return { outputFilePath: input.outputFilePath };
+        } }
+      }
+    });
+
+    assert.equal(result.segmentedAssets.length, 2);
+    assert.deepEqual(writes, [
+      { startSeconds: 0, endSeconds: 18, mode: 'precise-reencode', endGuardSeconds: 0.05 },
+      { startSeconds: 18, endSeconds: 42, mode: 'precise-reencode', endGuardSeconds: undefined }
+    ]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('auto segmentation propagates cancellation instead of creating a problem clip', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-cancel-'));
   const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000010.mp4');
@@ -347,6 +404,7 @@ test('auto segmentation routes invalid detection to problem clips', async () => 
 test('auto segmentation reports the 5-60 second hard duration rule', async () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), 'labour-compressor-short-'));
   const sourcePath = path.join(tempDir, 'Sample_A_720P_260512_000004.mp4');
+  const writes: { endGuardSeconds?: number | undefined }[] = [];
 
   try {
     writeFileSync(sourcePath, 'source-video', 'utf8');
@@ -360,6 +418,7 @@ test('auto segmentation reports the 5-60 second hard duration rule', async () =>
         mediaInfoReader: { async readMediaInfo() { return { durationSeconds: 4, width: 1920, height: 1080 }; } },
         boundaryDetector: { async detectShots() { return []; } },
         segmentExporter: { async exportSegment(input) {
+          writes.push({ endGuardSeconds: input.endGuardSeconds });
           mkdirSync(path.dirname(input.outputFilePath), { recursive: true });
           writeFileSync(input.outputFilePath, 'problem');
           return { outputFilePath: input.outputFilePath };
@@ -369,6 +428,7 @@ test('auto segmentation reports the 5-60 second hard duration rule', async () =>
 
     assert.equal(result.failures[0]?.errorCode, 'duration-rule-unsatisfied');
     assert.match(result.postEditEntries[0]?.failureMessage ?? '', /^无法满足 5-60s/u);
+    assert.deepEqual(writes, [{ endGuardSeconds: undefined }]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

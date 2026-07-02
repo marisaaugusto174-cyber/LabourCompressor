@@ -25,6 +25,7 @@ import {
   resolveSegmentationProfileRules,
   type SegmentationProfileRules
 } from './segmentation-profiles.ts';
+import { createProblemFailureMessage } from './local-pipeline-segmentation-failures.ts';
 import { type RunLocalPipelineFailure } from './pipeline-result.ts';
 import { type CliStageEvent } from './status-reporter.ts';
 
@@ -45,6 +46,8 @@ export interface AutoSegmentationDependencies {
       readonly outputFilePath: string;
       readonly startSeconds: number;
       readonly endSeconds: number;
+      readonly mode?: 'precise-reencode' | 'stream-copy' | undefined;
+      readonly endGuardSeconds?: number | undefined;
     }): Promise<{ readonly outputFilePath: string }>;
   };
   readonly continuityAnalyzer?: ContinuityAnalyzerPort;
@@ -152,7 +155,7 @@ async function segmentAsset(input: {
     }
     const { governed } = continuity;
 
-    await exportAcceptedSegments({ input, row, segments: governed.accepted });
+    await exportAcceptedSegments({ input, row, segments: governed.accepted, frameRate: mediaInfo.frameRate });
     await exportProblemSegments({ input, row, segments: governed.problems.map((problem) => problem.segment) });
     pushSourceState({ input, row, hasProblems: governed.problems.length > 0 });
     input.input.emit('segmentation-item', 'succeeded', `${input.asset.fileName}: ${governed.accepted.length} clip(s)`);
@@ -171,7 +174,7 @@ async function detectNormalizedShots(input: {
   readonly input: Parameters<typeof segmentAsset>[0];
   readonly mediaInfo: MediaInfoProbeResult;
   readonly workspacePath: string;
-}): Promise<readonly SegmentTimeRange[]> {
+}): Promise<readonly CandidateShot[]> {
   const shots = await input.input.dependencies.boundaryDetector.detectShots({
     inputFilePath: input.input.asset.filePath,
     outputDirectoryPath: input.workspacePath,
@@ -185,7 +188,9 @@ async function detectNormalizedShots(input: {
   validateDetectedShots(shots, input.mediaInfo.durationSeconds);
   return Object.freeze(shots.map((shot) => Object.freeze({
     startSeconds: shot.startSeconds,
-    endSeconds: Math.min(shot.endSeconds, input.mediaInfo.durationSeconds)
+    endSeconds: Math.min(shot.endSeconds, input.mediaInfo.durationSeconds),
+    ...(shot.startFrame === undefined ? {} : { startFrame: shot.startFrame }),
+    ...(shot.endFrame === undefined ? {} : { endFrame: shot.endFrame })
   })));
 }
 
@@ -201,6 +206,7 @@ async function exportAcceptedSegments(input: {
   readonly input: Parameters<typeof segmentAsset>[0];
   readonly row: SpreadsheetTaskRow;
   readonly segments: readonly (SegmentTimeRange & { readonly forced?: boolean })[];
+  readonly frameRate: number;
 }): Promise<void> {
   for (const [segmentOffset, segment] of input.segments.entries()) {
     input.input.input.signal?.throwIfAborted();
@@ -217,7 +223,9 @@ async function exportAcceptedSegments(input: {
         inputFilePath: input.input.asset.filePath,
         outputFilePath,
         startSeconds: segment.startSeconds,
-        endSeconds: segment.endSeconds
+        endSeconds: segment.endSeconds,
+        mode: 'precise-reencode',
+        ...readEndGuard(input, segmentOffset)
       });
       input.input.state.segmentedAssets.push(createSegmentedAsset({
         asset: input.input.asset,
@@ -249,6 +257,15 @@ async function exportAcceptedSegments(input: {
       });
     }
   }
+}
+
+function readEndGuard(
+  input: Parameters<typeof exportAcceptedSegments>[0],
+  segmentOffset: number
+): { readonly endGuardSeconds?: number | undefined } {
+  if (segmentOffset >= input.segments.length - 1) return {};
+  if (!Number.isFinite(input.frameRate) || input.frameRate <= 0) return {};
+  return { endGuardSeconds: 0.5 / input.frameRate };
 }
 
 async function exportProblemSegments(input: {
@@ -466,27 +483,6 @@ function buildProblemFileName(sourceFileName: string, problemIndex: number): str
 
 function createSyntheticRowNumber(rowNumber: number, segmentIndex: number): number {
   return rowNumber * 10000 + segmentIndex;
-}
-
-function createProblemFailureMessage(
-  errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid',
-  error: unknown
-): string {
-  const category = humanizeProblemCategory(errorCode);
-  const detail = error instanceof Error ? error.message : '';
-  return detail.length === 0 ? category : `${category}：${detail}`;
-}
-
-function humanizeProblemCategory(
-  errorCode: 'duration-rule-unsatisfied' | 'export-failed' | 'detection-result-invalid'
-): string {
-  if (errorCode === 'duration-rule-unsatisfied') {
-    return '无法满足 5-60s';
-  }
-  if (errorCode === 'export-failed') {
-    return '导出失败';
-  }
-  return '检测结果异常';
 }
 
 function toPortableRelativePath(rootPath: string, filePath: string): string {
