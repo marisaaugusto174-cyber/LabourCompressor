@@ -3,6 +3,7 @@
 ## Status
 
 - Project: `LabourCompressor`
+- Product Version: `v0.5.1`
 - Collaboration Model: single-agent or multi-agent, capability-dependent
 - Partition Strategy: feature and contract boundaries
 - Required Discipline: minimum context, tests before implementation, evidence before handoff
@@ -278,7 +279,7 @@ QA 可以指出业务规则矛盾，但不得修改业务规则来迎合测试�
 
 ### Tagging -> Archive
 
-交付正式标签记录、唯一 `内容题材`、DecisionFingerprint 和被拒绝候选摘要；禁止交付模型思维链。
+交付正式标签记录、唯一合法 `核心动作/主动作` 归档路径、DecisionFingerprint 和被拒绝候选摘要；禁止交付模型思维链。
 
 ### Archive -> Retrieval
 

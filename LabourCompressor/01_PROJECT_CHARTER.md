@@ -3,7 +3,7 @@
 ## Status
 
 - Project: `LabourCompressor`
-- Product Version: `v0.5`
+- Product Version: `v0.5.1`
 - Runtime: `Node.js 22+`
 - Product Shape: local-first, single-user media workflow
 - Architecture Direction: hexagonal boundaries with explicit composition roots
@@ -49,9 +49,9 @@
 
 ---
 
-## V0.5 Product Goal
+## V0.5.1 Product Goal
 
-V0.5 默认主线由 Web UI 驱动：
+V0.5.1 默认主线由 Web UI 驱动：
 
 1. 配置模型与平台凭证。
 2. 导入表格并执行 Preflight。
@@ -64,7 +64,7 @@ V0.5 默认主线由 Web UI 驱动：
 
 V0.2 人工 `AfterEdit` 只作为高级兼容路径：关闭自动分割并启用人工剪辑闸门后，系统才在下载后暂停。
 
-V0.5 不包含：
+V0.5.1 不包含：
 
 - 云端账号、多租户或多人权限
 - 远程素材传输
@@ -86,7 +86,7 @@ V0.5 不包含：
 - `TikTok`
 - `小红书`
 
-小红书 V0.5 只支持：
+小红书 V0.5.1 只支持：
 
 - `/explore/<note-id>`
 - `/discovery/item/<note-id>`
@@ -199,7 +199,7 @@ shared -> no business rules
 
 ## Acceptance Standard
 
-V0.5 验收要求：
+V0.5.1 验收要求：
 
 - Web UI 能驱动完整主线，Preflight 失败不创建任务。
 - 自动分割默认生效，人工剪辑只在兼容模式暂停。

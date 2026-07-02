@@ -22,7 +22,7 @@ const css = readFileSync(
   'utf8'
 );
 
-test('v0.5 web ui exposes full pipeline as primary entry and keeps stage buttons advanced', () => {
+test('v0.5.1 web ui exposes full pipeline as primary entry and keeps stage buttons advanced', () => {
   for (const stage of ['download', 'segment', 'compress', 'tag', 'archive']) {
     assert.equal(
       html.includes(`data-pipeline-stage="${stage}"`),

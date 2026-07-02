@@ -1,6 +1,6 @@
 # LabourCompressor
 
-LabourCompressor is a local-first video collection, tagging, and archive workflow for short video datasets. V0.5 provides a simplified mainline and an advanced workspace for spreadsheet or local-media intake, automatic segmentation, native video tagging, review, writeback, and archive.
+LabourCompressor is a local-first video collection, tagging, and archive workflow for short video datasets. V0.5.1 provides a simplified mainline and an advanced workspace for spreadsheet or local-media intake, automatic segmentation, native video tagging, review, writeback, and archive.
 
 This repository is currently prepared for private GitHub hosting. Do not commit real API keys, cookies, downloaded videos, user spreadsheets, runtime state, or local cache files.
 
@@ -91,7 +91,7 @@ In the Web UI:
 
 模型 API key 和必要平台 cookies 由用户首次启动后在 Web UI 填入，不随包分发。Do not commit `*.local.json`, cookies, videos, spreadsheets, cache files, or runtime state.
 
-## V0.5 Capabilities
+## V0.5.1 Capabilities
 
 - Local Web UI for selecting task inputs, running preflight, starting jobs, and viewing task state.
 - Spreadsheet-driven workflow with `xlsx` as the complete standard format. `Numbers` files keep 读取兼容, while intermediate tables, writeback, and archive records remain `xlsx`.
@@ -161,7 +161,7 @@ Use template files as structure references only. Real credential files are inten
 - Fill only the providers and platforms you need for local testing.
 - Keep real `apiKey`, cookies, browser sessions, and OAuth values out of commits and screenshots.
 
-Curated V0.5 video model profiles:
+Curated V0.5.1 video model profiles:
 
 - `Qwen3.7Plus` -> `qwen3.7-plus`
 - `Qwen3.6Flash` -> `qwen3.6-flash`
@@ -209,20 +209,20 @@ The following must remain local-only:
 
 The repository includes `.gitignore` entries for these local artifacts. Always inspect staged files before committing.
 
-## Known V0.5 Limits
+## Known V0.5.1 Limits
 
 - This is a local single-user workflow, not a cloud service.
 - The system does not perform automatic browser login or guarantee bypassing platform risk controls.
 - Download success depends on platform policy, account state, cookies freshness, `yt-dlp` support, and local network conditions.
-- Xiaohongshu image notes, profile feeds, short links, and multi-note collection are outside the V0.5 download scope.
-- Automatic segmentation is rule-based in V0.5; it does not yet perform full semantic story analysis.
+- Xiaohongshu image notes, profile feeds, short links, and multi-note collection are outside the V0.5.1 download scope.
+- Automatic segmentation is rule-based in V0.5.1; it does not yet perform full semantic story analysis.
 - `Numbers` support is compatibility-oriented and does not guarantee local file hyperlinks or automatic styling.
 - Model quality, speed, and rate limits vary by provider account, quota, and selected model.
-- OpenAI GPT models are not included in the V0.5 video model candidate pool because this workflow requires native video input.
+- OpenAI GPT models are not included in the V0.5.1 video model candidate pool because this workflow requires native video input.
 
 ## Release Baseline
 
-V0.5 release notes are stored in `docs/release/V0.5_RELEASE_NOTES.md`.
+V0.5.1 release notes are stored in `docs/release/V0.5.1_RELEASE_NOTES.md`.
 V0.3 release notes remain stored in `docs/release/V0.3_RELEASE_NOTES.md`.
 V0.2 release notes remain stored in `docs/release/V0.2_RELEASE_NOTES.md`.
 

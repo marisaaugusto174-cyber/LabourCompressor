@@ -3,7 +3,7 @@
 ## Status
 
 - Project: `LabourCompressor`
-- Product Version: `v0.5`
+- Product Version: `v0.5.1`
 - Current Priority: governance program completed; maintain gates
 - Completed Gates: Phase 0, GOV-001, GOV-002, GOV-003, GOV-004, GOV-005, GOV-006
 - Planning Rule: current facts first, incremental gates, no hidden debt

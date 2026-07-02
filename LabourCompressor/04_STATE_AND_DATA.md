@@ -3,7 +3,7 @@
 ## Status
 
 - Project: `LabourCompressor`
-- Product Version: `v0.5`
+- Product Version: `v0.5.1`
 - Current Persistence: JSON-default storage port + optional SQLite + filesystem + xlsx
 - Storage Selection: `LABOUR_COMPRESSOR_TASK_STORE=json|sqlite`
 - Primary Goal: state discipline and sensitive-data containment
@@ -124,7 +124,7 @@ Web 任务控制可以出现 `pausing`、`paused`、`cancelling` 等控制态；
 
 ---
 
-## V0.5 Workflow State
+## V0.5.1 Workflow State
 
 默认自动分割路径：
 

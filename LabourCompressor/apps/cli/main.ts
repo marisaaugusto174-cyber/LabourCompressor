@@ -302,7 +302,7 @@ function printUsage(): void {
       'Usage:',
       '  node apps/cli/main.ts serve-web-ui',
       '  node apps/cli/main.ts run-local-pipeline --spreadsheet <path> --download-dir <path> [--taxonomy <path> | --taxonomy-preset core-v0.1|full-v0.2|core-v0.3-drama] [--prompt-library <path>] --archive-root <path> [--download-fixtures <path>] [--candidate-fixtures <path>] [--downloader-mode simulated|yt-dlp] [--merge-mode local|ffmpeg] [--tagging-mode simulated|qwen] [--provider-config <path>] [--selected-model-profile-id <id>] [--manual-edit-gate true|false] [--after-edit-directory-name <name>] [--auto-segmentation] [--segmentation-profile standard_ad|fast_cut|conservative] [--problem-clips-directory-name <name>]',
-      '  V0.5 staged mode: add --pipeline-stage download|segment|compress|tag|archive|all',
+      '  V0.5.1 staged mode: add --pipeline-stage download|segment|compress|tag|archive|all',
       '    Optional writeback: [--writeback-target user|master|both] [--master-spreadsheet <path>]',
       '  node apps/cli/main.ts list-taxonomy-presets',
       '  node apps/cli/main.ts list-model-options',

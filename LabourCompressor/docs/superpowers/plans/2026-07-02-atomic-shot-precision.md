@@ -52,7 +52,7 @@ media info
 
 - `.segmentation/<asset>/boundary-refinement.json` 保存算法版本、阈值、原始候选、精修结果、过滤原因和 fallback 状态。
 - 不保存抽取帧、PCM、视频片段、凭证或完整媒体内容。
-- 更新 README、V0.5 release notes 和分割计划说明。
+- 更新 README、V0.5.1 release notes 和分割计划说明。
 
 ## Public Interfaces
 

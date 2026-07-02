@@ -3,7 +3,7 @@
 ## Status
 
 - Project: `LabourCompressor`
-- Product Version: `v0.5`
+- Product Version: `v0.5.1`
 - Enforcement Model: current gates + ratcheted legacy debt
 - Primary Goal: stability first
 - Secondary Goal: safety first
@@ -14,7 +14,7 @@
 
 ## Product Non-Negotiables
 
-V0.5 默认主线必须由 Web UI 驱动：
+V0.5.1 默认主线必须由 Web UI 驱动：
 
 ```text
 表格 -> Preflight -> 下载 -> 自动分割 -> 片段级视频打标 -> 回表 -> 归档
@@ -22,7 +22,7 @@ V0.5 默认主线必须由 Web UI 驱动：
 
 禁止：
 
-- 用 CLI-only 流程冒充 V0.5 主线。
+- 用 CLI-only 流程冒充 V0.5.1 主线。
 - 默认把完整原片直接送入打标。
 - 用抽帧图片理解静默替代正式视频理解。
 - 跳过 taxonomy 合法化直接回表或归档。
@@ -224,7 +224,7 @@ npm run typecheck
 - 下载格式、媒体 URL 和模型输出首先是 Candidate。
 - 正式标签必须经过 schema 和 taxonomy 校验。
 - 回表保留所有正式分支。
-- 归档只消费唯一 `内容题材`。
+- 新 V0.3 任务归档只消费唯一合法 `核心动作/主动作`；V0.1、V0.2 和已持久化历史显式内容路径继续兼容。
 - 无法确定唯一归档路径时停在失败或待处理状态。
 - 训练级或对外交付数据必须具备 DecisionFingerprint 和 QA 放行。
 

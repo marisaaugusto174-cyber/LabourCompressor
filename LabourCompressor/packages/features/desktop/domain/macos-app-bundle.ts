@@ -92,9 +92,9 @@ function createInfoPlist(appName: string): string {
   <key>CFBundleIdentifier</key>
   <string>local.labour-compressor.launcher</string>
   <key>CFBundleVersion</key>
-  <string>0.5</string>
+  <string>0.5.1</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.5</string>
+  <string>0.5.1</string>
   <key>CFBundleExecutable</key>
   <string>labour-compressor</string>
   <key>LSMinimumSystemVersion</key>

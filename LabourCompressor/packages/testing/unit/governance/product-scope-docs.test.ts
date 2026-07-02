@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const PROJECT_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
-test('README and PRD align on V0.5 model pool and spreadsheet scope', async () => {
+test('README and PRD align on V0.5.1 model pool and spreadsheet scope', async () => {
   const readme = await readProjectFile('README.md');
   const prd = await readProjectFile('PRD.md');
 
@@ -20,11 +20,11 @@ test('README and PRD align on V0.5 model pool and spreadsheet scope', async () =
   }
 });
 
-test('PRD makes automatic segmentation the V0.5 acceptance path', async () => {
+test('PRD makes automatic segmentation the V0.5.1 acceptance path', async () => {
   const prd = await readProjectFile('PRD.md');
 
-  assert.match(prd, /当前版本：`v0\.5`/u);
-  assert.match(prd, /下载 -> 自动分割 -> 片段级打标 -> 回表归档/u);
+  assert.match(prd, /当前版本：`v0\.5\.1`/u);
+  assert.match(prd, /下载 -> 自动分割 -> 片段级视频打标 -> 回表归档/u);
   assert.doesNotMatch(prd, /V0\.2 的验收链路固定为/u);
 });
 
