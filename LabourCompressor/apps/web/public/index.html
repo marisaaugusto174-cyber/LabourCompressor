@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Labour Compressor</title>
-    <link rel="stylesheet" href="/styles.css?v=20260628a" />
+    <link rel="stylesheet" href="/styles.css?v=20260702-visual2" />
   </head>
   <body>
     <main class="page">
@@ -14,9 +14,24 @@
           <span class="build-version">V0.5</span>
         </div>
         <div class="header-chip-list">
-          <a class="chip" href="/review.html">打标质检</a>
+          <button
+            id="launch-tagvision"
+            class="chip tagvision-launch-chip"
+            type="button"
+            aria-describedby="tagvision-launch-status"
+          >
+            打标质检
+          </button>
         </div>
       </header>
+
+      <section
+        id="tagvision-launch-status"
+        class="tagvision-launch-status"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></section>
 
       <section id="file-protocol-warning" class="panel warning hidden">
         <h2>请通过本地服务打开</h2>

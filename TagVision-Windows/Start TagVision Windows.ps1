@@ -13,7 +13,7 @@ $ServerEntry = Join-Path $ScriptDir "apps\web\server.ts"
 $BundledNode = Join-Path $ScriptDir "runtime\node\node.exe"
 $BundledNpm = Join-Path $ScriptDir "runtime\node\npm.cmd"
 
-Write-Host "Starting TagVision V0.5 Windows from: $ScriptDir"
+Write-Host "Starting TagVision V0.5.1 Windows from: $ScriptDir"
 Write-Host "TagVision URL: $TagVisionUrl"
 Write-Host "Launcher log: $LogFile"
 Write-Host "Launcher error log: $ErrorLogFile"
@@ -206,7 +206,7 @@ function Resolve-NpmCommand {
 }
 
 function Sync-Dependencies {
-  Write-Host "Syncing TagVision V0.5 Windows dependencies..."
+  Write-Host "Syncing TagVision V0.5.1 Windows dependencies..."
 
   if (Test-DependenciesReady) {
     Write-Host "Using bundled TagVision dependencies."
@@ -252,7 +252,7 @@ Set-Content -LiteralPath $PidFile -Value $ServerProcess.Id -Encoding utf8
 for ($Index = 0; $Index -lt 40; $Index += 1) {
   try {
     Invoke-WebRequest -UseBasicParsing -Uri $TagVisionUrl -TimeoutSec 1 | Out-Null
-    Write-Host "TagVision V0.5 Windows is ready."
+    Write-Host "TagVision V0.5.1 Windows is ready."
     Write-Host "Server process: $($ServerProcess.Id)"
     Start-Process $TagVisionUrl
     exit 0

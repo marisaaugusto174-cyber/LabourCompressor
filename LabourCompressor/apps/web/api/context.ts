@@ -1,4 +1,5 @@
 import { type createRuntimeTaskService } from '../task-service.ts';
+import { type TagVisionLauncher } from '../tagvision-launcher.ts';
 
 export interface WebApiContext {
   readonly webHost: string;
@@ -10,4 +11,5 @@ export interface WebApiContext {
   readonly defaultCacheRoot: string;
   readonly uploadsDir: string;
   readonly taskService: ReturnType<typeof createRuntimeTaskService>;
+  readonly tagVisionLauncher: TagVisionLauncher;
 }

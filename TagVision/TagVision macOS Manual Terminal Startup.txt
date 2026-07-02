@@ -5,8 +5,8 @@ TagVision macOS 手动终端启动方式
 
 手动方式：
 1. 确认 macOS 已安装 Node.js，并且 npm 可用。
-2. 解压 TagVision-macOS-V0.5.zip。
-3. 在解压后的 TagVision-macOS-V0.5 文件夹中打开终端。
+2. 解压 TagVision-macOS-V0.5.1.zip。
+3. 在解压后的 TagVision-macOS-V0.5.1 文件夹中打开终端。
 4. 如果 node_modules 文件夹不存在，先运行：
    npm install
 5. 启动本地服务：

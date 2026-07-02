@@ -10,6 +10,7 @@ import {
 import { projectPath } from '../cli/project-paths.ts';
 import { dispatchWebRoute } from './api/routes/index.ts';
 import { createConfiguredRuntimeTaskService } from './task-service.ts';
+import { createTagVisionLauncher } from './tagvision-launcher.ts';
 import {
   ensureDouyinCredentialFallback,
   ensureDefaultMasterSpreadsheet,
@@ -35,6 +36,7 @@ const taskService = await createConfiguredRuntimeTaskService({
   prepareOptions: prepareUserSpreadsheetWorkingCopy,
   isPreparationConflict: (error) => error instanceof WorkingCopyNameConflictError
 });
+const tagVisionLauncher = createTagVisionLauncher();
 
 await ensureFirstRunLocalState({
   providerTemplatePath: DEFAULT_PROVIDER_TEMPLATE_PATH,
@@ -67,7 +69,8 @@ const server = createServer(async (request, response) => {
         defaultPlatformCredentialConfig: DEFAULT_PLATFORM_CREDENTIAL_CONFIG,
         defaultCacheRoot: DEFAULT_CACHE_ROOT,
         uploadsDir: UPLOADS_DIR,
-        taskService
+        taskService,
+        tagVisionLauncher
       }
     });
   } catch (error) {

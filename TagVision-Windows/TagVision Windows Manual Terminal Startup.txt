@@ -3,12 +3,12 @@ TagVision Windows 手动终端启动方式
 推荐方式：
 双击「Start TagVision Windows.bat」。
 
-正常分发包不需要预先安装 Node.js。TagVision Windows V0.5 已内置 portable Node.js，启动器会优先使用：
+正常分发包不需要预先安装 Node.js。TagVision Windows V0.5.1 已内置 portable Node.js，启动器会优先使用：
 runtime\node\node.exe
 
 手动方式：
-1. 解压 TagVision-Windows-V0.5.zip。
-2. 在解压后的 TagVision-Windows-V0.5 文件夹空白处右键，选择“在终端中打开”或“Open in Terminal”。
+1. 解压 TagVision-Windows-V0.5.1.zip。
+2. 在解压后的 TagVision-Windows-V0.5.1 文件夹空白处右键，选择“在终端中打开”或“Open in Terminal”。
 3. 如果 node_modules 文件夹不存在，先运行：
    npm install
 4. 启动本地服务：

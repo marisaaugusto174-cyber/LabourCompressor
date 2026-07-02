@@ -176,7 +176,7 @@ test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('Labour Compressor'), false);
 
   for (const removedText of [
-    'TagVision V0.5 Windows',
+    'TagVision V0.5.1 Windows',
     '本地审核入口：扫描片段视频',
     'Local sidecar JSON',
     'Manual accepted result',
@@ -187,17 +187,17 @@ test('main web ui links to the tag review page', () => {
   }
 });
 
-test('release metadata names the local tool as TagVision V0.5 Windows', () => {
+test('release metadata names the local tool as TagVision V0.5.1 Windows', () => {
   assert.equal(packageJson.name, 'tagvision-windows');
-  assert.equal(packageJson.version, '0.5.0');
-  assert.match(packageJson.description ?? '', /TagVision V0\.5 Windows/u);
-  assert.equal(packageJson.scripts?.['pack:windows:v0.5'], 'node scripts/pack-windows.mjs');
+  assert.equal(packageJson.version, '0.5.1');
+  assert.match(packageJson.description ?? '', /TagVision V0\.5\.1 Windows/u);
+  assert.equal(packageJson.scripts?.['pack:windows:v0.5.1'], 'node scripts/pack-windows.mjs');
   assert.equal(packageJson.files?.includes('apps/'), true);
   assert.equal(packageJson.files?.includes('Start TagVision Windows.bat'), true);
   assert.equal(packageJson.files?.includes('Start TagVision Windows.ps1'), true);
   assert.equal(reviewHtml.includes('TagVision'), true);
-  assert.equal(reviewHtml.includes('TagVision V0.5 Windows'), false);
-  assert.equal(reviewHtml.includes('Release: TagVision V0.5 Windows'), false);
+  assert.equal(reviewHtml.includes('TagVision V0.5.1 Windows'), false);
+  assert.equal(reviewHtml.includes('Release: TagVision V0.5.1 Windows'), false);
 });
 
 test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {
@@ -288,6 +288,17 @@ test('review detail tags show full paths and adapt column count to available pan
   assert.match(stylesCss, /@container\s*\(max-width:\s*620px\)/u);
 });
 
+test('review detail tag cards show evidence notes without opening overlay', () => {
+  assert.match(reviewJs, /class="review-tag-reason"/u);
+  assert.match(reviewJs, /tag\.evidenceNote/u);
+  assert.match(reviewJs, /标注理由/u);
+  assert.doesNotMatch(reviewJs, /data-tag-evidence-index/u);
+  assert.doesNotMatch(reviewJs, /bindTagEvidenceButtons/u);
+  assert.match(stylesCss, /\.review-tag-reason\s*\{[^}]*white-space:\s*normal/su);
+  assert.match(stylesCss, /\.review-tag-reason\s*\{[^}]*overflow-wrap:\s*anywhere/su);
+  assert.doesNotMatch(stylesCss, /\.review-tag-reason\s*\{[^}]*text-overflow:\s*ellipsis/su);
+});
+
 test('review cards use thumbnail images instead of mounting videos', () => {
   assert.match(reviewJs, /function thumbnailUrl/u);
   assert.match(reviewJs, /\/api\/tag-review\/thumbnail/u);
@@ -319,7 +330,7 @@ test('windows launcher starts TagVision from its own directory and opens review 
   assert.match(powershellLauncherScript, /TAGVISION_WEB_HOST/u);
   assert.match(powershellLauncherScript, /TAGVISION_WEB_PORT/u);
   assert.match(powershellLauncherScript, /Invoke-WebRequest -UseBasicParsing -Uri \$TagVisionUrl/u);
-  assert.match(powershellLauncherScript, /TagVision V0\.5 Windows is ready/u);
+  assert.match(powershellLauncherScript, /TagVision V0\.5\.1 Windows is ready/u);
   assert.match(powershellLauncherScript, /Start-Process \$TagVisionUrl/u);
   assert.match(powershellLauncherScript, /tagvision-windows-launcher\.error\.log/u);
   assert.match(powershellLauncherScript, /function Show-ServerLogs/u);
@@ -357,10 +368,10 @@ test('windows distribution includes one-click and manual terminal startup assets
   assert.match(manualStartGuide, /不需要预先安装 Node\.js/u);
   assert.match(manualStartGuide, /npm run web/u);
   assert.match(manualStartGuide, /http:\/\/127\.0\.0\.1:4312\/review\.html/u);
-  assert.match(manualStartGuide, /TagVision-Windows-V0\.5\.zip/u);
+  assert.match(manualStartGuide, /TagVision-Windows-V0\.5\.1\.zip/u);
   assert.equal(packageJson.files?.includes('TagVision Windows Manual Terminal Startup.txt'), true);
   assert.match(packWindowsMjs, /'TagVision Windows Manual Terminal Startup\.txt'/u);
-  assert.match(packWindowsMjs, /TagVision-Windows-V0\.5/u);
+  assert.match(packWindowsMjs, /TagVision-Windows-V0\.5\.1/u);
   assert.match(packWindowsMjs, /installProductionDependencies/u);
   assert.match(packWindowsMjs, /NODE_VERSION = '24\.18\.0'/u);
   assert.match(packWindowsMjs, /downloadPortableNodeRuntime/u);

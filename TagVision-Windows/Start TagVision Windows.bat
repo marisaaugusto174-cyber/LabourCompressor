@@ -6,7 +6,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Start TagVision
 
 if errorlevel 1 (
   echo.
-  echo TagVision V0.5 Windows launcher failed.
+  echo TagVision V0.5.1 Windows launcher failed.
   pause
   exit /b %errorlevel%
 )

@@ -8,7 +8,7 @@ import { handlePlatformCredentialRoutes } from './platform-credentials.ts';
 import { handleProviderConfigRoutes } from './provider-config.ts';
 import { handleReviewQueueRoutes } from './review-queue.ts';
 import { handleStaticRoutes } from './static.ts';
-import { handleTagReviewRoutes } from './tag-review.ts';
+import { handleTagVisionLaunchRoutes } from './tagvision-launch.ts';
 import { handleTaxonomyPresetRoutes } from './taxonomy-presets.ts';
 import { handleTaskRoutes } from './tasks.ts';
 
@@ -22,9 +22,9 @@ const ROUTES: readonly WebRouteHandler[] = Object.freeze([
   handleProviderConfigRoutes,
   handlePlatformCredentialRoutes,
   handleTaxonomyPresetRoutes,
+  handleTagVisionLaunchRoutes,
   handleDownloadProbeRoutes,
-  handleReviewQueueRoutes,
-  handleTagReviewRoutes
+  handleReviewQueueRoutes
 ]);
 
 export async function dispatchWebRoute(input: WebRouteInput): Promise<void> {

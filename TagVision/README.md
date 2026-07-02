@@ -1,6 +1,6 @@
-# TagVision V0.5 macOS
+# TagVision V0.5.1 macOS
 
-TagVision V0.5 macOS is a local Web review tool for machine-generated video
+TagVision V0.5.1 macOS is a local Web review tool for machine-generated video
 tag results on macOS.
 
 In the current `jobtask` workflow, LabourCompressor produces segmented clips and
@@ -45,23 +45,23 @@ npm test
 npm run typecheck
 ```
 
-## Package V0.5 macOS
+## Package V0.5.1 macOS
 
 Create a distributable tarball:
 
 ```bash
-npm run pack:macos:v0.5
+npm run pack:macos:v0.5.1
 ```
 
 The packaged artifacts are written to:
 
 ```text
-dist/TagVision-macOS-V0.5.zip
-dist/tagvision-macos-0.5.0.tgz
+dist/TagVision-macOS-V0.5.1.zip
+dist/tagvision-macos-0.5.1.tgz
 ```
 
-The npm package uses semver `0.5.0`; the human-facing release name is
-`TagVision V0.5 macOS`.
+The npm package uses semver `0.5.1`; the human-facing release name is
+`TagVision V0.5.1 macOS`.
 
 ## Review Batch Contract
 
@@ -132,7 +132,7 @@ LabourCompressor's partial sidecar writeback now checks for
 
 ## Local Review Workflow
 
-TagVision V0.5 completes the review loop locally. Select a directory, inspect
+TagVision V0.5.1 completes the review loop locally. Select a directory, inspect
 the paired videos and model tags, edit paths from the taxonomy snapshot, and
 save the confirmed result directly as `<stem>.accepted.json`.
 

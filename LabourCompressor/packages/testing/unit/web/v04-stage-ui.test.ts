@@ -320,7 +320,16 @@ test('web ui exposes manual tagging concurrency slider', () => {
 test('web ui uses compact dashboard styling and prevents horizontal overflow', () => {
   assert.match(css, /\*,\s*\*::before,\s*\*::after\s*\{[^}]*box-sizing:\s*border-box/su);
   assert.match(css, /html,\s*body\s*\{[^}]*overflow-x:\s*hidden/su);
-  assert.match(css, /\.panel,\s*\.subpanel\s*\{[^}]*border-radius:\s*8px/su);
+  assert.match(css, /:root\s*\{[^}]*--glass-surface:/su);
+  assert.match(css, /:root\s*\{[^}]*--radius-surface:\s*22px/su);
+  assert.match(css, /body\s*\{[^}]*radial-gradient\(circle at 16% 18%,\s*var\(--aurora-blue\)/su);
+  assert.match(css, /\.panel,\s*\.subpanel,\s*\.status-card\s*\{[^}]*background:\s*var\(--glass-surface\)/su);
+  assert.match(css, /\.panel,\s*\.subpanel\s*\{[^}]*border-radius:\s*var\(--radius-surface\)/su);
+  assert.match(css, /\.workbench-config-shell,\s*\.task-status-panel\s*\{[^}]*background:\s*var\(--glass-strong\)/su);
+  assert.match(css, /\.workbench \.panel-header,\s*\.task-status-panel \.panel-header\s*\{[^}]*border-bottom:\s*1px solid rgba\(226, 232, 240, 0\.66\)/su);
+  assert.match(css, /\.primary-run-button\s*\{[^}]*background:\s*linear-gradient\(135deg, #2563eb 0%, #1d4ed8 100%\)/su);
+  assert.match(css, /\.status-primary-block\s*\{[^}]*border-left:\s*4px solid rgba\(37, 99, 235, 0\.74\)/su);
+  assert.match(css, /\.task-status-panel \.task-list-row:nth-child\(even\)\s*\{[^}]*background:\s*rgba\(248, 250, 252, 0\.48\)/su);
   assert.match(css, /\.layout\s*\{[^}]*minmax\(0,\s*1\.35fr\)[^}]*minmax\(300px,\s*0\.65fr\)/su);
   assert.match(css, /\.stage-launcher\s*\{[^}]*repeat\(auto-fit,\s*minmax\(92px,\s*1fr\)\)/su);
   assert.match(css, /\.segmented-control input\s*\{[^}]*width:\s*1px/su);

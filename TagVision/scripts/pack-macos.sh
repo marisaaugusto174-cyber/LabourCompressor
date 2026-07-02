@@ -3,8 +3,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$PROJECT_ROOT/dist"
-PACKAGE_DIR="$DIST_DIR/TagVision-macOS-V0.5"
-ZIP_PATH="$DIST_DIR/TagVision-macOS-V0.5.zip"
+PACKAGE_DIR="$DIST_DIR/TagVision-macOS-V0.5.1"
+ZIP_PATH="$DIST_DIR/TagVision-macOS-V0.5.1.zip"
 
 rm -rf "$DIST_DIR"/TagVision-macOS-V* "$DIST_DIR"/tagvision-macos-*.tgz
 mkdir -p "$PACKAGE_DIR"

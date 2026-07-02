@@ -11,7 +11,7 @@ TAGVISION_URL="http://${TAGVISION_WEB_HOST}:${TAGVISION_WEB_PORT}/review.html"
 LOG_FILE="$SCRIPT_DIR/tagvision-macos-launcher.log"
 PID_FILE="$SCRIPT_DIR/tagvision-macos-server.pid"
 
-echo "Starting TagVision V0.5 macOS from: $SCRIPT_DIR"
+echo "Starting TagVision V0.5.1 macOS from: $SCRIPT_DIR"
 echo "TagVision URL: $TAGVISION_URL"
 echo "Launcher log: $LOG_FILE"
 
@@ -103,7 +103,7 @@ dependencies_ready() {
 }
 
 sync_dependencies() {
-  echo "Syncing TagVision V0.5 macOS dependencies..."
+  echo "Syncing TagVision V0.5.1 macOS dependencies..."
 
   if dependencies_ready; then
     echo "Using bundled TagVision dependencies."
@@ -142,7 +142,7 @@ echo "$SERVER_PID" >"$PID_FILE"
 
 for _ in $(seq 1 40); do
   if curl -fsS "$TAGVISION_URL" >/dev/null 2>&1; then
-    echo "TagVision V0.5 macOS is ready."
+    echo "TagVision V0.5.1 macOS is ready."
     echo "Server process: $SERVER_PID"
     open "$TAGVISION_URL"
     exit 0

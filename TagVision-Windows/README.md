@@ -1,6 +1,6 @@
-# TagVision V0.5 Windows
+# TagVision V0.5.1 Windows
 
-TagVision V0.5 Windows is a local Web review tool for machine-generated video
+TagVision V0.5.1 Windows is a local Web review tool for machine-generated video
 tag results on Windows.
 
 In the current `jobtask` workflow, LabourCompressor produces segmented clips and
@@ -12,7 +12,7 @@ writeback and archive placement.
 ## Windows Requirements
 
 - Windows 10 or later
-- No preinstalled Node.js is required for the V0.5 zip package; it includes
+- No preinstalled Node.js is required for the V0.5.1 zip package; it includes
   portable Node.js at `runtime\node\node.exe`.
 - ffmpeg available in `PATH` for task-card thumbnails
 - PowerShell 5+ for the local launcher and folder picker
@@ -29,7 +29,7 @@ It starts the local server, opens the review page, and keeps a PowerShell window
 only long enough to verify startup. The TagVision server continues in the
 background.
 
-Manual start from the V0.5 zip package:
+Manual start from the V0.5.1 zip package:
 
 ```powershell
 .\runtime\node\node.exe .\apps\web\server.ts
@@ -61,23 +61,23 @@ npm test
 npm run typecheck
 ```
 
-## Package V0.5 Windows
+## Package V0.5.1 Windows
 
 Create Windows distributables:
 
 ```powershell
-npm run pack:windows:v0.5
+npm run pack:windows:v0.5.1
 ```
 
 The packaged artifacts are written to:
 
 ```text
-dist/TagVision-Windows-V0.5.zip
-dist/tagvision-windows-0.5.0.tgz
+dist/TagVision-Windows-V0.5.1.zip
+dist/tagvision-windows-0.5.1.tgz
 ```
 
-The npm package uses semver `0.5.0`; the human-facing release name is
-`TagVision V0.5 Windows`.
+The npm package uses semver `0.5.1`; the human-facing release name is
+`TagVision V0.5.1 Windows`.
 
 ## Review Batch Contract
 
@@ -151,7 +151,7 @@ before reading `<stem>.json`.
 
 ## Local Review Workflow
 
-TagVision V0.5 Windows completes the review loop locally. Select a directory,
+TagVision V0.5.1 Windows completes the review loop locally. Select a directory,
 inspect the paired videos and model tags, edit paths from the taxonomy
 snapshot, and save the confirmed result directly as `<stem>.accepted.json`.
 

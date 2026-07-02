@@ -11,8 +11,8 @@ const NODE_DIST_BASE_URL = `https://nodejs.org/dist/v${NODE_VERSION}`;
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distDir = path.join(projectRoot, 'dist');
-const packageDir = path.join(distDir, 'TagVision-Windows-V0.5');
-const zipPath = path.join(distDir, 'TagVision-Windows-V0.5.zip');
+const packageDir = path.join(distDir, 'TagVision-Windows-V0.5.1');
+const zipPath = path.join(distDir, 'TagVision-Windows-V0.5.1.zip');
 const runtimeCacheDir = path.join(projectRoot, '.runtime-cache');
 const portableNodeDir = path.join(packageDir, 'runtime', 'node');
 

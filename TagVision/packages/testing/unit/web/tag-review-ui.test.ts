@@ -168,7 +168,7 @@ test('main web ui links to the tag review page', () => {
   assert.equal(indexHtml.includes('Labour Compressor'), false);
 
   for (const removedText of [
-    'TagVision V0.5 macOS',
+    'TagVision V0.5.1 macOS',
     '本地审核入口：扫描片段视频',
     'Local sidecar JSON',
     'Manual accepted result',
@@ -179,17 +179,17 @@ test('main web ui links to the tag review page', () => {
   }
 });
 
-test('release metadata names the local tool as TagVision V0.5 macOS', () => {
+test('release metadata names the local tool as TagVision V0.5.1 macOS', () => {
   assert.equal(packageJson.name, 'tagvision-macos');
-  assert.equal(packageJson.version, '0.5.0');
-  assert.match(packageJson.description ?? '', /TagVision V0\.5 macOS/u);
-  assert.equal(packageJson.scripts?.['pack:macos:v0.5'], 'bash scripts/pack-macos.sh');
+  assert.equal(packageJson.version, '0.5.1');
+  assert.match(packageJson.description ?? '', /TagVision V0\.5\.1 macOS/u);
+  assert.equal(packageJson.scripts?.['pack:macos:v0.5.1'], 'bash scripts/pack-macos.sh');
   assert.equal(packageJson.files?.includes('apps/'), true);
   assert.equal(packageJson.files?.includes('Start TagVision macOS.command'), true);
   assert.equal(packageJson.files?.includes('TagVision macOS Manual Terminal Startup.txt'), true);
   assert.equal(reviewHtml.includes('TagVision'), true);
-  assert.equal(reviewHtml.includes('TagVision V0.5 macOS'), false);
-  assert.equal(reviewHtml.includes('Release: TagVision V0.5 macOS'), false);
+  assert.equal(reviewHtml.includes('TagVision V0.5.1 macOS'), false);
+  assert.equal(reviewHtml.includes('Release: TagVision V0.5.1 macOS'), false);
 });
 
 test('review detail opens as a fixed fullscreen modal and disables page autoload', () => {
@@ -396,7 +396,7 @@ test('mac launcher starts TagVision from its own directory and opens review ui',
   assert.match(launcherScript, /TAGVISION_WEB_HOST:-127\.0\.0\.1/u);
   assert.match(launcherScript, /TAGVISION_WEB_PORT:-4312/u);
   assert.match(launcherScript, /curl -fsS "\$TAGVISION_URL"/u);
-  assert.match(launcherScript, /TagVision V0\.5 macOS is ready/u);
+  assert.match(launcherScript, /TagVision V0\.5\.1 macOS is ready/u);
   assert.match(launcherScript, /open "\$TAGVISION_URL"/u);
   assert.match(launcherScript, /nohup npm run web/u);
   assert.match(launcherScript, /stop_existing_tagvision_servers\(\)/u);
@@ -417,7 +417,7 @@ test('mac distribution includes one-click and manual terminal startup assets', (
   assert.match(manualStartGuide, /Start TagVision macOS\.command/u);
   assert.match(manualStartGuide, /npm run web/u);
   assert.match(manualStartGuide, /http:\/\/127\.0\.0\.1:4312\/review\.html/u);
-  assert.match(manualStartGuide, /TagVision-macOS-V0\.5\.zip/u);
+  assert.match(manualStartGuide, /TagVision-macOS-V0\.5\.1\.zip/u);
   assert.match(packMacosSh, /TagVision-macOS-V0\.5/u);
   assert.match(packMacosSh, /npm ci --omit=dev --no-audit --no-fund/u);
 });

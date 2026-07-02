@@ -6,11 +6,6 @@ export const handleStaticRoutes: WebRouteHandler = async ({ response, url, conte
     return true;
   }
 
-  if (url.pathname === '/review.html') {
-    await serveStatic(response, context.publicDir, 'review.html', 'text/html; charset=utf-8');
-    return true;
-  }
-
   if (url.pathname === '/app.js') {
     await serveStatic(response, context.publicDir, 'app.js', 'text/javascript; charset=utf-8');
     return true;

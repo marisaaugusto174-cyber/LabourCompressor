@@ -20,6 +20,7 @@ import { initConfigDialogs, openPlatformCredentialsDialog, openProviderConfigDia
 import { createAppConfiguration } from './app-configuration.js';
 import { initWorkbenchLayout } from './app-layout.js';
 import { isControllableTaskStatus, shouldPollTaskStatus } from './app-task-policy.js';
+import { initTagVisionLaunch } from './tagvision-launch.js';
 const form = document.querySelector('#task-form');
 const preflightOutput = document.querySelector('#preflight-output');
 const eventLog = document.querySelector('#event-log');
@@ -178,6 +179,7 @@ function initModules() {
       platformCredentialsBanner
     }
   });
+  initTagVisionLaunch({ apiPost });
 }
 function bindActions() {
   document
