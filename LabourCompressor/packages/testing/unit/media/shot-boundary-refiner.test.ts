@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -20,6 +20,8 @@ test('parses accepted boundary refinements into refined shots', () => {
       refinedFrame: 20,
       accepted: true,
       reason: 'confirmed',
+      quality: 'high',
+      pseudoCutCategory: 'effect-flash-internal',
       metrics: { score: 10, prominence: 2 }
     }]
   }), {
@@ -38,12 +40,16 @@ test('parses accepted boundary refinements into refined shots', () => {
         refinedSeconds: 2,
         refinedFrame: 20,
         accepted: true,
-        reason: 'confirmed'
+        reason: 'confirmed',
+        quality: 'high',
+        pseudoCutCategory: 'effect-flash-internal'
       }
     },
     { startSeconds: 2, endSeconds: 4, startFrame: 20 }
   ]);
   assert.equal(result.boundaries[0]?.accepted, true);
+  assert.equal(result.boundaries[0]?.quality, 'high');
+  assert.equal(result.boundaries[0]?.pseudoCutCategory, 'effect-flash-internal');
 });
 
 test('deduplicates accepted boundaries that collapse to the same frame', () => {
@@ -102,6 +108,90 @@ test('runs one refiner process for all candidate boundaries', async () => {
 
     assert.equal(result.boundaries.length, 2);
     assert.equal((await readFile(countPath, 'utf8')).length, 1);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('passes original seconds and frames to the local refiner request', async () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'shot-refiner-request-'));
+  const executablePath = path.join(tempDir, 'fake-python');
+  const scriptPath = path.join(tempDir, 'fake-refiner.py');
+  const requestCopyPath = path.join(tempDir, 'request-copy.json');
+  const fixturePath = path.join(tempDir, 'fixture.json');
+
+  try {
+    writeFileSync(executablePath, [
+      '#!/bin/sh',
+      'cp "$3" "$REQUEST_COPY_PATH"',
+      'cp "$FIXTURE_PATH" "$5"',
+      ''
+    ].join('\n'), { mode: 0o755 });
+    writeFileSync(scriptPath, '# fake refiner');
+    writeFileSync(fixturePath, JSON.stringify({ boundaries: [
+      { originalSeconds: 2, refinedSeconds: 2, refinedFrame: 40, accepted: true, reason: 'confirmed', metrics: {} }
+    ] }));
+    const refiner = createLocalShotBoundaryRefiner({
+      pythonPath: executablePath,
+      scriptPath,
+      environment: { REQUEST_COPY_PATH: requestCopyPath, FIXTURE_PATH: fixturePath }
+    });
+
+    await refiner.refineShots({
+      filePath: '/tmp/source.mp4',
+      shots: [
+        { startSeconds: 0, endSeconds: 2, startFrame: 1, endFrame: 40 },
+        { startSeconds: 2, endSeconds: 4, startFrame: 41, endFrame: 80 }
+      ],
+      durationSeconds: 4,
+      frameRate: 20
+    });
+
+    const request = JSON.parse(await readFile(requestCopyPath, 'utf8')) as {
+      boundaries?: Array<{ originalSeconds?: number; originalFrame?: number }>;
+      boundarySeconds?: number[];
+    };
+    assert.deepEqual(request.boundaries, [{ originalSeconds: 2, originalFrame: 40 }]);
+    assert.equal(request.boundarySeconds, undefined);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('python refiner uses original frame instead of seconds multiplied by nominal frame rate', () => {
+  const tempDir = mkdtempSync(path.join(tmpdir(), 'shot-refiner-original-frame-'));
+  const videoPath = path.join(tempDir, 'twenty-fps-cut.mp4');
+  const requestPath = path.join(tempDir, 'request.json');
+  const outputPath = path.join(tempDir, 'output.json');
+  const projectRoot = path.resolve(import.meta.dirname, '../../../..');
+
+  try {
+    execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'color=c=red:s=320x180:r=20:d=2',
+      '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=20:d=2',
+      '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
+      '-map', '[v]', videoPath
+    ]);
+    writeFileSync(requestPath, JSON.stringify({
+      inputFilePath: videoPath,
+      durationSeconds: 4,
+      frameRate: 30,
+      boundaries: [{ originalSeconds: 1.9, originalFrame: 40 }]
+    }));
+
+    execFileSync(path.join(projectRoot, '.tools/scenedetect-venv/bin/python'), [
+      path.join(projectRoot, 'scripts/refine-shot-boundaries.py'),
+      '--request', requestPath,
+      '--output', outputPath
+    ]);
+
+    const result = JSON.parse(readFileSync(outputPath, 'utf8')) as {
+      boundaries: Array<{ refinedFrame: number; refinedSeconds: number; accepted: boolean }>;
+    };
+    assert.equal(result.boundaries[0]?.accepted, true);
+    assert.ok(Math.abs(result.boundaries[0]!.refinedFrame - 40) <= 1);
+    assert.ok(Math.abs(result.boundaries[0]!.refinedSeconds - 1.9) <= 0.04);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

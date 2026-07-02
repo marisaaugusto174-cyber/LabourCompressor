@@ -19,8 +19,15 @@ export interface CandidateShot {
     readonly refinedFrame?: number | undefined;
     readonly accepted: boolean;
     readonly reason: string;
+    readonly quality?: ShotBoundaryQuality | undefined;
+    readonly pseudoCutCategory?: ShotBoundaryPseudoCutCategory | undefined;
   } | undefined;
 }
+
+export type ShotBoundaryQuality = 'high' | 'medium' | 'low';
+export type ShotBoundaryPseudoCutCategory =
+  | 'effect-flash-internal'
+  | 'motion-blur-internal';
 
 export interface ContinuityDecision {
   readonly leftShotIndex: number;

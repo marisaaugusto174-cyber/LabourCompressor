@@ -1,4 +1,8 @@
-import { type CandidateShot } from './segmentation-policy.ts';
+import {
+  type CandidateShot,
+  type ShotBoundaryPseudoCutCategory,
+  type ShotBoundaryQuality
+} from './segmentation-policy.ts';
 
 export interface ShotBoundaryRefinementDecision {
   readonly originalSeconds: number;
@@ -6,6 +10,8 @@ export interface ShotBoundaryRefinementDecision {
   readonly refinedFrame?: number | undefined;
   readonly accepted: boolean;
   readonly reason: string;
+  readonly quality?: ShotBoundaryQuality | undefined;
+  readonly pseudoCutCategory?: ShotBoundaryPseudoCutCategory | undefined;
   readonly metrics: Readonly<Record<string, unknown>>;
 }
 
@@ -102,7 +108,11 @@ function createSourceBoundary(
     refinedSeconds: boundary.refinedSeconds,
     ...(boundary.refinedFrame === undefined ? {} : { refinedFrame: boundary.refinedFrame }),
     accepted: boundary.accepted,
-    reason: boundary.reason
+    reason: boundary.reason,
+    ...(boundary.quality === undefined ? {} : { quality: boundary.quality }),
+    ...(boundary.pseudoCutCategory === undefined ? {} : {
+      pseudoCutCategory: boundary.pseudoCutCategory
+    })
   });
 }
 

@@ -9,7 +9,9 @@ import {
   type CandidateShot,
   type ShotBoundaryRefinementDecision,
   type ShotBoundaryRefinementResult,
-  type ShotBoundaryRefinerPort
+  type ShotBoundaryRefinerPort,
+  type ShotBoundaryQuality,
+  type ShotBoundaryPseudoCutCategory
 } from '../../features/segmentation/domain/index.ts';
 
 const execFileAsync = promisify(execFile);
@@ -40,7 +42,7 @@ export function createLocalShotBoundaryRefiner(
         const outputPath = path.join(directory, 'output.json');
         await writeFile(requestPath, JSON.stringify({
           inputFilePath: input.filePath,
-          boundarySeconds: input.shots.slice(0, -1).map((shot) => shot.endSeconds),
+          boundaries: input.shots.slice(0, -1).map(createBoundaryRequest),
           durationSeconds: input.durationSeconds,
           frameRate: input.frameRate
         }), 'utf8');
@@ -55,6 +57,16 @@ export function createLocalShotBoundaryRefiner(
         await rm(directory, { recursive: true, force: true });
       }
     }
+  });
+}
+
+function createBoundaryRequest(shot: CandidateShot): {
+  readonly originalSeconds: number;
+  readonly originalFrame?: number | undefined;
+} {
+  return Object.freeze({
+    originalSeconds: shot.endSeconds,
+    ...(shot.endFrame === undefined ? {} : { originalFrame: shot.endFrame })
   });
 }
 
@@ -87,6 +99,10 @@ function readBoundary(value: unknown): ShotBoundaryRefinementDecision {
     ...(value.refinedFrame === undefined ? {} : { refinedFrame: readInteger(value.refinedFrame, 'refinedFrame') }),
     accepted: readBoolean(value.accepted, 'accepted'),
     reason: readString(value.reason, 'unknown'),
+    ...(value.quality === undefined ? {} : { quality: readQuality(value.quality) }),
+    ...(value.pseudoCutCategory === undefined ? {} : {
+      pseudoCutCategory: readPseudoCutCategory(value.pseudoCutCategory)
+    }),
     metrics: Object.freeze(readMetrics(value.metrics))
   });
 }
@@ -118,6 +134,16 @@ function readBoolean(value: unknown, fieldName: string): boolean {
 
 function readString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function readQuality(value: unknown): ShotBoundaryQuality {
+  if (value === 'high' || value === 'medium' || value === 'low') return value;
+  throw new Error('Shot boundary quality must be high, medium or low.');
+}
+
+function readPseudoCutCategory(value: unknown): ShotBoundaryPseudoCutCategory {
+  if (value === 'effect-flash-internal' || value === 'motion-blur-internal') return value;
+  throw new Error('Shot boundary pseudo cut category is invalid.');
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

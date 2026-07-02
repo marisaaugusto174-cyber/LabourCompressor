@@ -26,6 +26,13 @@ CUT_SAME_SCENE_GOOD_MATCHES = 80
 CUT_SAME_SCENE_STRUCTURE_MAX = 14.0
 CUT_SAME_SCENE_LUMA_MIN = 1.35
 CUT_BLUR_MOTION_SUSTAINED_FRACTION = 0.60
+CUT_EFFECT_FLASH_SCORE_MAX = 45.0
+CUT_EFFECT_FLASH_PROMINENCE_MAX = 3.0
+CUT_EFFECT_FLASH_STRUCTURE_MAX = 40.0
+CUT_EFFECT_FLASH_SUSTAINED_MIN = 0.18
+CUT_HIGH_CONFIDENCE_SCORE_MIN = 55.0
+CUT_HIGH_CONFIDENCE_PROMINENCE_MIN = 5.0
+CUT_HIGH_CONFIDENCE_STRUCTURE_MIN = 45.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,11 +164,13 @@ def feature_match_stats(prev_frame: np.ndarray, curr_frame: np.ndarray) -> dict[
     }
 
 
-def analyze_candidate(video: str, cut_time: float, duration: float, fps: float) -> dict[str, Any]:
-    center_frame = max(1, int(round(cut_time * fps)))
+def analyze_candidate(video: str, boundary: dict[str, Any], duration: float, fps: float) -> dict[str, Any]:
+    cut_time = float(boundary["originalSeconds"])
+    original_frame = boundary.get("originalFrame")
+    center_frame = center_frame_for_boundary(cut_time, original_frame, fps)
     metrics = local_cut_metrics(video, center_frame, fps)
     if not metrics:
-        return boundary_result(cut_time, cut_time, center_frame, True, "no_metrics", {})
+        return boundary_result(cut_time, cut_time, center_frame, True, "no_metrics", "medium", None, {})
     peak = max(metrics, key=lambda item: item["score"])
     peak_frame = int(peak["frame_index"])
     neighbor_scores = [item["score"] for item in metrics if abs(int(item["frame_index"]) - peak_frame) > 1]
@@ -171,9 +180,11 @@ def analyze_candidate(video: str, cut_time: float, duration: float, fps: float) 
     sustained_scores = [item["score"] for item in context if item["score"] >= peak["score"] * CUT_SUSTAINED_SCORE_RATIO]
     sustained_fraction = len(sustained_scores) / max(1, len(context))
     match = read_match_stats(video, peak_frame)
-    accepted, reason = classify_candidate(peak, prominence, sustained_fraction, match)
-    refined_time = min(max(peak_frame / max(fps, 0.001), 0.0), duration)
-    return boundary_result(cut_time, refined_time, peak_frame, accepted, reason, {
+    accepted, reason, quality, pseudo_cut_category = classify_candidate(
+        peak, prominence, sustained_fraction, match
+    )
+    refined_time = refined_seconds_for_boundary(cut_time, original_frame, peak_frame, duration, fps)
+    return boundary_result(cut_time, refined_time, peak_frame, accepted, reason, quality, pseudo_cut_category, {
         "score": peak["score"],
         "prominence": finite_float(prominence),
         "sustainedFraction": finite_float(sustained_fraction),
@@ -192,8 +203,14 @@ def read_match_stats(video: str, peak_frame: int) -> dict[str, float]:
 
 
 def classify_candidate(peak: dict[str, float], prominence: float, sustained_fraction: float,
-                       match: dict[str, float]) -> tuple[bool, str]:
+                       match: dict[str, float]) -> tuple[bool, str, str, str | None]:
     luma_only = peak["luma_ratio"] >= CUT_LUMA_ONLY_RATIO and peak["luma_structure"] <= CUT_LUMA_STRUCTURE_ABS_MAX
+    effect_flash_internal = (
+        peak["score"] < CUT_EFFECT_FLASH_SCORE_MAX
+        and prominence < CUT_EFFECT_FLASH_PROMINENCE_MAX
+        and peak["structure"] < CUT_EFFECT_FLASH_STRUCTURE_MAX
+        and sustained_fraction >= CUT_EFFECT_FLASH_SUSTAINED_MIN
+    )
     motion_like = (
         match["good_matches"] >= CUT_MOTION_MIN_GOOD_MATCHES
         and match["inlier_ratio"] >= CUT_MOTION_INLIER_RATIO
@@ -210,41 +227,103 @@ def classify_candidate(peak: dict[str, float], prominence: float, sustained_frac
         and peak["luma_ratio"] >= CUT_SAME_SCENE_LUMA_MIN
     )
     weak_or_sustained = prominence < CUT_MIN_PEAK_PROMINENCE or sustained_fraction >= CUT_SUSTAINED_FRACTION
+    quality = classify_quality(peak, prominence)
     if luma_only:
-        return False, "亮度/遮挡变化为主"
+        return False, "亮度/遮挡变化为主", "low", None
+    if effect_flash_internal:
+        return False, "特效/爆光连续变化", "low", "effect-flash-internal"
     if same_scene_motion or blurred_motion or (motion_like and weak_or_sustained):
-        return False, "连续运镜/可对齐运动"
+        return False, "连续运镜/可对齐运动", "low", "motion-blur-internal"
     if prominence < 1.08 and sustained_fraction >= 0.60:
-        return False, "变化不是孤立切点"
-    return True, "confirmed"
+        return False, "变化不是孤立切点", "low", None
+    return True, "confirmed", quality, None
+
+
+def classify_quality(peak: dict[str, float], prominence: float) -> str:
+    if (
+        peak["score"] >= CUT_HIGH_CONFIDENCE_SCORE_MIN
+        and prominence >= CUT_HIGH_CONFIDENCE_PROMINENCE_MIN
+        and peak["structure"] >= CUT_HIGH_CONFIDENCE_STRUCTURE_MIN
+    ):
+        return "high"
+    return "medium"
+
+
+def center_frame_for_boundary(cut_time: float, original_frame: Any, fps: float) -> int:
+    if original_frame is not None:
+        try:
+            frame = int(original_frame)
+            if frame >= 1:
+                return frame
+        except (TypeError, ValueError):
+            pass
+    return max(1, int(round(cut_time * fps)))
+
+
+def refined_seconds_for_boundary(cut_time: float, original_frame: Any, peak_frame: int,
+                                 duration: float, fps: float) -> float:
+    if original_frame is not None:
+        try:
+            frame = int(original_frame)
+            if frame >= 1:
+                return min(max(cut_time + ((peak_frame - frame) / max(fps, 0.001)), 0.0), duration)
+        except (TypeError, ValueError):
+            pass
+    return min(max(peak_frame / max(fps, 0.001), 0.0), duration)
 
 
 def boundary_result(original: float, refined: float, frame: int, accepted: bool,
-                    reason: str, metrics: dict[str, float]) -> dict[str, Any]:
-    return {
+                    reason: str, quality: str, pseudo_cut_category: str | None,
+                    metrics: dict[str, float]) -> dict[str, Any]:
+    result: dict[str, Any] = {
         "originalSeconds": finite_float(original),
         "refinedSeconds": finite_float(refined),
         "refinedFrame": int(frame),
         "accepted": bool(accepted),
         "reason": reason,
+        "quality": quality,
         "metrics": metrics,
     }
+    if pseudo_cut_category is not None:
+        result["pseudoCutCategory"] = pseudo_cut_category
+    return result
 
 
 def analyze(request: dict[str, Any]) -> dict[str, Any]:
     input_path = str(request["inputFilePath"])
     duration = float(request["durationSeconds"])
     fps = max(float(request["frameRate"]), 0.001)
-    boundaries = [float(value) for value in request["boundarySeconds"]]
+    boundaries = read_boundary_requests(request)
     return {
         "algorithmVersion": "atomic-boundary-refinement-v1",
         "thresholds": {
             "windowFrames": CUT_REFINE_WINDOW_FRAMES,
             "minPeakProminence": CUT_MIN_PEAK_PROMINENCE,
             "lumaOnlyRatio": CUT_LUMA_ONLY_RATIO,
+            "effectFlashScoreMaximum": CUT_EFFECT_FLASH_SCORE_MAX,
+            "effectFlashProminenceMaximum": CUT_EFFECT_FLASH_PROMINENCE_MAX,
+            "effectFlashStructureMaximum": CUT_EFFECT_FLASH_STRUCTURE_MAX,
+            "effectFlashSustainedMinimum": CUT_EFFECT_FLASH_SUSTAINED_MIN,
         },
         "boundaries": [analyze_candidate(input_path, boundary, duration, fps) for boundary in boundaries],
     }
+
+
+def read_boundary_requests(request: dict[str, Any]) -> list[dict[str, Any]]:
+    if "boundaries" in request:
+        boundaries = request["boundaries"]
+        if not isinstance(boundaries, list):
+            raise ValueError("shot refinement boundaries must be a list")
+        result: list[dict[str, Any]] = []
+        for boundary in boundaries:
+            if not isinstance(boundary, dict):
+                raise ValueError("shot refinement boundary must be an object")
+            result.append({
+                "originalSeconds": float(boundary["originalSeconds"]),
+                **({} if "originalFrame" not in boundary else {"originalFrame": int(boundary["originalFrame"])}),
+            })
+        return result
+    return [{"originalSeconds": float(value)} for value in request["boundarySeconds"]]
 
 
 def finite_float(value: float) -> float:

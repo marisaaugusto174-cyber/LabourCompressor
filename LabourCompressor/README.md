@@ -229,5 +229,5 @@ V0.2 release notes remain stored in `docs/release/V0.2_RELEASE_NOTES.md`.
 The current private baseline should be tagged as:
 
 ```bash
-v0.5.0
+v0.5.1
 ```

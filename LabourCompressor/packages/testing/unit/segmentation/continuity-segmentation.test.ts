@@ -33,12 +33,48 @@ test('splits a 35 second group at its strong boundary', () => {
   assert.deepEqual(result.accepted, [shot(0, 18), shot(18, 35)]);
 });
 
-test('uses a weak boundary near the recommended maximum', () => {
+test('keeps a weak boundary inside the thirty-to-forty second protection band', () => {
+  const result = assembleContinuityFirstSegments({
+    shots: [shot(0, 11.433), shot(11.433, 31.533)],
+    continuity: [decision(11.433, 'weak-or-unknown')],
+    rules: RULES
+  });
+
+  assert.deepEqual(result.accepted, [shot(0, 31.533)]);
+});
+
+test('uses a weak boundary after the soft activation threshold', () => {
   const result = assembleContinuityFirstSegments({
     shots: [shot(0, 12), shot(12, 28), shot(28, 42)],
     continuity: [
       decision(12, 'strong-continuity'),
       decision(28, 'weak-or-unknown')
+    ],
+    rules: RULES
+  });
+
+  assert.deepEqual(result.accepted, [shot(0, 28), shot(28, 42)]);
+});
+
+test('does not use a soft-ineligible weak boundary after the soft activation threshold', () => {
+  const result = assembleContinuityFirstSegments({
+    shots: [shot(0, 12), shot(12, 28), shot(28, 42)],
+    continuity: [
+      decision(12, 'strong-continuity'),
+      decision(28, 'weak-or-unknown', false)
+    ],
+    rules: RULES
+  });
+
+  assert.deepEqual(result.accepted, [shot(0, 42)]);
+});
+
+test('still uses soft-eligible weak boundaries after the soft activation threshold', () => {
+  const result = assembleContinuityFirstSegments({
+    shots: [shot(0, 12), shot(12, 28), shot(28, 42)],
+    continuity: [
+      decision(12, 'strong-continuity'),
+      decision(28, 'weak-or-unknown', true)
     ],
     rules: RULES
   });
@@ -111,7 +147,8 @@ function shot(startSeconds: number, endSeconds: number) {
 
 function decision(
   boundarySeconds: number,
-  classification: BoundaryContinuityClassification
+  classification: BoundaryContinuityClassification,
+  softSplitEligible?: boolean
 ): BoundaryContinuityDecision {
   return {
     boundarySeconds,
@@ -127,6 +164,7 @@ function decision(
       }
     },
     audio: { verdict: 'unknown', metrics: { available: false } },
-    classification
+    classification,
+    ...(softSplitEligible === undefined ? {} : { softSplitEligible })
   };
 }

@@ -11,9 +11,9 @@ test('project metadata and main UI are locked to V0.5', () => {
   const html = read('apps/web/public/index.html');
   const macosBundle = read('packages/features/desktop/domain/macos-app-bundle.ts');
 
-  assert.equal(packageJson.version, '0.5.0');
-  assert.equal(packageLock.version, '0.5.0');
-  assert.equal(packageLock.packages[''].version, '0.5.0');
+  assert.equal(packageJson.version, '0.5.1');
+  assert.equal(packageLock.version, '0.5.1');
+  assert.equal(packageLock.packages[''].version, '0.5.1');
   assert.match(html, /<span class="build-version">V0\.5<\/span>/u);
   assert.match(macosBundle, /CFBundleShortVersionString<\/key>\s*<string>0\.5<\/string>/u);
 });
@@ -24,6 +24,6 @@ test('current product documents point to the V0.5 release baseline', () => {
   }
 
   assert.match(read('README.md'), /docs\/release\/V0\.5_RELEASE_NOTES\.md/u);
-  assert.match(read('README.md'), /v0\.5\.0/u);
+  assert.match(read('README.md'), /v0\.5\.1/u);
   assert.match(read('docs/release/V0.5_RELEASE_NOTES.md'), /^# V0\.5 Release Notes/mu);
 });

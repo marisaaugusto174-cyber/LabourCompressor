@@ -23,6 +23,7 @@ interface SplitCandidate {
   readonly boundaryIndex: number;
   readonly classification: BoundaryContinuityClassification;
   readonly boundarySeconds: number;
+  readonly softSplitEligible?: boolean | undefined;
 }
 
 export function assembleContinuityFirstSegments(input: {
@@ -44,6 +45,12 @@ export function assembleContinuityFirstSegments(input: {
     accepted: Object.freeze(accepted),
     problems: Object.freeze(problems)
   };
+}
+
+export function resolveWeakBoundaryActivationSeconds(
+  rules: ContinuitySegmentationRules
+): number {
+  return Math.min(rules.maximumSeconds, rules.preferredMaximumSeconds + 10);
 }
 
 function partitionRange(
@@ -94,7 +101,10 @@ function buildCandidates(
     candidates.push({
       boundaryIndex,
       classification: decision.classification,
-      boundarySeconds: decision.boundarySeconds
+      boundarySeconds: decision.boundarySeconds,
+      ...(decision.softSplitEligible === undefined ? {} : {
+        softSplitEligible: decision.softSplitEligible
+      })
     });
   }
   return candidates;
@@ -113,8 +123,13 @@ function isEligible(
     end - candidate.boundarySeconds < input.rules.minimumSeconds
   ) return false;
   if (duration > input.rules.maximumSeconds) return true;
-  if (duration > input.rules.preferredMaximumSeconds) {
-    return candidate.classification !== 'strong-continuity';
+  if (duration > resolveWeakBoundaryActivationSeconds(input.rules)) {
+    if (candidate.classification === 'strong-continuity') return false;
+    if (
+      candidate.classification === 'weak-or-unknown' &&
+      candidate.softSplitEligible === false
+    ) return false;
+    return true;
   }
   return candidate.classification === 'strong-boundary';
 }

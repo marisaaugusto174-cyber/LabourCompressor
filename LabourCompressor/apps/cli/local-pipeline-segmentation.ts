@@ -129,6 +129,11 @@ async function segmentAsset(input: {
       shots: candidateShots,
       durationSeconds: mediaInfo.durationSeconds,
       frameRate: mediaInfo.frameRate,
+      ...(mediaInfo.nominalFrameRate === undefined ? {} : { nominalFrameRate: mediaInfo.nominalFrameRate }),
+      ...(mediaInfo.averageFrameRate === undefined ? {} : { averageFrameRate: mediaInfo.averageFrameRate }),
+      ...(mediaInfo.frameCount === undefined ? {} : { frameCount: mediaInfo.frameCount }),
+      ...(mediaInfo.frameRateSource === undefined ? {} : { frameRateSource: mediaInfo.frameRateSource }),
+      ...(mediaInfo.variableFrameRate === undefined ? {} : { variableFrameRate: mediaInfo.variableFrameRate }),
       refiner: input.dependencies.shotBoundaryRefiner,
       diagnosticsDirectoryPath: workspacePath,
       ...(input.input.signal === undefined ? {} : { signal: input.input.signal })

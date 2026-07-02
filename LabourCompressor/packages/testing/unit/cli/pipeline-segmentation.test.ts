@@ -84,8 +84,12 @@ test('auto segmentation keeps a 42 second strong-continuity group intact', async
     );
     const diagnostic = JSON.parse(await readFile(path.join(
       tempDir, '.segmentation', 'Sample_A_720P_260512_000042', 'continuity.json'
-    ), 'utf8')) as { fallbackApplied?: boolean };
+    ), 'utf8')) as {
+      fallbackApplied?: boolean;
+      durationPolicy?: { weakBoundaryActivationSeconds?: number };
+    };
     assert.equal(diagnostic.fallbackApplied, false);
+    assert.equal(diagnostic.durationPolicy?.weakBoundaryActivationSeconds, 40);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

@@ -5,6 +5,8 @@ export type BoundaryContinuityClassification =
   | 'strong-continuity'
   | 'strong-boundary'
   | 'weak-or-unknown';
+export type BoundaryContinuityNormalizationReason =
+  | 'correlated-visual-motion-low-confidence';
 
 export interface ContinuityThresholds {
   readonly visual: {
@@ -97,6 +99,9 @@ export interface BoundaryContinuityDecision {
   readonly motion: ContinuitySignalResult<MotionContinuityMetrics>;
   readonly audio: ContinuitySignalResult<AudioContinuityMetrics>;
   readonly classification: BoundaryContinuityClassification;
+  readonly originalClassification?: BoundaryContinuityClassification | undefined;
+  readonly normalizationReason?: BoundaryContinuityNormalizationReason | undefined;
+  readonly softSplitEligible?: boolean | undefined;
 }
 
 export interface ContinuityAnalyzerPort {
@@ -168,4 +173,34 @@ export function fuseContinuitySignals(
   if (continuous >= 2) return 'strong-continuity';
   if (discontinuous >= 2) return 'strong-boundary';
   return 'weak-or-unknown';
+}
+
+export function normalizeBoundaryContinuityDecision(
+  decision: BoundaryContinuityDecision,
+  sourceBoundary?: CandidateShot['sourceBoundary']
+): BoundaryContinuityDecision {
+  if (shouldDowngradeLowConfidenceVisualMotionBreak(decision, sourceBoundary)) {
+    return Object.freeze({
+      ...decision,
+      classification: 'weak-or-unknown' as const,
+      originalClassification: decision.classification,
+      normalizationReason: 'correlated-visual-motion-low-confidence' as const,
+      softSplitEligible: false
+    });
+  }
+  return Object.freeze({
+    ...decision,
+    softSplitEligible: sourceBoundary?.quality === 'low' ? false : true
+  });
+}
+
+function shouldDowngradeLowConfidenceVisualMotionBreak(
+  decision: BoundaryContinuityDecision,
+  sourceBoundary?: CandidateShot['sourceBoundary']
+): boolean {
+  return decision.classification === 'strong-boundary' &&
+    sourceBoundary?.quality === 'low' &&
+    decision.visual.verdict === 'discontinuous' &&
+    decision.motion.verdict === 'discontinuous' &&
+    decision.audio.verdict === 'continuous';
 }

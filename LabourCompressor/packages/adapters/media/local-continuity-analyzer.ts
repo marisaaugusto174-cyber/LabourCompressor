@@ -9,8 +9,10 @@ import {
   classifyMotionContinuity,
   classifyVisualContinuity,
   fuseContinuitySignals,
+  normalizeBoundaryContinuityDecision,
   type AudioContinuityMetrics,
   type BoundaryContinuityDecision,
+  type CandidateShot,
   type ContinuityAnalyzerPort,
   type ContinuityThresholds,
   type MotionContinuityMetrics,
@@ -52,7 +54,8 @@ export function createLocalContinuityAnalyzer(
         });
         const decisions = parseContinuityMetricsOutput(
           await readFile(outputPath, 'utf8'),
-          input.thresholds
+          input.thresholds,
+          input.shots
         );
         validateBoundaryCount(decisions, input.shots.length - 1);
         return decisions;
@@ -65,20 +68,22 @@ export function createLocalContinuityAnalyzer(
 
 export function parseContinuityMetricsOutput(
   raw: string,
-  thresholds: ContinuityThresholds
+  thresholds: ContinuityThresholds,
+  shots?: readonly CandidateShot[]
 ): readonly BoundaryContinuityDecision[] {
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed) || !Array.isArray(parsed.boundaries)) {
     throw new Error('Continuity analyzer output must include boundaries.');
   }
-  return Object.freeze(parsed.boundaries.map((value) =>
-    createBoundaryDecision(value, thresholds)
+  return Object.freeze(parsed.boundaries.map((value, index) =>
+    createBoundaryDecision(value, thresholds, shots?.[index]?.sourceBoundary)
   ));
 }
 
 function createBoundaryDecision(
   value: unknown,
-  thresholds: ContinuityThresholds
+  thresholds: ContinuityThresholds,
+  sourceBoundary?: CandidateShot['sourceBoundary']
 ): BoundaryContinuityDecision {
   if (!isRecord(value)) throw new Error('Continuity boundary must be an object.');
   const visual = readVisualMetrics(value.visual);
@@ -89,13 +94,13 @@ function createBoundaryDecision(
     classifyMotionContinuity(motion, thresholds),
     classifyAudioContinuity(audio, thresholds)
   ] as const;
-  return Object.freeze({
+  return normalizeBoundaryContinuityDecision(Object.freeze({
     boundarySeconds: readFinite(value.boundarySeconds, 'boundarySeconds'),
     visual: Object.freeze({ verdict: verdicts[0], metrics: Object.freeze(visual) }),
     motion: Object.freeze({ verdict: verdicts[1], metrics: Object.freeze(motion) }),
     audio: Object.freeze({ verdict: verdicts[2], metrics: Object.freeze(audio) }),
     classification: fuseContinuitySignals(verdicts)
-  });
+  }), sourceBoundary);
 }
 
 function readVisualMetrics(value: unknown): VisualContinuityMetrics {

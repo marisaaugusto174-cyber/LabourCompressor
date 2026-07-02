@@ -19,6 +19,11 @@ export async function resolveShotBoundaryRefinement(input: {
   readonly shots: readonly CandidateShot[];
   readonly durationSeconds: number;
   readonly frameRate: number;
+  readonly nominalFrameRate?: number | undefined;
+  readonly averageFrameRate?: number | undefined;
+  readonly frameCount?: number | undefined;
+  readonly frameRateSource?: 'frame-count' | 'average' | 'nominal' | undefined;
+  readonly variableFrameRate?: boolean | undefined;
   readonly refiner: ShotBoundaryRefinerPort;
   readonly diagnosticsDirectoryPath: string;
   readonly signal?: AbortSignal | undefined;
@@ -74,6 +79,11 @@ async function writeBoundaryRefinementDiagnostic(
     readonly shots: readonly CandidateShot[];
     readonly durationSeconds: number;
     readonly frameRate: number;
+    readonly nominalFrameRate?: number | undefined;
+    readonly averageFrameRate?: number | undefined;
+    readonly frameCount?: number | undefined;
+    readonly frameRateSource?: 'frame-count' | 'average' | 'nominal' | undefined;
+    readonly variableFrameRate?: boolean | undefined;
   },
   resolution: ShotBoundaryRefinementResolution
 ): Promise<void> {
@@ -84,6 +94,11 @@ async function writeBoundaryRefinementDiagnostic(
     algorithmVersion: resolution.result.algorithmVersion,
     durationSeconds: input.durationSeconds,
     frameRate: input.frameRate,
+    ...(input.nominalFrameRate === undefined ? {} : { nominalFrameRate: input.nominalFrameRate }),
+    ...(input.averageFrameRate === undefined ? {} : { averageFrameRate: input.averageFrameRate }),
+    ...(input.frameCount === undefined ? {} : { frameCount: input.frameCount }),
+    ...(input.frameRateSource === undefined ? {} : { frameRateSource: input.frameRateSource }),
+    ...(input.variableFrameRate === undefined ? {} : { variableFrameRate: input.variableFrameRate }),
     candidateShots: input.shots,
     boundaries: resolution.result.boundaries,
     finalShots: resolution.result.shots,

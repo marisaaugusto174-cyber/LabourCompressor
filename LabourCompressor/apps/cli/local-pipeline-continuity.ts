@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import {
   assembleContinuityFirstSegments,
+  resolveWeakBoundaryActivationSeconds,
   type BoundaryContinuityDecision,
   type CandidateShot,
   type ContinuityAnalyzerPort,
@@ -137,6 +138,11 @@ function readDurationPolicy(rules: SegmentationProfileRules) {
   return Object.freeze({
     minimumSeconds: rules.minimumSeconds,
     preferredMaximumSeconds: rules.preferredMaximumSeconds,
+    weakBoundaryActivationSeconds: resolveWeakBoundaryActivationSeconds({
+      minimumSeconds: rules.minimumSeconds,
+      preferredMaximumSeconds: rules.preferredMaximumSeconds,
+      maximumSeconds: rules.maximumSeconds
+    }),
     maximumSeconds: rules.maximumSeconds
   });
 }
