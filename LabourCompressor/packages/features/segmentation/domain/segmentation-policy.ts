@@ -11,6 +11,15 @@ import {
 export interface CandidateShot {
   readonly startSeconds: number;
   readonly endSeconds: number;
+  readonly startFrame?: number | undefined;
+  readonly endFrame?: number | undefined;
+  readonly sourceBoundary?: {
+    readonly originalSeconds: number;
+    readonly refinedSeconds: number;
+    readonly refinedFrame?: number | undefined;
+    readonly accepted: boolean;
+    readonly reason: string;
+  } | undefined;
 }
 
 export interface ContinuityDecision {

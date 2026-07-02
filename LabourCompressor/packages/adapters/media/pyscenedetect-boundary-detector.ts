@@ -70,13 +70,27 @@ export function parseSceneDetectCsv(raw: string): readonly CandidateShot[] {
   const headers = splitCsvLine(lines[headerLineIndex]!);
   const startIndex = headers.indexOf('Start Timecode');
   const endIndex = headers.indexOf('End Timecode');
+  const startSecondsIndex = headers.indexOf('Start Time (seconds)');
+  const endSecondsIndex = headers.indexOf('End Time (seconds)');
+  const startFrameIndex = headers.indexOf('Start Frame');
+  const endFrameIndex = headers.indexOf('End Frame');
 
   return Object.freeze(
     lines.slice(headerLineIndex + 1).map((line) => {
       const cells = splitCsvLine(line);
+      const startFrame = parseOptionalFrame(cells[startFrameIndex]);
+      const endFrame = parseOptionalFrame(cells[endFrameIndex]);
       return Object.freeze({
-        startSeconds: parseTimecode(cells[startIndex] ?? ''),
-        endSeconds: parseTimecode(cells[endIndex] ?? '')
+        startSeconds: parseTimeValue(
+          cells[startSecondsIndex],
+          cells[startIndex] ?? ''
+        ),
+        endSeconds: parseTimeValue(
+          cells[endSecondsIndex],
+          cells[endIndex] ?? ''
+        ),
+        ...(startFrame === undefined ? {} : { startFrame }),
+        ...(endFrame === undefined ? {} : { endFrame })
       });
     })
   );
@@ -103,4 +117,27 @@ function parseTimecode(value: string): number {
   }
 
   return Math.round(totalSeconds * 1000) / 1000;
+}
+
+function parseTimeValue(
+  secondsValue: string | undefined,
+  timecodeValue: string
+): number {
+  if (secondsValue !== undefined && secondsValue.trim().length > 0) {
+    const seconds = Number(secondsValue);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      throw new Error(`Invalid scene seconds: ${secondsValue}`);
+    }
+    return Math.round(seconds * 1000) / 1000;
+  }
+  return parseTimecode(timecodeValue);
+}
+
+function parseOptionalFrame(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim().length === 0) return undefined;
+  const frame = Number(value);
+  if (!Number.isInteger(frame) || frame < 0) {
+    throw new Error(`Invalid scene frame: ${value}`);
+  }
+  return frame;
 }

@@ -7,6 +7,7 @@ export interface MediaInfoProbeResult {
   readonly durationSeconds: number;
   readonly width: number;
   readonly height: number;
+  readonly frameRate: number;
 }
 
 export interface FfprobeMediaInfoOptions {
@@ -35,7 +36,7 @@ export function buildFfprobeMediaInfoArgs(filePath: string): readonly string[] {
     '-select_streams',
     'v:0',
     '-show_entries',
-    'stream=width,height:format=duration',
+    'stream=width,height,r_frame_rate,avg_frame_rate:format=duration',
     '-of',
     'json',
     filePath
@@ -48,11 +49,17 @@ export function parseFfprobeMediaInfo(raw: string): MediaInfoProbeResult {
     readonly streams?: readonly {
       readonly width?: number | undefined;
       readonly height?: number | undefined;
+      readonly r_frame_rate?: string | undefined;
+      readonly avg_frame_rate?: string | undefined;
     }[];
   };
   const durationSeconds = Number(parsed.format?.duration ?? Number.NaN);
-  const width = parsed.streams?.[0]?.width ?? Number.NaN;
-  const height = parsed.streams?.[0]?.height ?? Number.NaN;
+  const stream = parsed.streams?.[0];
+  const width = stream?.width ?? Number.NaN;
+  const height = stream?.height ?? Number.NaN;
+  const frameRate = parseFrameRate(stream?.r_frame_rate) ??
+    parseFrameRate(stream?.avg_frame_rate) ??
+    Number.NaN;
 
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     throw new Error('Unable to determine media duration.');
@@ -62,9 +69,30 @@ export function parseFfprobeMediaInfo(raw: string): MediaInfoProbeResult {
     throw new Error('Unable to determine media dimensions.');
   }
 
+  if (!Number.isFinite(frameRate) || frameRate <= 0) {
+    throw new Error('Unable to determine media frame rate.');
+  }
+
   return Object.freeze({
     durationSeconds,
     width,
-    height
+    height,
+    frameRate
   });
+}
+
+function parseFrameRate(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim().length === 0) return undefined;
+  const ratioMatch = /^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/u.exec(value.trim());
+  if (ratioMatch !== null) {
+    const numerator = Number(ratioMatch[1]);
+    const denominator = Number(ratioMatch[2]);
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+      return undefined;
+    }
+    const result = numerator / denominator;
+    return result > 0 ? result : undefined;
+  }
+  const result = Number(value);
+  return Number.isFinite(result) && result > 0 ? result : undefined;
 }

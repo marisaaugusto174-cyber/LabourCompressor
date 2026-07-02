@@ -18,6 +18,46 @@ test('builds ffmpeg segment export args', () => {
     endSeconds: 12
   });
 
+  assert.deepEqual(args, [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-ss',
+    '5',
+    '-i',
+    '/tmp/source.mp4',
+    '-t',
+    '7',
+    '-map',
+    '0:v:0',
+    '-map',
+    '0:a:0?',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '18',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '192k',
+    '-movflags',
+    '+faststart',
+    '/tmp/out.mp4'
+  ]);
+});
+
+test('builds stream-copy args only when explicitly requested', () => {
+  const args = buildFfmpegSegmentArgs({
+    inputFilePath: '/tmp/source.mp4',
+    outputFilePath: '/tmp/out.mp4',
+    startSeconds: 5,
+    endSeconds: 12,
+    mode: 'stream-copy'
+  });
+
   assert.deepEqual(args.slice(0, 8), [
     '-y',
     '-ss',
@@ -28,7 +68,19 @@ test('builds ffmpeg segment export args', () => {
     '/tmp/source.mp4',
     '-map'
   ]);
-  assert.equal(args.at(-1), '/tmp/out.mp4');
+  assert.equal(args.includes('copy'), true);
+});
+
+test('applies end guard to precise re-encode duration', () => {
+  const args = buildFfmpegSegmentArgs({
+    inputFilePath: '/tmp/source.mp4',
+    outputFilePath: '/tmp/out.mp4',
+    startSeconds: 5,
+    endSeconds: 12,
+    endGuardSeconds: 0.02
+  });
+
+  assert.equal(args[args.indexOf('-t') + 1], '6.98');
 });
 
 test('exports a segment with ffmpeg binary', async () => {
