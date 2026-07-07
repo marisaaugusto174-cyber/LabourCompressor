@@ -40,6 +40,12 @@ const LEGACY_PROMPT_LIBRARY_FILE = projectPath(
   'config/prompts/video-data-collection-v0-prompt-library.md'
 );
 const TAXONOMY_REPOSITORY_DIR = projectPath('config/repositories/taxonomies');
+const DEFAULT_STRUCTURED_ARCHIVE_PATH_POLICY: ArchivePathPolicy = Object.freeze({
+  dimension: '核心动作',
+  primaryRole: '主动作',
+  requiredCount: 1,
+  onInvalid: 'retry-once-then-review'
+});
 
 const INTERNAL_TAXONOMY_PRESETS: readonly TaxonomyPresetDefinition[] = Object.freeze([
   Object.freeze({
@@ -188,6 +194,7 @@ export async function importExternalTaxonomyPreset(input: {
     baseKind: 'structured',
     taxonomyVersionId: id,
     archiveDimension: '内容领域',
+    archivePathPolicy: DEFAULT_STRUCTURED_ARCHIVE_PATH_POLICY,
     modelResponseShape: 'structured-json',
     taxonomyParseMode: 'bullet-root',
     promptLibraryPath: fileName

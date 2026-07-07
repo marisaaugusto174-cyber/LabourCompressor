@@ -18,21 +18,23 @@ const projectTaxonomyRepositoryDir = path.join(projectRoot, 'config/repositories
 
 test('lists built-in taxonomy presets', () => {
   const presets = listTaxonomyPresets();
+  const internalPresets = presets.filter((preset) => preset.source === 'internal');
+  const coreDramaPreset = presets.find((preset) => preset.id === 'core-v0.3-drama');
 
   assert.deepEqual(
-    presets.map((preset) => preset.id),
-    ['core-v0.1', 'full-v0.2', 'core-v0.3-drama']
+    internalPresets.map((preset) => preset.id),
+    ['core-v0.1', 'full-v0.2']
   );
-  assert.equal(presets[0]?.baseKind, 'structured');
-  assert.equal(presets[0]?.taxonomyVersionId, 'Core_Prompt_V0.1');
-  assert.equal(presets[0]?.archiveDimension, '内容领域');
-  assert.equal(presets[0]?.modelResponseShape, 'structured-json');
-  assert.equal(presets[0]?.source, 'internal');
-  assert.equal(presets[1]?.source, 'internal');
-  assert.equal(presets[2]?.source, 'external');
-  assert.equal(presets[0]?.archivePathPolicy, undefined);
-  assert.equal(presets[1]?.archivePathPolicy, undefined);
-  assert.deepEqual(presets[2]?.archivePathPolicy, {
+  assert.equal(internalPresets[0]?.baseKind, 'structured');
+  assert.equal(internalPresets[0]?.taxonomyVersionId, 'Core_Prompt_V0.1');
+  assert.equal(internalPresets[0]?.archiveDimension, '内容领域');
+  assert.equal(internalPresets[0]?.modelResponseShape, 'structured-json');
+  assert.equal(internalPresets[0]?.source, 'internal');
+  assert.equal(internalPresets[1]?.source, 'internal');
+  assert.equal(internalPresets[0]?.archivePathPolicy, undefined);
+  assert.equal(internalPresets[1]?.archivePathPolicy, undefined);
+  assert.equal(coreDramaPreset?.source, 'external');
+  assert.deepEqual(coreDramaPreset?.archivePathPolicy, {
     dimension: '核心动作',
     primaryRole: '主动作',
     requiredCount: 1,
@@ -241,6 +243,12 @@ test('importExternalTaxonomyPreset copies a taxonomy file and writes a repositor
     assert.equal(preset.source, 'external');
     assert.equal(preset.baseKind, 'structured');
     assert.equal(preset.archiveDimension, '内容领域');
+    assert.deepEqual(preset.archivePathPolicy, {
+      dimension: '核心动作',
+      primaryRole: '主动作',
+      requiredCount: 1,
+      onInvalid: 'retry-once-then-review'
+    });
     assert.equal(preset.modelResponseShape, 'structured-json');
     assert.equal(preset.taxonomyParseMode, 'bullet-root');
     assert.equal(preset.filePath, path.join(repositoryDirectory, '客户标签库.md'));
